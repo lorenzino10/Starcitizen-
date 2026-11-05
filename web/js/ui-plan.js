@@ -88,6 +88,15 @@ export function initPlanner(app) {
     [c.x, c.y, c.z].forEach((v, i) => { $(xs[i]).value = String(v); });
   });
   pasteInto('p-paste', ['p-x', 'p-y', 'p-z'], 'p-unit');
+  // il nome del punto del database resta finche' non modifichi le coordinate a mano
+  for (const id of ['p-x', 'p-y', 'p-z', 'p-paste']) $(id).addEventListener('input', () => { delete $('p-x').dataset.name; });
+  document.querySelectorAll('input[name="p-unit"]').forEach((el) => el.addEventListener('change', () => { delete $('p-x').dataset.name; }));
+
+  // coordinate gia' scritte nel pianificatore -> nuova scheda nel DATABASE PUNTI (la nomini e la salvi tu)
+  $('p-to-db').onclick = () => {
+    const unit = radioVal('p-unit') === '1' ? 'm' : 'km';
+    app.openInDatabase({ system: app.system(), unit, x: $('p-x').value, y: $('p-y').value, z: $('p-z').value, source: 'pianificatore' });
+  };
   pasteInto('p-spaste', ['p-sx', 'p-sy', 'p-sz'], 'p-sunit');
 
   // ------------------------------------------------------------ elenchi
@@ -118,7 +127,7 @@ export function initPlanner(app) {
       target = { system, pos: p.pos, name: p.name, unit: 1 };
     } else {
       const k = +radioVal('p-unit');
-      target = { system, pos: vec(parseNum($('p-x').value) * k, parseNum($('p-y').value) * k, parseNum($('p-z').value) * k), name: 'P', unit: k };
+      target = { system, pos: vec(parseNum($('p-x').value) * k, parseNum($('p-y').value) * k, parseNum($('p-z').value) * k), name: $('p-x').dataset.name || 'P', unit: k };
     }
     let start = null;
     const src = radioVal('p-start-src');
@@ -211,7 +220,7 @@ export function initPlanner(app) {
     const evid = [...new Set(steps.filter((s) => s.evidence).map((s) => `${ICON[s.status]} ${s.status} – ${EVIDENCE[s.evidence]}`))];
     return `<div class="navbox ${p.blocked ? 'bad' : p.status === STATUS.THEORETICAL ? 'warn' : ''}">
       <h3>DESTINAZIONE</h3>
-      Sistema: <b>${esc(SYSTEM_NAMES[target.system] ?? target.system)}</b><br>Coordinate XYZ: <b>${esc(xyzKm(target.pos))}</b>
+      ${target.name && target.name !== 'P' ? `Punto: <b>${esc(target.name)}</b><br>` : ''}Sistema: <b>${esc(SYSTEM_NAMES[target.system] ?? target.system)}</b><br>Coordinate XYZ: <b>${esc(xyzKm(target.pos))}</b>
       <h3>PERCORSO CONSIGLIATO · ${esc(p.strategy)}</h3>
       Partenza: <b>${esc(p.departure?.name ?? '—')}</b>${inputs.start ? '' : ' <span class="hint">(scelta da NAVCOM: nessuna partenza indicata)</span>'}
       <ol>${route}</ol>
@@ -228,7 +237,7 @@ export function initPlanner(app) {
       Limitazioni:<ul class="notes">${notes.map((t) => `<li>${esc(t)}</li>`).join('')}
         <li>Distanze geometriche dai dati ${esc(store.locationMeta(target.system)?.gameVersion ?? '')}: il raggio di ostruzione reale e la distanza di arrivo dei marker non sono pubblicati.</li></ul>
       <h3>ISTRUZIONI PER IL PILOTA</h3>
-      <ol class="pilot">${pilotInstructions(p).reduce((acc, l) => { if (l.startsWith('   ') && acc.length) acc[acc.length - 1] += `<br><span class="hint">${esc(l.trim())}</span>`; else acc.push(esc(l)); return acc; }, []).map((h) => `<li>${h}</li>`).join('')}</ol>
+      <ol class="pilot">${pilotInstructions(p, { targetName: target.name }).reduce((acc, l) => { if (l.startsWith('   ') && acc.length) acc[acc.length - 1] += `<br><span class="hint">${esc(l.trim())}</span>`; else acc.push(esc(l)); return acc; }, []).map((h) => `<li>${h}</li>`).join('')}</ol>
     </div>`;
   }
 
@@ -398,5 +407,23 @@ export function initPlanner(app) {
       <br><span class="hint">Spostamento fra le letture: ${fmtKm(c.traveled)}. Il verso della correzione (su/giù/destra/sinistra) dipende dall'orientamento della nave, che NAVCOM non conosce: correggi, rileggi, ripeti finché l'angolo scende.</span></div>`;
   };
 
-  return { refresh, recompute };
+  /**
+   * CALCOLA ROTTA dal DATABASE PUNTI: sistema e XYZ letti dalla scheda, trasferiti nel modulo
+   * del pianificatore e calcolati con il motore esistente (nessuna copia manuale).
+   */
+  async function planToPoint(pt) {
+    if (app.system() !== pt.system) await app.switchSystem(pt.system);
+    document.querySelector('input[name="p-src"][value="xyz"]').checked = true;
+    document.querySelectorAll('[data-psrc]').forEach((d) => { d.hidden = d.dataset.psrc !== 'xyz'; });
+    document.querySelector(`input[name="p-unit"][value="${pt.unit === 'm' ? 1 : 1000}"]`).checked = true;
+    $('p-x').value = String(pt.x); $('p-y').value = String(pt.y); $('p-z').value = String(pt.z);
+    $('p-paste').value = '';
+    $('p-x').dataset.name = pt.name;
+    app.showTab('plan');
+    let inputs;
+    try { inputs = readInputs(); } catch (e) { $('p-out').innerHTML = `<p class="err">${esc(e.message)}</p>`; return; }
+    await compute(inputs);
+  }
+
+  return { refresh, recompute, planToPoint };
 }

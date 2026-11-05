@@ -6,16 +6,22 @@ import { obstructionModel } from './data/bodies.js';
 import { reverseSearch, targetWarnings } from './core/reverse.js';
 
 export const locKey = (row) => `citizenhq:${row.uuid}`;
-export const cpKey = (cp) => `cp:${cp.name}`;
+export const cpKey = (cp) => `cp:${cp.id}`;
 
-/** Punti del sistema: posizioni importate + punti personali (mai QT). */
+// Punti personali dal DATABASE PUNTI (IndexedDB): elenco in memoria aggiornato da ui-points.js.
+// Solo le schede con coordinate complete diventano punti di navigazione.
+let personal = [];
+export function setPersonalPoints(list) { personal = list; }
+
+/** Punti del sistema: posizioni importate + punti personali completi (mai QT). */
 export function navPoints(store, system) {
   const pts = new Map();
   for (const r of store.locations(system)) {
     pts.set(locKey(r), { key: locKey(r), name: r.name, type: r.type, pos: vec(r.x, r.y, r.z), qtValid: r.qtValid });
   }
-  for (const c of store.customPoints(system)) {
-    pts.set(cpKey(c), { key: cpKey(c), name: `★ ${c.name}`, type: 'Personale', pos: vec(c.x, c.y, c.z), qtValid: false });
+  for (const c of personal) {
+    if (c.system !== system || !c.pos) continue;
+    pts.set(cpKey(c), { key: cpKey(c), name: `★ ${c.name}`, type: 'Personale', pos: c.pos, qtValid: false, dbId: c.id });
   }
   return pts;
 }

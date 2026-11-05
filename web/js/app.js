@@ -13,9 +13,10 @@ import { completePath } from './core/reverse.js';
 import { CYAN, AMBER, GREEN, RED, systemPlot } from './plot.js';
 import { ensurePlotly } from './plotly-loader.js';
 import { initPlanner, navOptions } from './ui-plan.js';
+import { initPointsDb } from './ui-points.js';
 
-const VERSION = '0.4.0-web';
-const CACHE_NAME = 'navcom-v0.4.0'; // deve coincidere con CACHE in sw.js
+const VERSION = '0.5.0-web';
+const CACHE_NAME = 'navcom-v0.5.0'; // deve coincidere con CACHE in sw.js
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const ICON = { [STATUS.VERIFIED]: '🟢', [STATUS.DATA]: '🔵', [STATUS.THEORETICAL]: '🟠' };
@@ -34,6 +35,7 @@ let lastRoute = null;
 let lastHalo = null;
 let lastReverse = null;
 let planner = null;
+let pointsUi = null;
 
 // ---------------------------------------------------------------- utilita'
 function parseNum(s) {
@@ -409,16 +411,6 @@ function renderHalo() {
 
 // ---------------------------------------------------------------- PUNTI / ROTTE
 function renderPoints() {
-  const cps = store.customPoints(system);
-  $('cp-list').innerHTML = cps.length ? '' : '<p class="hint">Nessun punto.</p>';
-  for (const p of cps) {
-    const d = document.createElement('div');
-    d.className = 'card';
-    d.innerHTML = `<b>★ ${esc(p.name)}</b><pre>X ${p.x.toFixed(3)} m\nY ${p.y.toFixed(3)} m\nZ ${p.z.toFixed(3)} m${p.notes ? `\n${esc(p.notes)}` : ''}</pre>`;
-    const del = Object.assign(document.createElement('button'), { className: 'small danger', textContent: 'Elimina' });
-    del.onclick = () => { store.deleteCustomPoint(p.id); refreshPoints(); };
-    d.append(del); $('cp-list').append(d);
-  }
   const sms = store.starmapReadings(system);
   $('sm-list').innerHTML = sms.length ? '' : '<p class="hint">Nessuna lettura.</p>';
   for (const s of sms) {
@@ -535,15 +527,7 @@ function bind() {
   $('h-band').oninput = bandInfo;
   document.querySelectorAll('input[name="h-which"]').forEach((el) => el.addEventListener('change', () => { $('h-dest').hidden = radioVal('h-which') !== 'pick'; }));
   $('h-go').onclick = calcHalo;
-  $('cp-save').onclick = () => {
-    try {
-      const name = $('cp-name').value.trim();
-      if (!name) throw new Error('Inserisci un nome.');
-      const k = +radioVal('cp-unit');
-      store.addCustomPoint({ name, system, x: parseNum($('cp-x').value) * k, y: parseNum($('cp-y').value) * k, z: parseNum($('cp-z').value) * k, notes: $('cp-notes').value });
-      refreshPoints();
-    } catch (e) { alert(e.message); }
-  };
+  $('cp-go-db').onclick = () => showTab('db');
   $('sm-save').onclick = () => {
     const name = $('sm-name').value.trim();
     if (!name) return alert('Inserisci un nome per la lettura.');
@@ -617,6 +601,12 @@ async function main() {
   planner = initPlanner({
     $, esc, parseNum, radioVal, table, store, settings, saveSettings, fillSelect, renderSaved, showTab, switchSystem, VERSION,
     ensureSystemData, system: () => system, points: () => points,
+    openInDatabase: (draft) => pointsUi?.openDraft(draft),
+  });
+  pointsUi = await initPointsDb({
+    $, esc, store, showTab, switchSystem, VERSION, system: () => system,
+    planTo: (pt) => planner.planToPoint(pt),
+    onChange: () => refreshPoints(),
   });
   // cache offline (service worker) e precaricamento della libreria grafica locale
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});

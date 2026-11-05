@@ -33,6 +33,17 @@ modalità **operativa** usa solo tratte verificate o supportate; in modalità
 in gioco: [docs/COLLAUDO_IN_GIOCO.md](docs/COLLAUDO_IN_GIOCO.md). Novità:
 [CHANGELOG.md](CHANGELOG.md).
 
+**🗂 DATABASE PUNTI** (0.5.0): archivio personale delle tue destinazioni
+(nome, sistema, XYZ in km o m, categoria, risorsa, stato, note, date). I punti
+li inserisci tu, li importi da Excel (.xlsx, con anteprima, associazione delle
+colonne e controllo dei duplicati) o li salvi dal pianificatore: NAVCOM non
+genera coordinate. Ricerca, filtri, modifica, eliminazione singola o multipla,
+export Excel/JSON, backup e ripristino. **🛰 CALCOLA ROTTA** accanto a ogni
+punto lo passa al pianificatore e calcola subito salti, interruzioni e
+istruzioni. I dati restano in IndexedDB **solo in quel browser su quel
+dispositivo**: esporta il JSON come backup. Dettagli:
+[docs/DATABASE_PUNTI.md](docs/DATABASE_PUNTI.md).
+
 **⌖ RICERCA INVERSA QT**: inserisci un punto P qualsiasi
 (XYZ in m o km, nel frame del sistema selezionato). NAVCOM esamina tutte le
 coppie di marker QT del sistema, in entrambi i versi A→B e B→A, e le ordina per
@@ -60,9 +71,10 @@ nessuna installazione. Si apre da qualunque browser, anche dal telefono.
   pubblica insieme al sito. Dalla scheda DATI puoi anche aggiornarle in
   diretta dal browser (CitizenHQ dichiara CORS attivo) oppure importare un
   file JSON.
-- **Archivio personale** (punti, letture Starmap, rotte, tratte verificate):
-  resta salvato nel browser (localStorage). Usa **Esporta/Importa backup**
-  per spostarlo su un altro PC o browser.
+- **Archivio personale**: il DATABASE PUNTI è in IndexedDB (con backup JSON
+  ed export Excel propri); letture Starmap, rotte e tratte verificate restano
+  in localStorage. Usa **Esporta/Importa backup** per spostarli su un altro
+  PC o browser.
 - **Attivazione, una volta sola**: *Settings → Pages → Build and deployment →
   Source: GitHub Actions*. Su un repository **privato** GitHub Pages richiede
   un piano a pagamento (Pro); in alternativa il repository va reso pubblico.
@@ -75,7 +87,7 @@ nessuna installazione. Si apre da qualunque browser, anche dal telefono.
   NAVCOM e i grafici 2D/3D funzionano anche senza rete. Se il grafico non si
   carica, il messaggio distingue tre casi: file mancante sul sito (errore di
   pubblicazione), problema di connessione, file corrotto o bloccato.
-- **Test**: `node --test web/tests/*.test.mjs`.
+- **Test**: `npm ci --prefix web` (solo la prima volta: installa `fake-indexeddb`, usata solo dai test) e poi `npm test --prefix web`.
 
 ## Avvio su Windows 11 (versione desktop Python)
 
@@ -110,8 +122,10 @@ personale o coordinate XYZ in m o km), poi premi **CALCOLA ROTTA**. Ottieni:
 destinazioni QT la cui tratta attraversa la fascia entro la sua altezza e
 indica la distanza HUD all'ingresso, al picco di densità e all'uscita.
 
-**📍 PUNTI PERSONALI**: salva punti XYZ e archivia le letture della Starmap
-(in forma grezza, vedi sotto).
+**🗂 DATABASE PUNTI**: le tue destinazioni XYZ (vedi sopra).
+
+**📍 PUNTI PERSONALI**: archivia le letture della Starmap (in forma grezza,
+vedi sotto). I vecchi punti XYZ sono stati trasferiti nel DATABASE PUNTI.
 
 **🗄 DATI E FONTI**: posizioni in archivio, storico delle importazioni,
 provenienza e conflitti dei dati.

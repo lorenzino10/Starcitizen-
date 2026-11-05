@@ -20,6 +20,7 @@
 
 <nav class="tabs" role="tablist">
   <button role="tab" data-tab="plan" class="active">🛰 PIANIFICATORE</button>
+  <button role="tab" data-tab="db">🗂 DATABASE PUNTI</button>
   <button role="tab" data-tab="reverse">⌖ RICERCA INVERSA QT</button>
   <button role="tab" data-tab="route">🧭 ROTTA DA STAZIONE</button>
   <button role="tab" data-tab="halo">☄ AARON HALO</button>
@@ -47,6 +48,7 @@
         <label>oppure incolla /showlocation<input id="p-paste" placeholder="Coordinates: x:… y:… z:…"></label>
       </div>
       <div data-psrc="custom" hidden><select id="p-custom"></select></div>
+      <button id="p-to-db" class="small">💾 Salva queste coordinate nel DATABASE PUNTI</button>
       <h2>Partenza (facoltativa)</h2>
       <div class="radios">
         <label><input type="radio" name="p-start-src" value="none" checked> Nessuna: trova da dove partire</label>
@@ -84,6 +86,59 @@
       <div id="p-corr-out"></div>
     </div>
     <div class="panel wide" id="p-out"><p class="hint">Inserisci P e premi CALCOLA PIANO. NAVCOM risponde a: da dove partire, quali salti fare, quando interrompere, quanto resterai distante, quanto tempo serve.</p></div>
+  </div>
+</section>
+
+
+<!-- DATABASE PUNTI --------------------------------------------------------->
+<section id="tab-db" class="tab">
+  <div id="db-banner"></div>
+  <div class="cols">
+    <div class="panel form">
+      <h2 id="db-form-title">Nuovo punto</h2>
+      <input type="hidden" id="db-id">
+      <label>Nome del punto<input id="db-name"></label>
+      <label>Sistema stellare<select id="db-system"><option value="stanton">Stanton</option><option value="pyro">Pyro</option><option value="nyx">Nyx</option></select></label>
+      <div class="radios"><label><input type="radio" name="db-unit" value="km" checked> km</label><label><input type="radio" name="db-unit" value="m"> m</label></div>
+      <div class="xyz"><label>X<input id="db-x" inputmode="decimal"></label><label>Y<input id="db-y" inputmode="decimal"></label><label>Z<input id="db-z" inputmode="decimal"></label></div>
+      <label>oppure incolla /showlocation (metri)<input id="db-paste" placeholder="Coordinates: x:… y:… z:…"></label>
+      <p class="hint">Coordinate mancanti: la scheda viene salvata come incompleta e non può essere inviata al pianificatore.</p>
+      <label>Categoria<select id="db-category"></select></label>
+      <label>Materiale o risorsa cercata<input id="db-resource" list="db-resources"></label>
+      <datalist id="db-resources"></datalist>
+      <label>Stato<select id="db-status"></select></label>
+      <label>Data dell'ultima verifica<input type="date" id="db-verified"></label>
+      <label>Note personali<textarea id="db-notes" rows="3"></textarea></label>
+      <div class="row"><button id="db-save" class="primary">💾 Salva punto</button><button id="db-cancel" hidden>Annulla modifica</button></div>
+      <p id="db-form-msg"></p>
+      <h2>Importa da Excel</h2>
+      <label class="filebtn">📥 Scegli un file .xlsx<input type="file" id="db-xlsx" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></label>
+      <p class="hint">Anteprima, associazione delle colonne e controllo dei duplicati prima di salvare. I vecchi file .xls vanno salvati come .xlsx.</p>
+      <h2>Esporta, backup, ripristino</h2>
+      <div class="row"><button id="db-export-xlsx">⤓ Excel</button><button id="db-export-json">⤓ JSON (backup)</button></div>
+      <label class="filebtn">⤒ Ripristina da backup JSON<input type="file" id="db-restore" accept=".json,application/json"></label>
+      <div class="radios"><label><input type="radio" name="db-restore-mode" value="merge" checked> Unisci (stesso ID = aggiorna)</label><label><input type="radio" name="db-restore-mode" value="replace"> Sostituisci tutto</label></div>
+      <p class="hint" id="db-storage-note"></p>
+    </div>
+    <div class="panel wide">
+      <div id="db-wizard"></div>
+      <h2>Punti salvati</h2>
+      <div class="filters">
+        <input type="search" id="db-q" placeholder="cerca per nome…">
+        <select id="db-f-system"><option value="">tutti i sistemi</option><option value="stanton">Stanton</option><option value="pyro">Pyro</option><option value="nyx">Nyx</option></select>
+        <select id="db-f-category"><option value="">tutte le categorie</option></select>
+        <input id="db-f-resource" list="db-resources" placeholder="risorsa…">
+        <select id="db-f-status"><option value="">tutti gli stati</option></select>
+        <label class="check"><input type="checkbox" id="db-f-complete"> solo complete</label>
+      </div>
+      <div class="row tight">
+        <button id="db-dups" class="small">🔍 Trova duplicati</button>
+        <button id="db-del-sel" class="small danger">🗑 Elimina selezionati</button>
+        <span class="hint" id="db-count"></span>
+      </div>
+      <div id="db-dups-out"></div>
+      <div id="db-table"></div>
+    </div>
   </div>
 </section>
 
@@ -181,12 +236,9 @@
 <section id="tab-points" class="tab">
   <div class="cols even">
     <div class="panel form">
-      <h2>Nuovo punto XYZ</h2>
-      <label>Nome<input id="cp-name"></label>
-      <div class="radios"><label><input type="radio" name="cp-unit" value="1000" checked> km</label><label><input type="radio" name="cp-unit" value="1"> m</label></div>
-      <div class="xyz"><label>X<input id="cp-x" inputmode="decimal" value="0"></label><label>Y<input id="cp-y" inputmode="decimal" value="0"></label><label>Z<input id="cp-z" inputmode="decimal" value="0"></label></div>
-      <label>Note<textarea id="cp-notes" rows="2"></textarea></label>
-      <button id="cp-save">Salva punto</button>
+      <h2>Punti XYZ</h2>
+      <p class="hint">I punti personali con coordinate ora stanno nel DATABASE PUNTI (archivio permanente, import Excel, CALCOLA ROTTA). Quelli salvati in precedenza sono stati migrati automaticamente.</p>
+      <button id="cp-go-db">🗂 Apri il DATABASE PUNTI</button>
       <h2>Lettura dalla Starmap (solo archivio)</h2>
       <p class="hint">Scrivi i valori esattamente come li leggi nella Starmap, una riga per campo e con le unità. Vengono conservati grezzi: la conversione in XYZ si attiverà solo dopo aver verificato formato, unità, origine e sistema di riferimento.</p>
       <label>Nome lettura<input id="sm-name"></label>
@@ -194,7 +246,7 @@
       <label>Contesto<input id="sm-notes" placeholder="dove ti trovavi, cosa era selezionato"></label>
       <button id="sm-save">Archivia lettura</button>
     </div>
-    <div class="panel"><h2>Punti personali</h2><div id="cp-list"></div><h2>Letture Starmap</h2><div id="sm-list"></div></div>
+    <div class="panel"><h2>Letture Starmap</h2><div id="sm-list"></div></div>
   </div>
 </section>
 
