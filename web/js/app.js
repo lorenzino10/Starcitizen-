@@ -15,8 +15,8 @@ import { ensurePlotly } from './plotly-loader.js';
 import { initPlanner, navOptions } from './ui-plan.js';
 import { initPointsDb } from './ui-points.js';
 
-const VERSION = '0.5.3-web';
-const CACHE_NAME = 'navcom-v0.5.3'; // deve coincidere con CACHE in sw.js
+const VERSION = '0.5.4-web';
+const CACHE_NAME = 'navcom-v0.5.4'; // deve coincidere con CACHE in sw.js
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const ICON = { [STATUS.VERIFIED]: '🟢', [STATUS.DATA]: '🔵', [STATUS.THEORETICAL]: '🟠' };

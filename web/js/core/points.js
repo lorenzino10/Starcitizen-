@@ -25,6 +25,17 @@ export const FIELDS = [
   { key: 'group', label: 'Classificazione', aliases: ['classificazione', 'gruppo', 'group', 'classe'] },
   { key: 'priority', label: 'Priorità', aliases: ['priorita', 'priority'] },
   { key: 'sourceRef', label: 'Fonte dei dati', aliases: ['fonte dei dati', 'fonte dati', 'fonte geometria', 'fonte'] },
+  { key: 'method', label: 'Metodo di origine', aliases: ['metodo di origine', 'metodo'] },
+  { key: 'resourceSource', label: 'Fonte risorse', aliases: ['fonte risorse', 'fonte delle risorse'] },
+  // coordinate planetarie: conservate come scritte, MAI convertite in XYZ di sistema (il corpo ruota)
+  { key: 'body', label: 'Corpo celeste', aliases: ['corpo celeste', 'corpo', 'body', 'pianeta/luna', 'pianeta o luna'] },
+  { key: 'lat', label: 'Latitudine (°)', aliases: ['latitudine', 'latitudine (°)', 'latitudine (gradi)', 'lat', 'latitude'] },
+  { key: 'lon', label: 'Longitudine (°)', aliases: ['longitudine', 'longitudine (°)', 'longitudine (gradi)', 'lon', 'long', 'longitude'] },
+  { key: 'alt', label: 'Altitudine (m)', aliases: ['altitudine (m)', 'altitudine', 'alt', 'altitude'] },
+  { key: 'localX', label: 'X locale (km)', aliases: ['x locale (km)', 'x locale'] },
+  { key: 'localY', label: 'Y locale (km)', aliases: ['y locale (km)', 'y locale'] },
+  { key: 'localZ', label: 'Z locale (km)', aliases: ['z locale (km)', 'z locale'] },
+  { key: 'planetFrame', label: 'Sistema di riferimento planetario', aliases: ['sistema di riferimento planetario', 'sistema di riferimento', 'riferimento coordinate', 'riferimento planetario', 'frame'] },
   { key: 'status', label: 'Stato', aliases: ['stato', 'status'] },
   { key: 'notes', label: 'Note personali', aliases: ['note', 'notes', 'note personali', 'commento'] },
   { key: 'createdAt', label: 'Data di inserimento', aliases: ['data inserimento', 'data di inserimento', 'inserito', 'creato', 'created'] },
@@ -136,22 +147,54 @@ export function normalizePoint(input, { defaultUnit = null, defaultSystem = null
   if (!status) { if (!blank(input.status)) warnings.push(`stato "${input.status}" non previsto: impostato "Da verificare"`); status = 'Da verificare'; }
   let priority = parsePriority(input.priority);
   if (priority === null) { warnings.push(`priorità "${input.priority}" non prevista (Alta, Media, Bassa): lasciata vuota`); priority = ''; }
+  // coordinate planetarie (facoltative): solo controllo di formato e di intervallo, nessuna conversione
+  const planet = {};
+  for (const [k, label, min, max] of [['lat', 'latitudine', -90, 90], ['lon', 'longitudine', -180, 360], ['alt', 'altitudine', -Infinity, Infinity], ['localX', 'X locale', -Infinity, Infinity], ['localY', 'Y locale', -Infinity, Infinity], ['localZ', 'Z locale', -Infinity, Infinity]]) {
+    const r = parseNumber(input[k]);
+    if (r.error) warnings.push(`${label}: ${r.error} (campo lasciato vuoto)`);
+    else if (r.value !== null && (r.value < min || r.value > max)) { warnings.push(`${label} ${r.value} fuori intervallo (${min}…${max}): campo lasciato vuoto`); r.value = null; }
+    planet[k] = r.error ? null : r.value;
+  }
+  const hasPlanet = !blank(input.body) || planet.lat !== null || planet.lon !== null;
+  if (hasPlanet && !complete) warnings.push('coordinate planetarie conservate ma non convertite in XYZ di sistema: CALCOLA ROTTA non disponibile');
   const created = parseDate(input.createdAt), verified = parseDate(input.verifiedAt);
   if (created.error) warnings.push(`data di inserimento: ${created.error}`);
   if (verified.error) warnings.push(`data di verifica: ${verified.error}`);
-  if (errors.length) return { point: null, errors, warnings, complete };
+  // campi effettivamente presenti nell'input (servono per aggiornare un punto senza cancellare il resto)
+  const provided = Object.keys(input).filter((k) => !blank(input[k]) && k !== 'source');
+  if (errors.length) return { point: null, errors, warnings, complete, provided };
   return {
     point: {
       id: blank(input.id) ? newId() : String(input.id).trim(),
       name, system, x: coords.x, y: coords.y, z: coords.z, unit,
       category, resource: String(input.resource ?? '').trim(), status, notes: String(input.notes ?? '').trim(),
       group: String(input.group ?? '').trim(), priority, sourceRef: String(input.sourceRef ?? '').trim(),
+      method: String(input.method ?? '').trim(), resourceSource: String(input.resourceSource ?? '').trim(),
+      body: String(input.body ?? '').trim(), ...planet, planetFrame: String(input.planetFrame ?? '').trim(),
       createdAt: created.value ?? now, verifiedAt: verified.value ?? null, updatedAt: now,
       source: input.source ?? 'manuale',
       ...(input.legacyId ? { legacyId: input.legacyId } : {}),
     },
-    errors, warnings, complete,
+    errors, warnings, complete, provided,
   };
+}
+
+/** Ha coordinate planetarie (corpo e/o lat/lon) conservate? */
+export const hasPlanetary = (p) => Boolean(p.body) || (typeof p.lat === 'number' && typeof p.lon === 'number');
+
+/**
+ * Aggiornamento da import: sovrascrive SOLO i campi presenti (non vuoti) nella riga importata;
+ * tutto il resto del punto esistente resta com'era. X/Y/Z e unita' si aggiornano insieme.
+ */
+export function mergeUpdate(existing, incoming, provided = null) {
+  const keys = provided ? new Set(provided) : new Set(Object.keys(incoming).filter((k) => incoming[k] !== '' && incoming[k] !== null && incoming[k] !== undefined));
+  const out = { ...existing };
+  const coordKeys = ['x', 'y', 'z', 'unit'];
+  if (coordKeys.some((k) => keys.has(k) && k !== 'unit')) for (const k of coordKeys) out[k] = incoming[k];
+  const skip = new Set(['id', 'createdAt', 'source', 'updatedAt', ...coordKeys]);
+  for (const k of keys) if (!skip.has(k) && incoming[k] !== null && incoming[k] !== undefined && incoming[k] !== '') out[k] = incoming[k];
+  out.updatedAt = nowIso();
+  return out;
 }
 
 export const isComplete = (p) => [p.x, p.y, p.z].every((v) => typeof v === 'number' && Number.isFinite(v));
@@ -316,7 +359,7 @@ export function planImport(cands, existing, { onDuplicate = 'ignore', keepIncomp
     if (dup) {
       const inFile = fromFile.has(dup.point);
       if (onDuplicate === 'update' && !inFile) {
-        const after = { ...c.point, id: dup.point.id, createdAt: dup.point.createdAt, source: dup.point.source, updatedAt: nowIso() };
+        const after = mergeUpdate(dup.point, c.point, c.provided);
         update.push({ rowNo: c.rowNo, before: dup.point, after, reason: dup.reason });
         idx.remove(dup.point); idx.add(after); fromFile.add(after);
       } else skipped.push({ rowNo: c.rowNo, reason: `duplicato (${dup.reason}) di "${dup.point.name}"${inFile ? ' nello stesso file' : ''}` });
@@ -333,7 +376,9 @@ export function planImport(cands, existing, { onDuplicate = 'ignore', keepIncomp
 const EXPORT_COLS = [
   ['ID', 'id'], ['Nome', 'name'], ['Sistema', (p) => SYSTEMS[p.system] ?? p.system], ['X', 'x'], ['Y', 'y'], ['Z', 'z'], ['Unità', 'unit'],
   ['Categoria', 'category'], ['Classificazione', 'group'], ['Priorità', 'priority'], ['Risorsa', 'resource'], ['Stato', 'status'], ['Note', 'notes'],
-  ['Data inserimento', (p) => fmtDate(p.createdAt)], ['Data ultima verifica', (p) => fmtDate(p.verifiedAt)], ['Fonte dei dati', 'sourceRef'], ['Origine', 'source'],
+  ['Data inserimento', (p) => fmtDate(p.createdAt)], ['Data ultima verifica', (p) => fmtDate(p.verifiedAt)], ['Fonte dei dati', 'sourceRef'], ['Metodo di origine', 'method'], ['Fonte risorse', 'resourceSource'],
+  ['Corpo celeste', 'body'], ['Latitudine (°)', 'lat'], ['Longitudine (°)', 'lon'], ['Altitudine (m)', 'alt'],
+  ['X locale (km)', 'localX'], ['Y locale (km)', 'localY'], ['Z locale (km)', 'localZ'], ['Sistema di riferimento planetario', 'planetFrame'], ['Origine', 'source'],
 ];
 export function fmtDate(iso) {
   if (!iso) return '';

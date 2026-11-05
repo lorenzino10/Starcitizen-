@@ -1,5 +1,12 @@
 # Registro delle modifiche
 
+## 0.5.4-web (2026-11-05): correzione dei pulsanti dell'elenco e coordinate planetarie
+- **Correzione** (segnalata da Lorenzo): `reload()` ricostruiva la mappa `byId` dopo aver disegnato la tabella. Così CALCOLA ROTTA, Modifica ed Elimina restavano inerti subito dopo un import e alla riapertura del database, finché non si toccava un filtro. Ora la mappa si ricostruisce prima della tabella, e ogni pulsante cerca il punto al momento del clic.
+- **Coordinate planetarie**: si conservano corpo celeste, latitudine, longitudine, altitudine, X/Y/Z locali (km) e sistema di riferimento. Restano visibili in tabella, nel modulo, nell'export e nel backup. **Non vengono mai convertite** in XYZ di sistema: un punto che ha solo coordinate planetarie non ha CALCOLA ROTTA.
+- **Metadati**: si conservano anche "Metodo di origine" e "Fonte risorse".
+- **Import in modalità "aggiorna"**: cambia solo i campi presenti nel file e lascia invariati gli altri (classificazione, priorità, coordinate planetarie, note). Prima un file con meno colonne poteva cancellarli.
+- Motore di navigazione invariato.
+
 ## 0.5.3-web (2026-11-05)
 - DATABASE PUNTI vuoto: nell'area dell'elenco compaiono i pulsanti "Importa da Excel" e "Ripristina backup JSON", senza doverli cercare nella colonna di sinistra.
 

@@ -282,3 +282,49 @@ test('grandi volumi: 4000 punti, duplicati e import in tempi brevi, stessi risul
   const idx = new DupIndex([pts[20]]);
   assert.equal(idx.find({ ...pts[10], id: 'nuovo', name: 'altro' }).reason, 'coordinate');
 });
+
+// ------------------------------------------------------------ 0.5.4: coordinate planetarie, aggiornamento non distruttivo
+import { hasPlanetary, mergeUpdate } from '../js/core/points.js';
+
+test('coordinate planetarie: conservate, validate, MAI convertite in XYZ di sistema', async () => {
+  const header = ['ID', 'Nome', 'Sistema', 'X', 'Y', 'Z', 'Unità', 'Corpo celeste', 'Latitudine', 'Longitudine', 'Altitudine (m)', 'X locale (km)', 'Y locale (km)', 'Z locale (km)', 'Sistema di riferimento planetario', 'Metodo di origine', 'Fonte risorse'];
+  const rows = [
+    ['G1', 'Grotta su Daymar', 'Stanton', null, null, null, 'km', 'Daymar', '-12,5', 45.25, 120, 100.5, -200.25, 30, 'lat/lon del corpo (ruotante)', 'starmap.space', 'scanner'],
+    ['G2', 'Lat sbagliata', 'Stanton', null, null, null, 'km', 'Yela', 95, 10, null, null, null, null, null, null, null],
+    ['S1', 'Stazione', 'Stanton', 1, 2, 3, 'km', 'Hurston', null, null, null, null, null, null, null, null, null],
+  ];
+  const m = guessMapping(header);
+  for (const k of ['body', 'lat', 'lon', 'alt', 'localX', 'localY', 'localZ', 'planetFrame', 'method', 'resourceSource']) assert.ok(m[k] !== undefined, k);
+  const c = rowsToCandidates(rows, m);
+  const [g1, g2, s1] = planImport(c, []).insert;
+  assert.deepEqual([g1.body, g1.lat, g1.lon, g1.alt, g1.localX, g1.localY, g1.localZ, g1.planetFrame, g1.method, g1.resourceSource],
+    ['Daymar', -12.5, 45.25, 120, 100.5, -200.25, 30, 'lat/lon del corpo (ruotante)', 'starmap.space', 'scanner']);
+  assert.deepEqual([g1.x, g1.y, g1.z], [null, null, null], 'nessuna conversione in XYZ di sistema');
+  assert.equal(isComplete(g1), false); assert.equal(toMeters(g1), null); assert.ok(hasPlanetary(g1));
+  assert.match(c[0].warnings.join(), /non convertite in XYZ/);
+  assert.equal(g2.lat, null); assert.match(c[1].warnings.join(), /latitudine 95 fuori intervallo/);
+  assert.ok(isComplete(s1)); assert.equal(s1.body, 'Hurston');
+  // export -> reimport: tutto conservato
+  const { sheets } = await readXlsx(await writeXlsx(exportRows([g1, g2, s1])));
+  const [h2, ...r2] = sheets[0].rows;
+  const back = planImport(rowsToCandidates(r2, guessMapping(h2)), []).insert;
+  const keys = ['body', 'lat', 'lon', 'alt', 'localX', 'localY', 'localZ', 'planetFrame', 'method', 'resourceSource', 'x', 'y', 'z'];
+  assert.deepEqual(back.map((p) => keys.map((k) => p[k])), [g1, g2, s1].map((p) => keys.map((k) => p[k])));
+  assert.deepEqual(parseBackup(backupJson([g1])), [g1]);
+});
+
+test('import in modalità "aggiorna": cambia solo i campi presenti nel file, il resto resta', () => {
+  const existing = planImport(rowsToCandidates(
+    [['PI-1', 'Grotta', 'Stanton', null, null, null, 'km', 'Esplorazione', 'Grotte', 'Alta', 'Daymar', -1, 2]],
+    guessMapping(['ID', 'Nome', 'Sistema', 'X', 'Y', 'Z', 'Unità', 'Categoria', 'Classificazione', 'Priorità', 'Corpo celeste', 'Latitudine', 'Longitudine'])), []).insert;
+  // secondo file senza classificazione, priorità e lat/lon (come il foglio IMPORT NAVCOM)
+  const cands = rowsToCandidates([['PI-1', 'Grotta', 'Stanton', 'nuova nota', 'starmap.space']], guessMapping(['ID', 'Nome', 'Sistema', 'Note', 'Metodo di origine']));
+  const { update, insert } = planImport(cands, existing, { onDuplicate: 'update' });
+  assert.equal(insert.length, 0); assert.equal(update.length, 1);
+  const a = update[0].after;
+  assert.deepEqual([a.id, a.group, a.priority, a.category, a.body, a.lat, a.lon, a.notes, a.method, a.createdAt],
+    ['PI-1', 'Grotte', 'Alta', 'Esplorazione', 'Daymar', -1, 2, 'nuova nota', 'starmap.space', existing[0].createdAt]);
+  // coordinate: si aggiornano insieme all'unità solo se il file le contiene
+  const withXyz = mergeUpdate({ ...existing[0], x: 1, y: 2, z: 3, unit: 'km' }, { x: 5000, y: 6000, z: 7000, unit: 'm' }, ['x', 'y', 'z', 'unit']);
+  assert.deepEqual([withXyz.x, withXyz.y, withXyz.z, withXyz.unit, withXyz.group], [5000, 6000, 7000, 'm', 'Grotte']);
+});
