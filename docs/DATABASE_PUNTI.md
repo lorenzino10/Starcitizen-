@@ -54,7 +54,7 @@ Due punti sono duplicati se sono nello **stesso sistema** e:
 - le coordinate distano al massimo **1 m** (dopo la conversione in metri), oppure
 - hanno lo **stesso nome** (senza differenze di maiuscole, spazi o accenti).
 
-In import: "ignora" mantiene i punti esistenti; "aggiorna" sovrascrive **solo i campi
+In import: "📥 Importa solo i nuovi" mantiene i punti esistenti; "♻ Importa e aggiorna i già presenti" sovrascrive **solo i campi
 presenti e non vuoti nel file**: gli altri (es. classificazione o coordinate planetarie
 assenti nel foglio) restano quelli già salvati. ID, data di inserimento e origine non cambiano.
 X, Y, Z e unità si aggiornano insieme. Un duplicato
