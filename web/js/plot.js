@@ -34,8 +34,9 @@ export function systemPlot(el, { points = [], bodies = [], segments = [], marks 
     const pts = Array.from({ length: 361 }, (_, i) => { const t = (i * Math.PI) / 180; return [(r / 1e9) * Math.cos(t), (r / 1e9) * Math.sin(t), 0]; });
     tr(pts, { mode: 'lines', name: label, hoverinfo: 'name', line: { color: AMBER, width: 1, dash: 'dot' } });
   }
-  for (const [a, b, label, color] of segments) {
-    tr([g(a), g(b)], { mode: 'lines', name: label, hoverinfo: 'name', line: { color, width: three ? 5 : 2 } });
+  for (const [a, b, label, color, opt = {}] of segments) {
+    tr([g(a), g(b)], { mode: 'lines', name: label, hoverinfo: 'name', showlegend: opt.legend ?? true,
+      opacity: opt.opacity ?? 1, line: { color, width: opt.width ?? (three ? 5 : 2) } });
   }
   for (const [pos, label, color, symbol, textpos = 'bottom center'] of marks) {
     tr([g(pos)], { mode: 'markers+text', name: label, text: [label], textposition: textpos, textfont: { color, size: 12 },
@@ -49,7 +50,8 @@ export function systemPlot(el, { points = [], bodies = [], segments = [], marks 
     legend: { bgcolor: 'rgba(5,9,15,0.7)', font: { size: 10 } },
   };
   if (three) {
-    layout.scene = { aspectmode: 'data', bgcolor: BG,
+    layout.scene = { aspectmode: 'manual', aspectratio: { x: 1, y: 1, z: 0.3 }, bgcolor: BG,
+      camera: { eye: { x: 0.9, y: -1.3, z: 0.9 } },
       xaxis: { title: { text: 'x (Gm)' }, backgroundcolor: BG, ...axis }, yaxis: { title: { text: 'y (Gm)' }, backgroundcolor: BG, ...axis },
       zaxis: { title: { text: 'z (Gm)' }, backgroundcolor: BG, ...axis } };
   } else {

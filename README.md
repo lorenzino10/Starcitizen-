@@ -10,6 +10,26 @@ comandi e non interagisce con l'anti-cheat. Le posizioni si inseriscono a mano.
 
 ## Versione web (GitHub Pages), consigliata
 
+App: <https://lorenzino10.github.io/Starcitizen-/>
+
+**⌖ RICERCA INVERSA QT** (funzione principale): inserisci un punto P qualsiasi
+(XYZ in m o km, nel frame del sistema selezionato). NAVCOM esamina tutte le
+coppie di marker QT del sistema, in entrambi i versi A→B e B→A, e le ordina per
+distanza minima fra il segmento e P. Per ogni rotta indica:
+- A e B;
+- la lunghezza della tratta;
+- la distanza da A al punto di interruzione;
+- la distanza da leggere sull'HUD verso B;
+- le XYZ del punto di interruzione;
+- il volo convenzionale residuo;
+- lo stato della rotta.
+
+La posizione attuale è facoltativa. Se la indichi, ottieni anche il
+percorso completo (posizione → A → interruzione → P), ordinato per distanza QT
+oppure per tempo, se inserisci le velocità. Ricevi un avviso se P è dentro un
+pianeta o fuori dalla regione coperta dai dati. Le tratte con un estremo al
+centro di un pianeta o sulla sua superficie (che ruota) restano "Teoriche".
+
 La cartella `web/` contiene NAVCOM come **app web statica**: lo stesso motore
 riscritto in JavaScript (stessi test, stessi risultati), nessun server e
 nessuna installazione. Si apre da qualunque browser, anche dal telefono.

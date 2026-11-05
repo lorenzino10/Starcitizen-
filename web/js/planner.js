@@ -3,6 +3,7 @@ import { BANDS, bandCrossings } from './core/halo.js';
 import { checkObstructions, classify, rankCandidates } from './core/qt.js';
 import { distance, vec } from './core/vector.js';
 import { obstructionModel } from './data/bodies.js';
+import { reverseSearch, targetWarnings } from './core/reverse.js';
 
 export const locKey = (row) => `citizenhq:${row.uuid}`;
 export const cpKey = (cp) => `cp:${cp.name}`;
@@ -51,4 +52,13 @@ export function haloOptions(store, start, bandNo, margin, destKey = null) {
     }
   }
   return out.sort((a, b) => b.crossing.window - a.crossing.window);
+}
+
+/** RICERCA INVERSA QT sul sistema corrente: nessuna partenza obbligatoria. */
+export function reverseFromStore(store, system, target, margin, { includeBlocked = false, limit = 200 } = {}) {
+  const all = [...navPoints(store, system).values()];
+  const model = obstructionModel(system, margin);
+  const res = reverseSearch(all.filter((p) => p.qtValid), target, model,
+    { verifiedPairs: store.verifiedPairs(system), includeBlocked, limit });
+  return { ...res, model, warnings: targetWarnings(target, all, model), qtCount: all.filter((p) => p.qtValid).length };
 }
