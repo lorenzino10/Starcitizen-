@@ -113,6 +113,12 @@
       <label>Data dell'ultima verifica<input type="date" id="db-verified"></label>
       <label>Note personali<textarea id="db-notes" rows="3"></textarea></label>
       <label>Fonte dei dati<input id="db-sourceref" placeholder="da dove vengono le coordinate (sito, misura in gioco...)"></label>
+      <details id="db-planet-box"><summary>Coordinate planetarie (facoltative)</summary>
+        <p class="hint">Restano come le scrivi: NAVCOM <b>non</b> le converte in X/Y/Z di sistema, perché il corpo ruota. Un punto con sole coordinate planetarie non ha CALCOLA ROTTA: fai QT sul corpo, poi naviga con lat/lon.</p>
+        <label>Corpo celeste<input id="db-body" placeholder="es. Daymar, Pyro IV"></label>
+        <div class="row tight"><label>Latitudine (°)<input id="db-lat" inputmode="decimal"></label><label>Longitudine (°)<input id="db-lon" inputmode="decimal"></label><label>Altitudine (m)<input id="db-alt" inputmode="decimal"></label></div>
+        <label>Sistema di riferimento<input id="db-frame" placeholder="es. lat/lon del corpo, frame ruotante (OM)"></label>
+      </details>
       <div class="row"><button id="db-save" class="primary">💾 Salva punto</button><button id="db-cancel" hidden>Annulla modifica</button></div>
       <p id="db-form-msg"></p>
       <h2>Importa da Excel</h2>

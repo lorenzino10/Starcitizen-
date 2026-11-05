@@ -2,13 +2,20 @@
 // import Excel/JSON, coordinate gia' scritte nel pianificatore. NAVCOM non genera destinazioni.
 import {
   CATEGORIES, FIELDS, STATUSES, SYSTEMS, backupJson, exportRows, findDuplicates, filterPoints, fmtDate,
-  guessMapping, isComplete, normalizePoint, nowIso, parseBackup, planImport, plausibility, rowsToCandidates, toMeters,
+  guessMapping, hasPlanetary, isComplete, normalizePoint, nowIso, parseBackup, planImport, plausibility, rowsToCandidates, toMeters,
 } from './core/points.js';
 import { parseShowLocation } from './core/instructions.js';
 import { PointsDB, requestPersistence } from './data/pointsdb.js';
 import { readXlsx, writeXlsx } from './data/xlsx.js';
 import { setPersonalPoints } from './planner.js';
 
+const fmtDeg = (v) => (typeof v === 'number' ? v.toLocaleString('it-IT', { maximumFractionDigits: 4 }) : '—');
+function planetCell(p) {
+  if (!p.body && typeof p.lat !== 'number' && typeof p.lon !== 'number') return '';
+  const ll = typeof p.lat === 'number' || typeof p.lon === 'number' ? `${fmtDeg(p.lat)}°, ${fmtDeg(p.lon)}°${typeof p.alt === 'number' ? ` · ${fmtDeg(p.alt)} m` : ''}` : '';
+  const e = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  return `${e(p.body || '')}${p.body && ll ? '<br>' : ''}<span class="hint">${e(ll)}</span>`;
+}
 const fmtCoord = (v) => (v === null || v === undefined ? '—' : v.toLocaleString('it-IT', { maximumFractionDigits: 3 }));
 
 function download(name, data, type) {
@@ -23,7 +30,7 @@ export async function initPointsDb(app) {
   const { $, esc, store } = app;
   // Pagina e script di versioni diverse (cache del browser dopo un aggiornamento): meglio dirlo
   // subito che fallire in silenzio a meta' di un import.
-  const REQUIRED = ['db-table', 'db-wizard', 'db-xlsx', 'db-group', 'db-priority', 'db-sourceref', 'db-f-group', 'db-f-priority', 'db-count', 'db-form-msg'];
+  const REQUIRED = ['db-table', 'db-wizard', 'db-xlsx', 'db-group', 'db-priority', 'db-sourceref', 'db-body', 'db-lat', 'db-lon', 'db-alt', 'db-frame', 'db-planet-box', 'db-f-group', 'db-f-priority', 'db-count', 'db-form-msg'];
   const missing = REQUIRED.filter((id) => !$(id));
   if (missing.length) {
     const banner = $('db-banner') ?? $('db-table');
@@ -54,14 +61,15 @@ export async function initPointsDb(app) {
     points = await db.all();
     const ids = new Set(points.map((p) => p.id));
     selected = new Set([...selected].filter((id) => ids.has(id)));
-    setPersonalPoints(points.map((p) => ({ id: p.id, name: p.name, system: p.system, pos: toMeters(p) })));
-    renderTable();
+    // byId va ricostruita PRIMA di renderTable: i pulsanti di ogni riga la usano per trovare il punto
     byId = new Map(points.map((p) => [p.id, p]));
+    setPersonalPoints(points.map((p) => ({ id: p.id, name: p.name, system: p.system, pos: toMeters(p) })));
     $('db-resources').innerHTML = [...new Set(points.map((p) => p.resource).filter(Boolean))].sort().map((r) => `<option value="${esc(r)}">`).join('');
     const groups = [...new Set(points.map((p) => p.group).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'it'));
     $('db-groups').innerHTML = groups.map((g) => `<option value="${esc(g)}">`).join('');
     const gSel = $('db-f-group'), gCur = gSel.value;
     gSel.innerHTML = `<option value="">tutte le classificazioni</option>${groups.map((g) => `<option ${g === gCur ? 'selected' : ''}>${esc(g)}</option>`).join('')}`;
+    renderTable(); // per ultima: elenco, filtri e mappa byId sono gia' aggiornati
   }
   db.onChange(async () => { await reload(); app.onChange?.(); });
 
@@ -89,6 +97,10 @@ export async function initPointsDb(app) {
     $('db-group').value = p?.group ?? '';
     $('db-priority').value = p?.priority ?? '';
     $('db-sourceref').value = p?.sourceRef ?? '';
+    $('db-body').value = p?.body ?? '';
+    for (const k of ['lat', 'lon', 'alt']) $(`db-${k}`).value = p?.[k] ?? '';
+    $('db-frame').value = p?.planetFrame ?? '';
+    $('db-planet-box').open = Boolean(p && hasPlanetary(p));
     $('db-paste').value = '';
     $('db-form-title').textContent = p?.id ? `Modifica: ${p.name}` : 'Nuovo punto';
     $('db-cancel').hidden = !p?.id;
@@ -111,6 +123,9 @@ export async function initPointsDb(app) {
       x: $('db-x').value, y: $('db-y').value, z: $('db-z').value, category: $('db-category').value, resource: $('db-resource').value,
       status: $('db-status').value, notes: $('db-notes').value, verifiedAt: $('db-verified').value || null,
       group: $('db-group').value, priority: $('db-priority').value, sourceRef: $('db-sourceref').value,
+      body: $('db-body').value, lat: $('db-lat').value, lon: $('db-lon').value, alt: $('db-alt').value, planetFrame: $('db-frame').value,
+      // campi che il modulo non mostra: restano quelli del punto esistente
+      method: old?.method, resourceSource: old?.resourceSource, localX: old?.localX, localY: old?.localY, localZ: old?.localZ, legacyId: old?.legacyId,
       createdAt: old?.createdAt, source: old?.source ?? draftSource,
     });
     if (!r.point) { msg.innerHTML = `<span class="err">${esc(r.errors.join('; '))}</span>`; return; }
@@ -157,22 +172,29 @@ export async function initPointsDb(app) {
         <td><b>${esc(p.name)}</b>${p.notes ? `<br><span class="hint">${esc(p.notes.slice(0, 80))}${p.notes.length > 80 ? '…' : ''}</span>` : ''}</td>
         <td>${esc(SYSTEMS[p.system] ?? p.system)}</td>
         <td class="num">${fmtCoord(p.x)}</td><td class="num">${fmtCoord(p.y)}</td><td class="num">${fmtCoord(p.z)}</td><td>${esc(p.unit)}</td>
+        <td>${planetCell(p)}</td>
         <td>${esc(p.category)}</td><td>${esc(p.group ?? '')}</td><td>${esc(p.priority ?? '')}</td><td>${esc(p.resource)}</td><td>${esc(p.status)}</td>
         <td>${esc(fmtDate(p.createdAt).slice(0, 10))}</td><td>${esc(fmtDate(p.verifiedAt).slice(0, 10))}</td>
-        <td class="actions"><button class="small primary db-route" ${ok ? '' : 'disabled title="Scheda incompleta: servono X, Y e Z"'}>🛰 CALCOLA ROTTA</button>
+        <td class="actions"><button class="small primary db-route" ${ok ? '' : `disabled title="${hasPlanetary(p) ? 'Solo coordinate planetarie (non convertite): QT sul corpo, poi lat/lon' : 'Scheda incompleta: servono X, Y e Z'}"`}>🛰 CALCOLA ROTTA</button>
           <button class="small db-edit">Modifica</button><button class="small danger db-del">Elimina</button></td></tr>`;
     }).join('');
     $('db-table').innerHTML = `<div class="tablewrap tall"><table><thead><tr><th><input type="checkbox" id="db-sel-all" ${allSel ? 'checked' : ''} aria-label="seleziona tutti"></th>
-      <th>Nome</th><th>Sistema</th><th class="num">X</th><th class="num">Y</th><th class="num">Z</th><th>Unità</th><th>Categoria</th><th>Classificazione</th><th>Priorità</th><th>Risorsa</th><th>Stato</th><th>Inserito</th><th>Verificato</th><th></th></tr></thead>
-      <tbody>${rows || '<tr><td colspan="15" class="hint">Nessun punto con questi filtri.</td></tr>'}</tbody></table></div>
+      <th>Nome</th><th>Sistema</th><th class="num">X</th><th class="num">Y</th><th class="num">Z</th><th>Unità</th><th>Corpo · lat/lon</th><th>Categoria</th><th>Classificazione</th><th>Priorità</th><th>Risorsa</th><th>Stato</th><th>Inserito</th><th>Verificato</th><th></th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="16" class="hint">Nessun punto con questi filtri.</td></tr>'}</tbody></table></div>
       ${list.length > shown.length ? `<p class="hint">Mostrati i primi ${shown.length} di ${list.length}: usa ricerca e filtri per restringere. "Seleziona tutti" vale per tutti i ${list.length} punti filtrati.</p>` : ''}`;
     $('db-sel-all').onchange = (e) => { for (const p of list) e.target.checked ? selected.add(p.id) : selected.delete(p.id); renderTable(); };
     $('db-table').querySelectorAll('tbody tr[data-id]').forEach((tr) => {
-      const p = byId.get(tr.dataset.id);
-      tr.querySelector('.db-sel').onchange = (e) => { e.target.checked ? selected.add(p.id) : selected.delete(p.id); renderTable(); };
-      tr.querySelector('.db-route').onclick = () => app.planTo(p);
-      tr.querySelector('.db-edit').onclick = () => { fillForm(p); $('db-form-msg').innerHTML = ''; $('db-name').focus(); $('db-name').scrollIntoView({ block: 'center' }); };
-      tr.querySelector('.db-del').onclick = async () => { if (confirm(`Eliminare definitivamente "${p.name}"?`)) { await db.delete(p.id); selected.delete(p.id); } };
+      const id = tr.dataset.id;
+      // il punto si cerca al momento del clic: sempre la versione corrente dell'archivio
+      const withPoint = (fn) => (e) => {
+        const p = byId.get(id);
+        if (!p) { $('db-form-msg').innerHTML = '<span class="err">Punto non trovato: l\'elenco viene ricaricato.</span>'; reload(); return; }
+        return fn(p, e);
+      };
+      tr.querySelector('.db-sel').onchange = (e) => { e.target.checked ? selected.add(id) : selected.delete(id); renderTable(); };
+      tr.querySelector('.db-route').onclick = withPoint((p) => app.planTo(p));
+      tr.querySelector('.db-edit').onclick = withPoint((p) => { fillForm(p); $('db-form-msg').innerHTML = ''; $('db-name').focus(); $('db-name').scrollIntoView({ block: 'center' }); });
+      tr.querySelector('.db-del').onclick = withPoint(async (p) => { if (confirm(`Eliminare definitivamente "${p.name}"?`)) { await db.delete(p.id); selected.delete(p.id); } });
     });
   }
 

@@ -20,6 +20,8 @@ partendo dalle XYZ che hai digitato tu.
 | Classificazione | testo libero (es. Grotte, Relitti, Mining - prospezione), filtrabile; dalla 0.5.1 |
 | Priorità | Alta, Media, Bassa o non assegnata; dalla 0.5.1 |
 | Fonte dei dati | da dove vengono le coordinate (sito, dataset, misura in gioco); dalla 0.5.1 |
+| Metodo di origine, Fonte risorse | metadati di provenienza; dalla 0.5.4 |
+| Corpo celeste, Latitudine, Longitudine, Altitudine (m), X/Y/Z locali (km), Sistema di riferimento planetario | coordinate sul corpo; **conservate come scritte, mai convertite** in XYZ di sistema (il corpo ruota); dalla 0.5.4 |
 | Note | testo libero |
 | Data di inserimento | automatica; si conserva negli aggiornamenti |
 | Data ultima verifica | manuale; impostata a oggi se scegli "Verificato" senza data |
@@ -52,8 +54,10 @@ Due punti sono duplicati se sono nello **stesso sistema** e:
 - le coordinate distano al massimo **1 m** (dopo la conversione in metri), oppure
 - hanno lo **stesso nome** (senza differenze di maiuscole, spazi o accenti).
 
-In import: "ignora" mantiene i punti esistenti; "aggiorna" sovrascrive i campi
-dell'esistente mantenendo ID, data di inserimento e fonte. Un duplicato
+In import: "ignora" mantiene i punti esistenti; "aggiorna" sovrascrive **solo i campi
+presenti e non vuoti nel file**: gli altri (es. classificazione o coordinate planetarie
+assenti nel foglio) restano quelli già salvati. ID, data di inserimento e origine non cambiano.
+X, Y, Z e unità si aggiornano insieme. Un duplicato
 all'interno dello stesso file viene sempre scartato (vince la prima riga).
 "Trova duplicati" raggruppa i doppioni già presenti e li fa selezionare per
 l'eliminazione: non elimina nulla da solo.
