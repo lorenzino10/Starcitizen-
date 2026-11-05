@@ -1,0 +1,18 @@
+[theme]
+base = "dark"
+primaryColor = "#3fd0ff"
+backgroundColor = "#05090f"
+secondaryBackgroundColor = "#0b1622"
+textColor = "#cfe8ff"
+font = "monospace"
+
+[server]
+headless = true
+address = "127.0.0.1"
+port = 8601
+
+[browser]
+gatherUsageStats = false
+
+[client]
+toolbarMode = "minimal"

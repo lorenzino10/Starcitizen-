@@ -1,0 +1,201 @@
+{
+ "_meta": {
+  "description": "Corpi celesti di Stanton (stella, pianeti, lune) con raggio, per il controllo ostacoli QT. Coordinate in metri, frame della griglia di sistema.",
+  "source": "starmap.space (dataset community), letto dalla copia in ByteCollectiveIO/sc-nav poi/containers.json, commit del 2026-11-03",
+  "license": "Dataset community: nessuna licenza esplicita; fatti numerici usati con attribuzione",
+  "game_version": "vari (vedi source_comment per ogni corpo)",
+  "extracted_at": "2026-11-05",
+  "known_conflicts": [
+   "Stanton Star: questa fonte la colloca a (0.136, 1.294, 2.923) Gm; CitizenHQ /positions la colloca a (0,0,0). Ostacolo stella marcato come incerto."
+  ]
+ },
+ "bodies": [
+  {
+   "name": "Stanton Star",
+   "internal_name": "Stanton",
+   "type": "Star",
+   "x": 136049870,
+   "y": 1294427400,
+   "z": 2923345368,
+   "body_radius_m": 696000000,
+   "om_radius_m": 0,
+   "source_comment": "Updated Alpha 3.17.4"
+  },
+  {
+   "name": "Daymar",
+   "internal_name": "Stanton2b",
+   "type": "Planet",
+   "x": -18930539540,
+   "y": -2610158765,
+   "z": 0,
+   "body_radius_m": 295000,
+   "om_radius_m": 432850,
+   "source_comment": "Updated Alpha 4.1"
+  },
+  {
+   "name": "Microtech",
+   "internal_name": "Stanton4",
+   "type": "Planet",
+   "x": 22462085252,
+   "y": 37185744964,
+   "z": 0,
+   "body_radius_m": 1000000,
+   "om_radius_m": 1439593,
+   "source_comment": "Updated Alpha 4.7"
+  },
+  {
+   "name": "Lyria",
+   "internal_name": "Stanton3a",
+   "type": "Planet",
+   "x": 18703607170,
+   "y": -22121650134,
+   "z": 0,
+   "body_radius_m": 223000,
+   "om_radius_m": 331030,
+   "source_comment": "Updated Alpha 4.1"
+  },
+  {
+   "name": "Wala",
+   "internal_name": "Stanton3b",
+   "type": "Planet",
+   "x": 18379649310,
+   "y": -22000466768,
+   "z": 0,
+   "body_radius_m": 283000,
+   "om_radius_m": 415880,
+   "source_comment": "Updated Alpha 4.1"
+  },
+  {
+   "name": "Arial",
+   "internal_name": "Stanton1a",
+   "type": "Planet",
+   "x": 12892673308,
+   "y": -31476128,
+   "z": 0,
+   "body_radius_m": 344500,
+   "om_radius_m": 502850,
+   "source_comment": "Updated Alpha 4.1"
+  },
+  {
+   "name": "Crusader",
+   "internal_name": "Stanton2",
+   "type": "Planet",
+   "x": -18962176000,
+   "y": -2664960000,
+   "z": 0,
+   "body_radius_m": 7450000,
+   "om_radius_m": 10673170,
+   "source_comment": "Updated Alpha 3.24.2"
+  },
+  {
+   "name": "Ita",
+   "internal_name": "Stanton1d",
+   "type": "Planet",
+   "x": 12830194716,
+   "y": 114913608,
+   "z": 0,
+   "body_radius_m": 325000,
+   "om_radius_m": 475280,
+   "source_comment": "Updated Alpha 4.1"
+  },
+  {
+   "name": "Calliope",
+   "internal_name": "Stanton4a",
+   "type": "Planet",
+   "x": 22398369308,
+   "y": 37168840679,
+   "z": 0,
+   "body_radius_m": 240000,
+   "om_radius_m": 355070,
+   "source_comment": "Updated Alpha 4.1"
+  },
+  {
+   "name": "Cellin",
+   "internal_name": "Stanton2a",
+   "type": "Planet",
+   "x": -18987611119,
+   "y": -2709009661,
+   "z": 0,
+   "body_radius_m": 260000,
+   "om_radius_m": 383350,
+   "source_comment": "Updated Alpha 4.1"
+  },
+  {
+   "name": "Euterpe",
+   "internal_name": "Stanton4c",
+   "type": "Planet",
+   "x": 22488109736,
+   "y": 37081123565,
+   "z": 0,
+   "body_radius_m": 213000,
+   "om_radius_m": 316880,
+   "source_comment": "Updated Alpha 4.1"
+  },
+  {
+   "name": "Clio",
+   "internal_name": "Stanton4b",
+   "type": "Planet",
+   "x": 22476728221,
+   "y": 37091020074,
+   "z": 0,
+   "body_radius_m": 337170,
+   "om_radius_m": 492490,
+   "source_comment": "Updated Alpha 4.1"
+  },
+  {
+   "name": "Hurston",
+   "internal_name": "Stanton1",
+   "type": "Planet",
+   "x": 12850457093,
+   "y": 0,
+   "z": 0,
+   "body_radius_m": 1000000,
+   "om_radius_m": 1436800,
+   "source_comment": "Updated Alpha 4.1"
+  },
+  {
+   "name": "ArcCorp",
+   "internal_name": "Stanton3",
+   "type": "Planet",
+   "x": 18587664740,
+   "y": -22151916920,
+   "z": 0,
+   "body_radius_m": 800000,
+   "om_radius_m": 1151452,
+   "source_comment": "Updated Alpha 4.1"
+  },
+  {
+   "name": "Aberdeen",
+   "internal_name": "Stanton1b",
+   "type": "Planet",
+   "x": 12905757636,
+   "y": 40955550,
+   "z": 0,
+   "body_radius_m": 274000,
+   "om_radius_m": 403150,
+   "source_comment": "Updated Alpha 4.1"
+  },
+  {
+   "name": "Magda",
+   "internal_name": "Stanton1c",
+   "type": "Planet",
+   "x": 12792686359,
+   "y": -74464581,
+   "z": 0,
+   "body_radius_m": 340830,
+   "om_radius_m": 497600,
+   "source_comment": "Updated Alpha 4.1"
+  },
+  {
+   "name": "Yela",
+   "internal_name": "Stanton2c",
+   "type": "Planet",
+   "x": -19022916799,
+   "y": -2613996152,
+   "z": 0,
+   "body_radius_m": 313000,
+   "om_radius_m": 458310,
+   "source_comment": "Updated Alpha 4.1"
+  }
+ ]
+}
