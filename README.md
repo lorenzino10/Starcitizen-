@@ -12,7 +12,28 @@ comandi e non interagisce con l'anti-cheat. Le posizioni si inseriscono a mano.
 
 App: <https://lorenzino10.github.io/Starcitizen-/>
 
-**⌖ RICERCA INVERSA QT** (funzione principale): inserisci un punto P qualsiasi
+**🛰 PIANIFICATORE** (funzione principale, Fasi 4–5): inserisci X, Y, Z
+arbitrarie nel sistema scelto (Stanton, Pyro o Nyx) e, se vuoi, la tua posizione,
+anche in un altro sistema. NAVCOM cerca la strategia migliore:
+- una interruzione;
+- un salto diretto;
+- un avvicinamento in due fasi.
+
+Può aggiungere salti di posizionamento (Dijkstra) e passare per i jump point. Puoi
+ordinare i risultati per residuo, per tempo o per raggiungibilità operativa. Per
+ogni interruzione indica:
+- il cambio di lettura HUD da attendere;
+- l'incertezza dovuta all'arrotondamento;
+- l'incertezza dovuta al tempo di reazione.
+
+Produce anche una scheda operativa con le istruzioni per il pilota. In
+modalità **operativa** usa solo tratte verificate o supportate; in modalità
+**geometrica** esplora tutto. Modello, fonti e limiti:
+[docs/NAVIGAZIONE_OPERATIVA.md](docs/NAVIGAZIONE_OPERATIVA.md). Prove da fare
+in gioco: [docs/COLLAUDO_IN_GIOCO.md](docs/COLLAUDO_IN_GIOCO.md). Novità:
+[CHANGELOG.md](CHANGELOG.md).
+
+**⌖ RICERCA INVERSA QT**: inserisci un punto P qualsiasi
 (XYZ in m o km, nel frame del sistema selezionato). NAVCOM esamina tutte le
 coppie di marker QT del sistema, in entrambi i versi A→B e B→A, e le ordina per
 distanza minima fra il segmento e P. Per ogni rotta indica:

@@ -19,7 +19,8 @@
 </header>
 
 <nav class="tabs" role="tablist">
-  <button role="tab" data-tab="reverse" class="active">⌖ RICERCA INVERSA QT</button>
+  <button role="tab" data-tab="plan" class="active">🛰 PIANIFICATORE</button>
+  <button role="tab" data-tab="reverse">⌖ RICERCA INVERSA QT</button>
   <button role="tab" data-tab="route">🧭 ROTTA DA STAZIONE</button>
   <button role="tab" data-tab="halo">☄ AARON HALO</button>
   <button role="tab" data-tab="points">📍 PUNTI PERSONALI</button>
@@ -30,8 +31,64 @@
 <main>
 <div id="banner"></div>
 
-<!-- ROTTA ------------------------------------------------------------------>
-<section id="tab-reverse" class="tab active">
+<!-- PIANIFICATORE --------------------------------------------------------->
+<section id="tab-plan" class="tab active">
+  <div class="cols">
+    <div class="panel form">
+      <h2>Destinazione P</h2>
+      <p class="hint">Sistema selezionato in alto. Coordinate XYZ nel frame del sistema (origine al centro), le stesse di /showlocation.</p>
+      <div class="radios">
+        <label><input type="radio" name="p-src" value="xyz" checked> Coordinate XYZ</label>
+        <label><input type="radio" name="p-src" value="custom"> Punto personale</label>
+      </div>
+      <div data-psrc="xyz">
+        <div class="radios"><label><input type="radio" name="p-unit" value="1000" checked> km</label><label><input type="radio" name="p-unit" value="1"> m</label></div>
+        <div class="xyz"><label>X<input id="p-x" inputmode="decimal" value="0"></label><label>Y<input id="p-y" inputmode="decimal" value="0"></label><label>Z<input id="p-z" inputmode="decimal" value="0"></label></div>
+        <label>oppure incolla /showlocation<input id="p-paste" placeholder="Coordinates: x:… y:… z:…"></label>
+      </div>
+      <div data-psrc="custom" hidden><select id="p-custom"></select></div>
+      <h2>Partenza (facoltativa)</h2>
+      <div class="radios">
+        <label><input type="radio" name="p-start-src" value="none" checked> Nessuna: trova da dove partire</label>
+        <label><input type="radio" name="p-start-src" value="point"> Punto noto</label>
+        <label><input type="radio" name="p-start-src" value="xyz"> Coordinate XYZ</label>
+      </div>
+      <div data-pstart="point" hidden>
+        <label>Sistema della partenza<select id="p-start-sys"><option value="stanton">Stanton</option><option value="pyro">Pyro</option><option value="nyx">Nyx</option></select></label>
+        <input type="search" id="p-start-filter" placeholder="filtra…"><select id="p-start"></select>
+      </div>
+      <div data-pstart="xyz" hidden>
+        <p class="hint">Nel sistema selezionato in alto.</p>
+        <div class="radios"><label><input type="radio" name="p-sunit" value="1000" checked> km</label><label><input type="radio" name="p-sunit" value="1"> m</label></div>
+        <div class="xyz"><label>X<input id="p-sx" inputmode="decimal" value="0"></label><label>Y<input id="p-sy" inputmode="decimal" value="0"></label><label>Z<input id="p-sz" inputmode="decimal" value="0"></label></div>
+        <label>oppure incolla /showlocation<input id="p-spaste" placeholder="Coordinates: x:… y:… z:…"></label>
+      </div>
+      <h2>Calcolo</h2>
+      <div class="radios">
+        <label><input type="radio" name="p-mode" value="operativa" checked> Operativa</label>
+        <label><input type="radio" name="p-mode" value="geometrica"> Geometrica</label>
+      </div>
+      <p class="hint" id="p-mode-hint"></p>
+      <label>Criterio di ottimizzazione
+        <select id="p-crit"><option value="residuo">Minima distanza residua</option><option value="tempo">Minimo tempo di viaggio</option><option value="operativo">Migliore raggiungibilità operativa</option></select></label>
+      <label class="check"><input type="checkbox" id="p-two" checked> Valuta anche l'avvicinamento in due fasi (nuovo salto dopo un'interruzione)</label>
+      <label class="check"><input type="checkbox" id="p-blocked"> Includi tratte bloccate (solo modalità geometrica)</label>
+      <label>Piani da mostrare<select id="p-limit"><option>10</option><option selected>25</option><option>50</option></select></label>
+      <button id="p-go" class="primary">🛰 CALCOLA PIANO</button>
+      <p class="hint">Nave, HUD, tempo di reazione e criteri: DATI E IMPOSTAZIONI → Parametri di navigazione.</p>
+      <h2>Correzione in volo</h2>
+      <p class="hint">Vola dritto, leggi /showlocation due volte a qualche secondo di distanza e incolla qui: NAVCOM calcola di quanto la rotta devia da P e a che distanza passerai.</p>
+      <label>Lettura 1<input id="p-c1" placeholder="Coordinates: x:… y:… z:…"></label>
+      <label>Lettura 2<input id="p-c2" placeholder="Coordinates: x:… y:… z:…"></label>
+      <button id="p-corr">Calcola correzione</button>
+      <div id="p-corr-out"></div>
+    </div>
+    <div class="panel wide" id="p-out"><p class="hint">Inserisci P e premi CALCOLA PIANO. NAVCOM risponde a: da dove partire, quali salti fare, quando interrompere, quanto resterai distante, quanto tempo serve.</p></div>
+  </div>
+</section>
+
+<!-- RICERCA INVERSA -------------------------------------------------------->
+<section id="tab-reverse" class="tab">
   <div class="cols">
     <div class="panel form">
       <h2>Punto desiderato P</h2>
@@ -159,10 +216,47 @@
       <h2>Impostazioni di calcolo</h2>
       <label>Margine ostacoli (× raggio corpo) <b id="s-margin-val"></b><input type="range" id="s-margin" min="1" max="2" step="0.05"></label>
       <p class="hint">Stima: il raggio di ostruzione reale del gioco non è pubblicato.</p>
-      <label>Decimali mostrati dall'HUD<input type="number" id="s-hud" min="0" max="3"></label>
-      <p class="hint">Da confermare in gioco: servono solo a mostrare la lettura attesa.</p>
-      <label>Velocità QT di crociera (Mm/s, opzionale)<input type="number" id="s-speed" min="0" step="1"></label>
-      <p class="hint">Se indicata, stima la durata delle finestre. Accelerazione e decelerazione non sono modellate.</p>
+      <label>Raggio prudenziale della stella in Pyro e Nyx (Gm)<input type="number" id="s-star" min="0" step="0.05"></label>
+      <p class="hint">Ipotesi (valore della stella di Stanton): segnala solo un possibile ostacolo, non blocca mai.</p>
+      <h2>Parametri di navigazione</h2>
+      <p class="hint">Campi vuoti = dato non disponibile: NAVCOM scrive "non determinabile" invece di inventare un valore.</p>
+      <h3>Quantum drive (dalla scheda del tuo drive)</h3>
+      <div class="xyz">
+        <label>Vmax (Mm/s)<input type="number" id="s-speed" min="0" step="any"></label>
+        <label>Ve ingaggio (Mm/s)<input type="number" id="s-ve" min="0" step="any"></label>
+        <label>Prep. salto (s)<input type="number" id="s-prep" min="0" step="any"></label>
+      </div>
+      <div class="xyz">
+        <label>a1 (Mm/s²)<input type="number" id="s-a1" min="0" step="any"></label>
+        <label>a2 (Mm/s²)<input type="number" id="s-a2" min="0" step="any"></label>
+        <label>Min. salto (km)<input type="number" id="s-minjump" min="0" step="any"></label>
+      </div>
+      <p class="hint">Modello a due stadi di starcitizen.tools (Alpha 4.10). Senza Ve/a1/a2 l'accelerazione è istantanea e i tempi sono un limite inferiore. Preparazione = spool + calibrazione + allineamento.</p>
+      <h3>Volo convenzionale e pilota</h3>
+      <div class="xyz">
+        <label>Velocità (m/s)<input type="number" id="s-conv" min="0" step="any"></label>
+        <label>Accel. (m/s²)<input type="number" id="s-conva" min="0" step="any"></label>
+        <label>Jump point (s)<input type="number" id="s-jp" min="0" step="any"></label>
+      </div>
+      <div class="xyz">
+        <label>Reazione min (s)<input type="number" id="s-rmin" min="0" step="any" placeholder="es. 0,15"></label>
+        <label>Reazione max (s)<input type="number" id="s-rmax" min="0" step="any" placeholder="es. 0,40"></label>
+        <span></span>
+      </div>
+      <p class="hint">Il tempo di reazione include latenza e aggiornamento dell'HUD: misuralo con il protocollo in docs/COLLAUDO_IN_GIOCO.md.</p>
+      <h3>HUD della distanza QT</h3>
+      <div class="xyz">
+        <label>Decimali Gm<input type="number" id="s-hgm" min="0" max="3"></label>
+        <label>Decimali Mm<input type="number" id="s-hmm" min="0" max="3"></label>
+        <label>Decimali km<input type="number" id="s-hkm" min="0" max="3"></label>
+      </div>
+      <label>Regola di arrotondamento<select id="s-hround"><option value="unknown">sconosciuta (da collaudare)</option><option value="round">arrotondamento al più vicino</option><option value="floor">troncamento</option><option value="ceil">per eccesso</option></select></label>
+      <p class="hint">Gm con 1 decimale: documentato da terzi (SCMiner). Formati sotto 1 Gm e regola di arrotondamento: ipotesi da collaudare.</p>
+      <h3>Criteri</h3>
+      <label>Distanza finale accettabile (km, criterio operativo; vuoto = nessuna)<input type="number" id="s-maxfinal" min="0" step="any"></label>
+      <label>Salti da spazio profondo (dopo un'interruzione o da posizione libera)
+        <select id="s-deep"><option value="fonti">ammessi come "Supportati da fonti terze"</option><option value="verificato">ammessi: li ho verificati in gioco</option><option value="escluso">esclusi</option></select></label>
+      <label>Marker vicini a P per l'avvicinamento in due fasi<input type="number" id="s-knear" min="5" max="200" step="1"></label>
     </div>
     <div class="panel">
       <h2>Posizioni in archivio</h2>

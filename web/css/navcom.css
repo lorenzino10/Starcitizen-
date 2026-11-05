@@ -76,3 +76,12 @@ tbody tr.sel { background: #123049; }
 .card pre { margin: 6px 0; white-space: pre-wrap; color: var(--dim); }
 footer { padding: 14px 20px 24px; color: var(--dim); font-size: .75rem; border-top: 1px solid var(--line); line-height: 1.6; }
 footer a, .hint a { color: var(--cyan); }
+/* pianificatore */
+.navbox h3 { margin: 14px 0 4px; font-size: 13px; letter-spacing: .08em; color: var(--accent, #3fd0ff); }
+.navbox h3:first-child { margin-top: 0; }
+.navbox .sub { border-left: 2px solid #ffb347; padding: 4px 0 4px 10px; margin: 6px 0; }
+.navbox ul.notes { margin: 4px 0; padding-left: 18px; font-size: 12px; opacity: .85; }
+ol.pilot li { margin: 4px 0; }
+ol.pilot li.cont { list-style: none; margin-top: -2px; opacity: .8; font-size: 12px; }
+.panel h3 { font-size: 12px; letter-spacing: .06em; margin: 12px 0 4px; opacity: .85; }
+#p-legs .row { align-items: center; gap: 8px; flex-wrap: wrap; }

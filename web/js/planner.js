@@ -22,7 +22,7 @@ export function navPoints(store, system) {
 
 export function planToTarget(store, system, start, target, margin, includeBlocked = false) {
   const candidates = [...navPoints(store, system).values()].filter((p) => p.qtValid);
-  const model = obstructionModel(system, margin);
+  const model = obstructionModel(system, margin, store.locations(system));
   return { results: rankCandidates(start, target, candidates, model, store.verifiedPairs(system), includeBlocked), model };
 }
 
@@ -57,7 +57,7 @@ export function haloOptions(store, start, bandNo, margin, destKey = null) {
 /** RICERCA INVERSA QT sul sistema corrente: nessuna partenza obbligatoria. */
 export function reverseFromStore(store, system, target, margin, { includeBlocked = false, limit = 200 } = {}) {
   const all = [...navPoints(store, system).values()];
-  const model = obstructionModel(system, margin);
+  const model = obstructionModel(system, margin, store.locations(system));
   const res = reverseSearch(all.filter((p) => p.qtValid), target, model,
     { verifiedPairs: store.verifiedPairs(system), includeBlocked, limit });
   return { ...res, model, warnings: targetWarnings(target, all, model), qtCount: all.filter((p) => p.qtValid).length };

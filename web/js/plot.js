@@ -5,7 +5,7 @@ const BG = '#05090f', GRID = '#14304a', DIM = '#5b7a99';
 const g = (v) => [v.x / 1e9, v.y / 1e9, v.z / 1e9];
 
 /**
- * opts: {points, bodies, segments:[[a,b,label,color]], marks:[[pos,label,color,symbol]], rings:[[radius_m,label]], mode:'2D'|'3D'}
+ * opts: {points, bodies, segments:[[a,b,label,color,{legend,opacity,width,dash,group}]], marks:[[pos,label,color,symbol]], rings:[[radius_m,label]], mode:'2D'|'3D'}
  */
 export async function systemPlot(el, { points = [], bodies = [], segments = [], marks = [], rings = [], mode = '2D' }) {
   const lib = await ensurePlotly();
@@ -43,7 +43,7 @@ export async function systemPlot(el, { points = [], bodies = [], segments = [], 
   }
   for (const [a, b, label, color, opt = {}] of segments) {
     tr([g(a), g(b)], { mode: 'lines', name: label, hoverinfo: 'name', showlegend: opt.legend ?? true,
-      opacity: opt.opacity ?? 1, line: { color, width: opt.width ?? (three ? 5 : 2) } });
+      legendgroup: opt.group, opacity: opt.opacity ?? 1, line: { color, width: opt.width ?? (three ? 5 : 2), dash: opt.dash ?? 'solid' } });
   }
   for (const [pos, label, color, symbol, textpos = 'bottom center'] of marks) {
     tr([g(pos)], { mode: 'markers+text', name: label, text: [label], textposition: textpos, textfont: { color, size: 12 },
