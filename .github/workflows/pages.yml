@@ -36,7 +36,8 @@ jobs:
       - name: Prepara il sito
         run: |
           mkdir -p _site
-          cp -r web/index.html web/css web/js web/data _site/
+          cp -r web/index.html web/sw.js web/css web/js web/data web/vendor _site/
+          test -s _site/vendor/plotly-2.35.2.min.js
           touch _site/.nojekyll
       - uses: actions/upload-pages-artifact@v3
         with:

@@ -10,8 +10,10 @@ import { Store } from './data/store.js';
 import { haloOptions, navPoints, planToTarget, reverseFromStore } from './planner.js';
 import { completePath } from './core/reverse.js';
 import { CYAN, AMBER, GREEN, RED, systemPlot } from './plot.js';
+import { ensurePlotly } from './plotly-loader.js';
 
-const VERSION = '0.3.0-web';
+const VERSION = '0.3.1-web';
+const CACHE_NAME = 'navcom-v0.3.1'; // deve coincidere con CACHE in sw.js
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const ICON = { [STATUS.VERIFIED]: '🟢', [STATUS.DATA]: '🔵', [STATUS.THEORETICAL]: '🟠' };
@@ -570,11 +572,31 @@ function bind() {
   $('s-speed').value = settings.speed; $('s-speed').onchange = () => { settings.speed = Math.max(0, +$('s-speed').value || 0); saveSettings(); };
 }
 
+/**
+ * Alla prima visita i moduli e Plotly si caricano prima che il service worker sia attivo, quindi
+ * non passano dalla sua cache: li copiamo noi, cosi' il sito funziona offline gia' dalla seconda apertura.
+ */
+async function cacheLoadedFiles() {
+  try {
+    if (!('serviceWorker' in navigator) || !globalThis.caches) return;
+    await navigator.serviceWorker.ready;
+    const snapshots = new URL('data/', location.href).href; // le posizioni restano nel localStorage
+    const urls = performance.getEntriesByType('resource').map((e) => e.name)
+      .filter((u) => u.startsWith(location.origin) && !u.startsWith(snapshots));
+    const cache = await caches.open(CACHE_NAME);
+    const have = new Set((await cache.keys()).map((r) => r.url));
+    await Promise.all(urls.filter((u) => !have.has(u)).map((u) => cache.add(u).catch(() => {})));
+  } catch { /* la cache offline e' un di piu': mai bloccare l'app */ }
+}
+
 async function main() {
   $('version').textContent = `v${VERSION}`;
   $('footer').innerHTML = `${esc(ATTRIBUTION)} · Fasce Aaron Halo: ${esc(HALO_SOURCE)} · Corpi celesti: starmap.space.<br>
     Progetto personale non ufficiale, non affiliato a Cloud Imperium Games. Nessuna interazione con il client di gioco.`;
   bind(); bandInfo();
+  // cache offline (service worker) e precaricamento della libreria grafica locale
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+  ensurePlotly().then(cacheLoadedFiles);
   await ensureData();
   refreshPoints();
 }

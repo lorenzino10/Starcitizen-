@@ -1,4 +1,5 @@
-// Mappa del sistema con Plotly (caricato da CDN in index.html). Assi in Gm.
+// Mappa del sistema con Plotly (libreria locale in web/vendor, caricata da plotly-loader.js). Assi in Gm.
+import { ensurePlotly } from './plotly-loader.js';
 export const CYAN = '#3fd0ff', AMBER = '#ffb347', GREEN = '#5dff9d', RED = '#ff5f6d';
 const BG = '#05090f', GRID = '#14304a', DIM = '#5b7a99';
 const g = (v) => [v.x / 1e9, v.y / 1e9, v.z / 1e9];
@@ -6,8 +7,14 @@ const g = (v) => [v.x / 1e9, v.y / 1e9, v.z / 1e9];
 /**
  * opts: {points, bodies, segments:[[a,b,label,color]], marks:[[pos,label,color,symbol]], rings:[[radius_m,label]], mode:'2D'|'3D'}
  */
-export function systemPlot(el, { points = [], bodies = [], segments = [], marks = [], rings = [], mode = '2D' }) {
-  if (!globalThis.Plotly) { el.innerHTML = '<p class="hint">Grafico non disponibile (libreria Plotly non caricata: sei offline?).</p>'; return; }
+export async function systemPlot(el, { points = [], bodies = [], segments = [], marks = [], rings = [], mode = '2D' }) {
+  const lib = await ensurePlotly();
+  if (!lib.ok) {
+    el.innerHTML = `<p class="${lib.reason === 'network' ? 'warn' : 'err'}">Grafico non disponibile. ${lib.message}</p>`;
+    el.style.height = 'auto';
+    return;
+  }
+  el.style.height = '';
   const three = mode === '3D';
   const traces = [];
   const tr = (pts, extra) => {
@@ -58,5 +65,5 @@ export function systemPlot(el, { points = [], bodies = [], segments = [], marks 
     layout.xaxis = { title: { text: 'x (Gm)' }, ...axis };
     layout.yaxis = { title: { text: 'y (Gm)' }, scaleanchor: 'x', scaleratio: 1, ...axis };
   }
-  globalThis.Plotly.react(el, traces, layout, { responsive: true, displaylogo: false });
+  lib.Plotly.react(el, traces, layout, { responsive: true, displaylogo: false });
 }

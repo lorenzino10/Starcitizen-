@@ -48,6 +48,12 @@ nessuna installazione. Si apre da qualunque browser, anche dal telefono.
 - **In locale, senza pubblicare**: `cd web` e poi `python -m http.server 8000`, quindi
   apri <http://127.0.0.1:8000>. Da file:// non funziona, perché i moduli ES
   richiedono un server.
+- **Grafici offline**: la libreria Plotly 2.35.2 è inclusa nel repository
+  (`web/vendor/`, licenza MIT) e non si scarica da CDN esterne. Dopo la prima
+  apertura, un service worker (`web/sw.js`) tiene in cache sito e libreria, quindi
+  NAVCOM e i grafici 2D/3D funzionano anche senza rete. Se il grafico non si
+  carica, il messaggio distingue tre casi: file mancante sul sito (errore di
+  pubblicazione), problema di connessione, file corrotto o bloccato.
 - **Test**: `node --test web/tests/*.test.mjs`.
 
 ## Avvio su Windows 11 (versione desktop Python)
