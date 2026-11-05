@@ -1,0 +1,27 @@
+{
+  "_meta": {
+    "description": "Coordinate di input per il test Aaron Halo. Contiene SOLO dati di ingresso e valori pubblicati da terzi per il confronto: nessun risultato calcolato.",
+    "coordinates_source": "CitizenHQ GET /api/v1/positions?system=stanton, letto il 2026-11-05; versione dati scunpacked 4.10.2-LIVE.12881860 (da /health)",
+    "units": "metri, frame della griglia di Stanton (stella all'origine)",
+    "note": "I marker sono le stazioni (ARC-L1 Wide Forest Station, CRU-L4 Shallow Fields Station), cioe' le destinazioni QT selezionabili in gioco."
+  },
+  "points": {
+    "ARC-L1": {
+      "name": "ARC-L1 Wide Forest Station",
+      "uuid": "59485d8c-7947-4e00-871c-d35f6451aab8",
+      "xyz_m": [16729220034.957521, -19942048185.734924, 2239765.2149551306]
+    },
+    "CRU-L4": {
+      "name": "CRU-L4 Shallow Fields Station",
+      "xyz_m": [-7173768306.542123, -17750056492.47937, -2174784.168140132]
+    }
+  },
+  "published": {
+    "scminer_band5_gm": 14.3,
+    "scminer_source": "https://scminer.rocks/calculators/aaron-halo (letto 2026-11-05): 'Exit at 14.3 Gm', margin 345 Mm, flight 1m 10s, reaction window ~3.3s",
+    "cornerstone_band5_peak_km": 14292609,
+    "cornerstone_reverse_band5_peak_km": 9709155,
+    "cornerstone_route_km": 24001764,
+    "cornerstone_source": "CaptSheppard / Cornerstone, Aaron Halo Travel Routes (cstone.space), carte 3.19.1-LIVE, citate in ByteCollectiveIO/sc-nav docs/halo-finder.md"
+  }
+}
