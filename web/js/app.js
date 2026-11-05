@@ -1,7 +1,8 @@
 // STAR CITIZEN NAVCOM - interfaccia web. Nessun calcolo qui: usa planner.js e core/.
 import { BANDS, HALO_SOURCE } from './core/halo.js';
 import { STATUS } from './core/qt.js';
-import { fmtAuto, fmtKm, hudReading, hudResolution } from './core/units.js';
+import { fmtAuto, fmtKm } from './core/units.js';
+import { hudText as hudFmt, hudUnit } from './core/hud.js';
 import { pointAt } from './core/geometry.js';
 import { distance, toArray, vec } from './core/vector.js';
 import { ATTRIBUTION, fetchSystem, parsePositions } from './data/citizenhq.js';
@@ -11,9 +12,10 @@ import { haloOptions, navPoints, planToTarget, reverseFromStore } from './planne
 import { completePath } from './core/reverse.js';
 import { CYAN, AMBER, GREEN, RED, systemPlot } from './plot.js';
 import { ensurePlotly } from './plotly-loader.js';
+import { initPlanner, navOptions } from './ui-plan.js';
 
-const VERSION = '0.3.1-web';
-const CACHE_NAME = 'navcom-v0.3.1'; // deve coincidere con CACHE in sw.js
+const VERSION = '0.4.0-web';
+const CACHE_NAME = 'navcom-v0.4.0'; // deve coincidere con CACHE in sw.js
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const ICON = { [STATUS.VERIFIED]: '🟢', [STATUS.DATA]: '🔵', [STATUS.THEORETICAL]: '🟠' };
@@ -31,6 +33,7 @@ let points = new Map();
 let lastRoute = null;
 let lastHalo = null;
 let lastReverse = null;
+let planner = null;
 
 // ---------------------------------------------------------------- utilita'
 function parseNum(s) {
@@ -43,7 +46,7 @@ function parseNum(s) {
   return v;
 }
 const radioVal = (name) => document.querySelector(`input[name="${name}"]:checked`)?.value;
-const hudText = (m) => `${hudReading(m, settings.hud)} (un passo dell'ultima cifra = ${fmtAuto(hudResolution(m, settings.hud))})`;
+const hudText = (m) => { const h = navOptions(settings).hud; return `${hudFmt(m, h)} (un passo dell'ultima cifra = ${fmtAuto(hudUnit(m, h).step)}; formato da collaudare, vedi PIANIFICATORE)`; };
 function banner(html, cls = 'warn') { $('banner').innerHTML = html ? `<div class="${cls}">${html}</div>` : ''; }
 
 function fillSelect(sel, items, filter = '', keep = true) {
@@ -73,15 +76,18 @@ async function loadSnapshot(sys) {
   return store.replaceLocations(sys, snap.locations, snap.meta, 'snapshot del sito');
 }
 
-async function ensureData() {
-  if (store.locations(system).length) return;
+const snapshotTried = new Set(); // un solo tentativo automatico per sistema e sessione
+async function ensureSystemData(sys) {
+  if (store.locations(sys).length || snapshotTried.has(sys)) return;
+  snapshotTried.add(sys);
   try {
-    const n = await loadSnapshot(system);
+    const n = await loadSnapshot(sys);
     if (!n) throw new Error('snapshot vuoto');
   } catch (e) {
-    store.logImport({ system, origin: 'snapshot del sito', ok: false, stored: 0, errors: [e.message] });
+    store.logImport({ system: sys, origin: 'snapshot del sito', ok: false, stored: 0, errors: [e.message] });
   }
 }
+const ensureData = () => ensureSystemData(system);
 
 function refreshPoints() {
   points = navPoints(store, system);
@@ -106,6 +112,7 @@ function refreshPoints() {
   fillSelect($('h-start'), qt, $('h-start-filter').value);
   fillSelect($('h-dest'), qt);
   renderPoints(); renderSaved(); renderData();
+  planner?.refresh();
 }
 
 
@@ -433,10 +440,19 @@ function renderSaved() {
     let text = '';
     if (p.type === 'reverse') text = `Da <b>${esc(p.a.name)}</b> salta verso <b>${esc(p.b.name)}</b>, interrompi a <b>${fmtKm(p.hudRemaining_m)}</b> dall'arrivo, poi volo convenzionale per ${fmtKm(p.residual_m)} fino a ${esc(p.target.name)}. Stato: ${esc(p.status)}`;
     else if (p.type === 'qt') text = `Salta verso <b>${esc(p.qtDest.name)}</b>, interrompi a <b>${fmtKm(p.hudRemaining_m)}</b>, poi volo convenzionale per ${fmtKm(p.residual_m)}. Stato: ${esc(p.status)}`;
+    else if (p.type === 'plan') {
+      const r0 = p.result;
+      text = `${esc(r0.strategy)} da <b>${esc(r0.departure ?? '—')}</b>: ${r0.steps.filter((x) => x.kind !== 'conv').map((x) => esc(x.to)).join(' → ')}; residuo teorico ${fmtKm(r0.residual_m)}, massimo ${fmtKm(r0.residualWorst_m)}. Stato: ${esc(r0.status)}. Dati ${esc(p.data.gameVersion ?? 'n.d.')}, NAVCOM ${esc(p.navcomVersion)}.`;
+    }
     else if (p.type === 'aaron_halo') text = `Fascia ${p.band}: salta verso <b>${esc(p.qtDest)}</b> e interrompi fra ${fmtKm(p.enterHud_m)} e ${fmtKm(p.exitHud_m)}${p.peakHud_m ? ` (picco ${fmtKm(p.peakHud_m)})` : ''}`;
     const d = document.createElement('div');
     d.className = 'card';
     d.innerHTML = `<b>${esc(r.name)}</b> <span class="hint">${esc(r.createdAt)}</span><br>${text}<details><summary class="hint">dati completi</summary><pre>${esc(JSON.stringify(p, null, 1))}</pre></details>`;
+    if (p.type === 'plan') {
+      const re = Object.assign(document.createElement('button'), { className: 'small', textContent: '↻ Ricalcola con i dati attuali' });
+      re.onclick = () => planner.recompute(r);
+      d.append(re);
+    }
     const del = Object.assign(document.createElement('button'), { className: 'small danger', textContent: 'Elimina' });
     del.onclick = () => { store.deleteRoute(r.id); renderSaved(); };
     d.append(del); el.append(d);
@@ -490,17 +506,9 @@ function readFile(input, cb) {
 
 // ---------------------------------------------------------------- avvio
 function bind() {
-  document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('click', () => {
-    document.querySelectorAll('.tabs button').forEach((x) => x.classList.toggle('active', x === b));
-    document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.id === `tab-${b.dataset.tab}`));
-    window.dispatchEvent(new Event('resize'));
-  }));
+  document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
   $('system').value = system;
-  $('system').onchange = async () => {
-    system = settings.system = $('system').value; saveSettings();
-    lastRoute = lastHalo = lastReverse = null; $('v-out').innerHTML = ''; $('r-out').innerHTML = '<p class="hint">Scegli partenza e destinazione, poi premi CALCOLA ROTTA.</p>'; $('h-out').innerHTML = '';
-    await ensureData(); refreshPoints();
-  };
+  $('system').onchange = () => switchSystem($('system').value);
   document.querySelectorAll('input[name="r-mode"]').forEach((el) => el.addEventListener('change', () => {
     const m = radioVal('r-mode');
     document.querySelectorAll('[data-mode]').forEach((d) => { d.hidden = d.dataset.mode !== m; });
@@ -568,8 +576,20 @@ function bind() {
   $('d-import').onchange = () => readFile($('d-import'), (text) => { store.importJson(text); $('d-msg').innerHTML = '<span class="ok">Backup importato.</span>'; refreshPoints(); });
   $('s-margin').value = settings.margin; $('s-margin-val').textContent = settings.margin;
   $('s-margin').oninput = () => { settings.margin = +$('s-margin').value; $('s-margin-val').textContent = settings.margin; saveSettings(); };
-  $('s-hud').value = settings.hud; $('s-hud').onchange = () => { settings.hud = Math.max(0, Math.min(3, +$('s-hud').value || 0)); saveSettings(); };
-  $('s-speed').value = settings.speed; $('s-speed').onchange = () => { settings.speed = Math.max(0, +$('s-speed').value || 0); saveSettings(); };
+}
+
+function showTab(name) {
+  document.querySelectorAll('.tabs button').forEach((x) => x.classList.toggle('active', x.dataset.tab === name));
+  document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.id === `tab-${name}`));
+  window.dispatchEvent(new Event('resize'));
+}
+
+async function switchSystem(sys) {
+  system = settings.system = sys; saveSettings();
+  $('system').value = sys;
+  lastRoute = lastHalo = lastReverse = null; $('v-out').innerHTML = ''; $('r-out').innerHTML = '<p class="hint">Scegli partenza e destinazione, poi premi CALCOLA ROTTA.</p>'; $('h-out').innerHTML = '';
+  $('p-out').innerHTML = '<p class="hint">Inserisci P e premi CALCOLA PIANO.</p>';
+  await ensureData(); refreshPoints();
 }
 
 /**
@@ -594,6 +614,10 @@ async function main() {
   $('footer').innerHTML = `${esc(ATTRIBUTION)} · Fasce Aaron Halo: ${esc(HALO_SOURCE)} · Corpi celesti: starmap.space.<br>
     Progetto personale non ufficiale, non affiliato a Cloud Imperium Games. Nessuna interazione con il client di gioco.`;
   bind(); bandInfo();
+  planner = initPlanner({
+    $, esc, parseNum, radioVal, table, store, settings, saveSettings, fillSelect, renderSaved, showTab, switchSystem, VERSION,
+    ensureSystemData, system: () => system, points: () => points,
+  });
   // cache offline (service worker) e precaricamento della libreria grafica locale
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
   ensurePlotly().then(cacheLoadedFiles);

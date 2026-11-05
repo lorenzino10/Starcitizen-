@@ -9,6 +9,7 @@ const EMPTY = () => ({
   customPoints: [],       // {id, name, system, x, y, z, notes, createdAt}
   starmapReadings: [],    // {id, name, system, raw:{...}, notes, createdAt}  NON convertite
   verified: [],           // {start, dest, system, verifiedAt}
+  unavailable: [],        // {start, dest, system, markedAt}: tratte che in gioco NON hai potuto usare
   savedRoutes: [],        // {id, name, system, payload, createdAt}
   importLog: [],          // {at, system, origin, ok, stored, gameVersion, errors, warnings}
 });
@@ -84,8 +85,21 @@ export class Store {
     }
   }
   verifiedPairs(system) { return new Set(this.data.verified.filter((v) => v.system === system).map((v) => `${v.start}|${v.dest}`)); }
+  unmarkVerified(start, dest, system) { this.data.verified = this.data.verified.filter((v) => !(v.start === start && v.dest === dest && v.system === system)); this.save(); }
+
+  // ---- tratte non disponibili (segnate dal pilota) ---------------------------
+  markUnavailable(start, dest, system) {
+    if (!this.data.unavailable.some((v) => v.start === start && v.dest === dest && v.system === system)) {
+      this.data.unavailable.push({ start, dest, system, markedAt: this.now() });
+      this.save();
+    }
+  }
+  unmarkUnavailable(start, dest, system) { this.data.unavailable = this.data.unavailable.filter((v) => !(v.start === start && v.dest === dest && v.system === system)); this.save(); }
+  unavailablePairs(system) { return new Set(this.data.unavailable.filter((v) => v.system === system).map((v) => `${v.start}|${v.dest}`)); }
 
   // ---- rotte salvate ---------------------------------------------------
+  getRoute(id) { return this.data.savedRoutes.find((r) => r.id === id) ?? null; }
+  updateRoute(id, patch) { const r = this.getRoute(id); if (r) { Object.assign(r, patch); this.save(); } return r; }
   saveRoute(name, system, payload) { const rec = { id: this.#id(), name, system, payload, createdAt: this.now() }; this.data.savedRoutes.unshift(rec); this.save(); return rec; }
   savedRoutes(system) { return this.data.savedRoutes.filter((r) => r.system === system); }
   deleteRoute(id) { this.data.savedRoutes = this.data.savedRoutes.filter((r) => r.id !== id); this.save(); }
@@ -101,6 +115,7 @@ export class Store {
     this.data.customPoints = merge(this.data.customPoints, d.customPoints, (c) => `${c.system}|${c.name}`);
     this.data.starmapReadings = merge(this.data.starmapReadings, d.starmapReadings, (r) => r.id);
     this.data.verified = merge(this.data.verified, d.verified, (v) => `${v.start}|${v.dest}`);
+    this.data.unavailable = merge(this.data.unavailable ?? [], d.unavailable, (v) => `${v.system}|${v.start}|${v.dest}`);
     this.data.savedRoutes = merge(this.data.savedRoutes, d.savedRoutes, (r) => r.id);
     this.save();
   }

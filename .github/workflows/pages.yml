@@ -33,6 +33,9 @@ jobs:
         # se CitizenHQ e' giu' il sito si pubblica comunque (aggiornamento live o import file)
         continue-on-error: true
         run: node web/tools/fetch_snapshot.mjs
+      - name: Controllo dati (corpi celesti e gateway)
+        continue-on-error: true
+        run: node web/tools/check_bodies.mjs
       - name: Prepara il sito
         run: |
           mkdir -p _site
