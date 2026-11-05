@@ -1,5 +1,8 @@
 # Registro delle modifiche
 
+## 0.5.3-web (2026-11-05)
+- DATABASE PUNTI vuoto: nell'area dell'elenco compaiono i pulsanti "Importa da Excel" e "Ripristina backup JSON", senza doverli cercare nella colonna di sinistra.
+
 ## 0.5.2-web (2026-11-05): import affidabile dopo gli aggiornamenti
 - **Correzione**: subito dopo un aggiornamento il browser poteva tenere in cache per circa 10 minuti la pagina della versione precedente e caricare gli script nuovi. Il DATABASE PUNTI si fermava senza messaggi e l'import "non faceva nulla". Ora il service worker rivalida ogni file con il sito. Se le versioni sono comunque mescolate, compare un avviso che chiede Ctrl+F5, e il resto di NAVCOM continua a funzionare.
 - **"Importa" funziona anche senza "Controlla"**: il controllo viene eseguito comunque. Se non c'è nulla da salvare, perché i punti sono tutti duplicati o le righe hanno errori, lo dice esplicitamente.
