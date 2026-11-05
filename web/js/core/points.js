@@ -6,6 +6,9 @@
 export const SYSTEMS = { stanton: 'Stanton', pyro: 'Pyro', nyx: 'Nyx' };
 export const CATEGORIES = ['Mining', 'Esplorazione', 'Relitto', 'Punto personale', 'Altro'];
 export const STATUSES = ['Da verificare', 'Verificato', 'Non interessante'];
+/** Sinonimi accettati in import (senza avviso). "Da georeferenziare" = scheda senza XYZ ancora da verificare. */
+const STATUS_ALIASES = { 'da georeferenziare': 'Da verificare', 'da controllare': 'Da verificare' };
+export const PRIORITIES = ['Alta', 'Media', 'Bassa'];
 export const UNITS = { km: 1000, m: 1 };
 /** Tolleranza per considerare due punti "alle stesse coordinate" (m). */
 export const DUPLICATE_TOLERANCE_M = 1;
@@ -18,7 +21,10 @@ export const FIELDS = [
   { key: 'z', label: 'Coordinata Z', aliases: ['z', 'coordinata z', 'coord z', 'pos z'] },
   { key: 'unit', label: 'Unità di misura', aliases: ['unita', 'unità', 'unit', 'unita di misura', 'unità di misura', 'um'] },
   { key: 'category', label: 'Categoria', aliases: ['categoria', 'category', 'tipo'] },
-  { key: 'resource', label: 'Materiale o risorsa', aliases: ['materiale', 'risorsa', 'materiale o risorsa', 'resource', 'minerale'] },
+  { key: 'resource', label: 'Materiale o risorsa', aliases: ['materiale', 'risorsa', 'materiale o risorsa', 'risorsa cercata', 'materiale/risorsa', 'resource', 'minerale'] },
+  { key: 'group', label: 'Classificazione', aliases: ['classificazione', 'gruppo', 'group', 'classe'] },
+  { key: 'priority', label: 'Priorità', aliases: ['priorita', 'priority'] },
+  { key: 'sourceRef', label: 'Fonte dei dati', aliases: ['fonte dei dati', 'fonte dati', 'fonte geometria', 'fonte'] },
   { key: 'status', label: 'Stato', aliases: ['stato', 'status'] },
   { key: 'notes', label: 'Note personali', aliases: ['note', 'notes', 'note personali', 'commento'] },
   { key: 'createdAt', label: 'Data di inserimento', aliases: ['data inserimento', 'data di inserimento', 'inserito', 'creato', 'created'] },
@@ -69,7 +75,13 @@ export function parseUnit(v) {
   return null;
 }
 export function parseCategory(v) { const k = norm(v); return CATEGORIES.find((c) => norm(c) === k) ?? null; }
-export function parseStatus(v) { const k = norm(v); return STATUSES.find((c) => norm(c) === k) ?? null; }
+export function parseStatus(v) { const k = norm(v); return STATUSES.find((c) => norm(c) === k) ?? STATUS_ALIASES[k] ?? null; }
+/** Priorità: Alta/Media/Bassa; vuota o "non assegnata" -> ''. null = valore non riconosciuto. */
+export function parsePriority(v) {
+  const k = norm(v);
+  if (!k || k === 'non assegnata' || k === 'nessuna' || k === '-') return '';
+  return PRIORITIES.find((c) => norm(c) === k) ?? null;
+}
 
 /** Data da cella Excel (ISO gia' convertita, numero seriale), Date, "gg/mm/aaaa [hh:mm]" o ISO. */
 export function parseDate(v) {
@@ -122,6 +134,8 @@ export function normalizePoint(input, { defaultUnit = null, defaultSystem = null
   if (!category) { if (!blank(input.category)) warnings.push(`categoria "${input.category}" non prevista: impostata "Altro"`); category = 'Altro'; }
   let status = parseStatus(input.status);
   if (!status) { if (!blank(input.status)) warnings.push(`stato "${input.status}" non previsto: impostato "Da verificare"`); status = 'Da verificare'; }
+  let priority = parsePriority(input.priority);
+  if (priority === null) { warnings.push(`priorità "${input.priority}" non prevista (Alta, Media, Bassa): lasciata vuota`); priority = ''; }
   const created = parseDate(input.createdAt), verified = parseDate(input.verifiedAt);
   if (created.error) warnings.push(`data di inserimento: ${created.error}`);
   if (verified.error) warnings.push(`data di verifica: ${verified.error}`);
@@ -131,6 +145,7 @@ export function normalizePoint(input, { defaultUnit = null, defaultSystem = null
       id: blank(input.id) ? newId() : String(input.id).trim(),
       name, system, x: coords.x, y: coords.y, z: coords.z, unit,
       category, resource: String(input.resource ?? '').trim(), status, notes: String(input.notes ?? '').trim(),
+      group: String(input.group ?? '').trim(), priority, sourceRef: String(input.sourceRef ?? '').trim(),
       createdAt: created.value ?? now, verifiedAt: verified.value ?? null, updatedAt: now,
       source: input.source ?? 'manuale',
       ...(input.legacyId ? { legacyId: input.legacyId } : {}),
@@ -172,39 +187,85 @@ export function duplicateReason(a, b, tol = DUPLICATE_TOLERANCE_M) {
   return null;
 }
 
+/**
+ * Indice per trovare i duplicati senza confronti a coppie (migliaia di punti): per ID, per nome
+ * nello stesso sistema e per celle di una griglia di lato pari alla tolleranza (si controllano le
+ * 27 celle vicine, poi la distanza esatta). Stesse regole di duplicateReason.
+ */
+export class DupIndex {
+  constructor(points = [], tol = DUPLICATE_TOLERANCE_M) {
+    this.tol = tol; this.byId = new Map(); this.byName = new Map(); this.grid = new Map();
+    for (const p of points) this.add(p);
+  }
+  #cells(p, m, around) {
+    const c = [m.x, m.y, m.z].map((v) => Math.floor(v / this.tol));
+    if (!around) return [`${p.system}|${c.join('|')}`];
+    const out = [];
+    for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) for (let k = -1; k <= 1; k++) out.push(`${p.system}|${c[0] + i}|${c[1] + j}|${c[2] + k}`);
+    return out;
+  }
+  #push(map, k, p) { const a = map.get(k); if (a) a.push(p); else map.set(k, [p]); }
+  #pull(map, k, p) { const a = map.get(k); if (!a) return; const i = a.indexOf(p); if (i >= 0) a.splice(i, 1); if (!a.length) map.delete(k); }
+  add(p) {
+    if (p.id) this.byId.set(p.id, p);
+    const n = norm(p.name); if (n) this.#push(this.byName, `${p.system}|${n}`, p);
+    const m = toMeters(p); if (m) this.#push(this.grid, this.#cells(p, m, false)[0], p);
+  }
+  remove(p) {
+    if (p.id && this.byId.get(p.id) === p) this.byId.delete(p.id);
+    const n = norm(p.name); if (n) this.#pull(this.byName, `${p.system}|${n}`, p);
+    const m = toMeters(p); if (m) this.#pull(this.grid, this.#cells(p, m, false)[0], p);
+  }
+  /** Punti a coordinate entro la tolleranza (stesso sistema), escluso rec. */
+  near(rec) {
+    const m = toMeters(rec); if (!m) return [];
+    const out = [];
+    for (const k of this.#cells(rec, m, true)) for (const e of this.grid.get(k) ?? []) {
+      if (e === rec) continue;
+      const me = toMeters(e);
+      if (Math.hypot(me.x - m.x, me.y - m.y, me.z - m.z) <= this.tol) out.push(e);
+    }
+    return out;
+  }
+  sameName(rec) { const n = norm(rec.name); return n ? (this.byName.get(`${rec.system}|${n}`) ?? []).filter((e) => e !== rec) : []; }
+  /** Esistente che corrisponde a rec: prima per ID, poi per coordinate, poi per nome. */
+  find(rec) {
+    const byId = rec.id ? this.byId.get(rec.id) : null;
+    if (byId && byId !== rec) return { point: byId, reason: 'ID' };
+    const c = this.near(rec)[0]; if (c) return { point: c, reason: 'coordinate' };
+    const n = this.sameName(rec)[0]; if (n) return { point: n, reason: 'nome' };
+    return null;
+  }
+}
+
 /** Gruppi di duplicati nel database: [{reason, ids}]. */
 export function findDuplicates(points, tol = DUPLICATE_TOLERANCE_M) {
+  const idx = new DupIndex(points, tol);
+  const order = new Map(points.map((p, i) => [p, i]));
   const groups = [];
   const seen = new Set();
-  for (let i = 0; i < points.length; i++) {
-    if (seen.has(points[i].id)) continue;
-    const g = [points[i].id];
-    let reason = null;
-    for (let j = i + 1; j < points.length; j++) {
-      const r = duplicateReason(points[i], points[j], tol);
-      if (r) { g.push(points[j].id); seen.add(points[j].id); reason = reason === 'coordinate' ? reason : r; }
-    }
-    if (g.length > 1) groups.push({ reason, ids: g });
-  }
+  points.forEach((p, i) => {
+    if (seen.has(p)) return;
+    const byCoord = idx.near(p).filter((e) => order.get(e) > i && !seen.has(e));
+    const byName = idx.sameName(p).filter((e) => order.get(e) > i && !seen.has(e) && !byCoord.includes(e));
+    const all = [...byCoord, ...byName].sort((a, b) => order.get(a) - order.get(b));
+    if (!all.length) return;
+    for (const e of all) seen.add(e);
+    groups.push({ reason: byCoord.length ? 'coordinate' : 'nome', ids: [p.id, ...all.map((e) => e.id)] });
+  });
   return groups;
 }
 
 export function findExisting(rec, existing, tol = DUPLICATE_TOLERANCE_M) {
-  let byName = null;
-  for (const e of existing) {
-    if (rec.id && e.id === rec.id) return { point: e, reason: 'ID' };
-    const r = duplicateReason(rec, e, tol);
-    if (r === 'coordinate') return { point: e, reason: r };
-    if (r === 'nome' && !byName) byName = { point: e, reason: r };
-  }
-  return byName;
+  return new DupIndex(existing, tol).find(rec);
 }
 
-/** Filtri della tabella. criteria: {q, system, category, resource, status, completeOnly} */
-export function filterPoints(points, { q = '', system = '', category = '', resource = '', status = '', completeOnly = false } = {}) {
+/** Filtri della tabella. criteria: {q, system, category, resource, status, group, priority, completeOnly}. priority '-' = non assegnata. */
+export function filterPoints(points, { q = '', system = '', category = '', resource = '', status = '', group = '', priority = '', completeOnly = false } = {}) {
   const nq = norm(q), nr = norm(resource);
   return points.filter((p) => (!nq || norm(p.name).includes(nq))
     && (!system || p.system === system) && (!category || p.category === category) && (!status || p.status === status)
+    && (!group || (p.group ?? '') === group) && (!priority || (priority === '-' ? !p.priority : p.priority === priority))
     && (!nr || norm(p.resource).includes(nr)) && (!completeOnly || isComplete(p)));
 }
 
@@ -246,23 +307,24 @@ export function rowsToCandidates(rows, mapping, { firstRowNo = 2, defaultUnit = 
  */
 export function planImport(cands, existing, { onDuplicate = 'ignore', keepIncomplete = true } = {}) {
   const insert = [], update = [], skipped = [], errors = [], incomplete = [];
-  const pool = [...existing];
+  const idx = new DupIndex(existing);
+  const fromFile = new Set();
   for (const c of cands) {
     if (!c.point) { errors.push({ rowNo: c.rowNo, errors: c.errors }); continue; }
     if (!c.complete && !keepIncomplete) { skipped.push({ rowNo: c.rowNo, reason: 'scheda incompleta (esclusa)' }); continue; }
-    const dup = findExisting(c.point, pool);
+    const dup = idx.find(c.point);
     if (dup) {
-      const inFile = insert.includes(dup.point) || update.some((u) => u.after === dup.point);
+      const inFile = fromFile.has(dup.point);
       if (onDuplicate === 'update' && !inFile) {
         const after = { ...c.point, id: dup.point.id, createdAt: dup.point.createdAt, source: dup.point.source, updatedAt: nowIso() };
         update.push({ rowNo: c.rowNo, before: dup.point, after, reason: dup.reason });
-        pool[pool.indexOf(dup.point)] = after;
+        idx.remove(dup.point); idx.add(after); fromFile.add(after);
       } else skipped.push({ rowNo: c.rowNo, reason: `duplicato (${dup.reason}) di "${dup.point.name}"${inFile ? ' nello stesso file' : ''}` });
       continue;
     }
     if (!c.complete) incomplete.push(c.rowNo);
     insert.push(c.point);
-    pool.push(c.point);
+    idx.add(c.point); fromFile.add(c.point);
   }
   return { insert, update, skipped, errors, incomplete };
 }
@@ -270,8 +332,8 @@ export function planImport(cands, existing, { onDuplicate = 'ignore', keepIncomp
 // ---------------------------------------------------------------- export
 const EXPORT_COLS = [
   ['ID', 'id'], ['Nome', 'name'], ['Sistema', (p) => SYSTEMS[p.system] ?? p.system], ['X', 'x'], ['Y', 'y'], ['Z', 'z'], ['Unità', 'unit'],
-  ['Categoria', 'category'], ['Risorsa', 'resource'], ['Stato', 'status'], ['Note', 'notes'],
-  ['Data inserimento', (p) => fmtDate(p.createdAt)], ['Data ultima verifica', (p) => fmtDate(p.verifiedAt)], ['Fonte', 'source'],
+  ['Categoria', 'category'], ['Classificazione', 'group'], ['Priorità', 'priority'], ['Risorsa', 'resource'], ['Stato', 'status'], ['Note', 'notes'],
+  ['Data inserimento', (p) => fmtDate(p.createdAt)], ['Data ultima verifica', (p) => fmtDate(p.verifiedAt)], ['Fonte dei dati', 'sourceRef'], ['Origine', 'source'],
 ];
 export function fmtDate(iso) {
   if (!iso) return '';

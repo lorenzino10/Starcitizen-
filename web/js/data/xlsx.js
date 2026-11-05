@@ -114,7 +114,9 @@ const resolve = (base, target) => (target.startsWith('/') ? target.slice(1) : `$
  */
 export async function readXlsx(buf) {
   const zip = readZip(buf);
-  const text = async (name) => { const f = zip.get(name); return f ? td.decode(await f()) : null; };
+  // Alcuni generatori (OpenXML SDK, .NET) scrivono gli elementi con prefisso di namespace (<x:row>, <x:c>...):
+  // il prefisso viene tolto dai nomi degli elementi (gli attributi come r:id restano invariati).
+  const text = async (name) => { const f = zip.get(name); return f ? td.decode(await f()).replace(/<(\/?)[A-Za-z_][\w.-]*:(?=[A-Za-z_])/g, '<$1') : null; };
   const wb = await text('xl/workbook.xml');
   if (!wb) throw new Error('Il file non sembra un documento Excel .xlsx (manca xl/workbook.xml). I vecchi .xls non sono supportati: salvalo come .xlsx.');
   const rels = (await text('xl/_rels/workbook.xml.rels')) ?? '';

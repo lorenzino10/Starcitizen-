@@ -1,5 +1,11 @@
 # Registro delle modifiche
 
+## 0.5.1-web (2026-11-05): classificazione e grandi archivi
+- **Correzione**: l'import non leggeva i file .xlsx creati da programmi .NET/OpenXML SDK (elementi con prefisso `x:`), che finivano con "Nessun foglio leggibile".
+- Nuovi campi facoltativi: **Classificazione**, **Priorità** (Alta/Media/Bassa), **Fonte dei dati**. Sono presenti nel modulo, nella tabella, nei filtri, nell'import, nell'export e nel backup.
+- Import: "Risorsa cercata", "Gruppo" e "Fonte geometria" sono riconosciute in automatico; lo stato "Da georeferenziare" diventa "Da verificare" senza avviso.
+- Prestazioni: duplicati e import passano da circa 5 s bloccanti a circa 40 ms su 3.355 punti grazie a un indice. La tabella mostra al massimo 400 righe alla volta.
+
 ## 0.5.0-web (2026-11-05): DATABASE PUNTI personale
 - Nuova scheda **🗂 DATABASE PUNTI**: destinazioni inserite o importate dall'utente (NAVCOM non genera coordinate). Campi: ID, nome, sistema, X/Y/Z, unità km/m, categoria, materiale/risorsa, stato, note, data di inserimento, data dell'ultima verifica.
 - **Inserimento**: manuale (anche incollando `/showlocation`), da Excel `.xlsx`, dal pianificatore ("Salva queste coordinate"), da backup JSON.
