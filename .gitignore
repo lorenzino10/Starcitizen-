@@ -4,3 +4,4 @@ __pycache__/
 .pytest_cache/
 dati/
 *.sqlite3
+web/node_modules/

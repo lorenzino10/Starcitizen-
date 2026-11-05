@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import { ApiError, fetchSystem, findGameVersion, getJson, parsePositions } from '../js/data/citizenhq.js';
 import { obstructionModel } from '../js/data/bodies.js';
 import { Store } from '../js/data/store.js';
-import { navPoints, planToTarget } from '../js/planner.js';
+import { navPoints, planToTarget, setPersonalPoints } from '../js/planner.js';
 import { STATUS } from '../js/core/qt.js';
 
 const SAMPLE = [
@@ -64,12 +64,14 @@ test('archivio: import fallito non cancella, punti, rotte, backup', () => {
   s.addCustomPoint({ name: 'Relitto', system: 'stanton', x: 0, y: 1e9, z: 0 });
   s.addCustomPoint({ name: 'Relitto', system: 'stanton', x: 0, y: 2e9, z: 0 });
   assert.equal(s.customPoints('stanton').length, 1);
+  setPersonalPoints([{ id: 'r1', name: 'Relitto', system: 'stanton', pos: { x: 0, y: 1e9, z: 0 } }, { id: 'inc', name: 'Incompleto', system: 'stanton', pos: null }]);
   const pts = navPoints(s, 'stanton');
+  assert.ok(!pts.has('cp:inc'), 'le schede incomplete non arrivano al pianificatore');
   const start = pts.get('citizenhq:u1');
-  let { results } = planToTarget(s, 'stanton', start, pts.get('cp:Relitto').pos, 1.2);
+  let { results } = planToTarget(s, 'stanton', start, pts.get('cp:r1').pos, 1.2);
   assert.equal(results[0].dest.key, 'citizenhq:u2');
   s.markVerified('citizenhq:u1', 'citizenhq:u2', 'stanton');
-  ({ results } = planToTarget(s, 'stanton', start, pts.get('cp:Relitto').pos, 1.2));
+  ({ results } = planToTarget(s, 'stanton', start, pts.get('cp:r1').pos, 1.2));
   assert.equal(results[0].status, STATUS.VERIFIED);
   s.saveRoute('prova', 'stanton', { a: 1 });
   const backup = s.exportJson();

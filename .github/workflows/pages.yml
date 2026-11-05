@@ -27,6 +27,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Dipendenze dei test (solo sviluppo)
+        run: npm ci --prefix web
       - name: Test del motore
         run: node --test web/tests/*.test.mjs
       - name: Snapshot posizioni da CitizenHQ
