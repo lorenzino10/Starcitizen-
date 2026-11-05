@@ -141,7 +141,11 @@ export async function initPointsDb(app) {
     const list = filterPoints(points, criteria());
     $('db-count').textContent = `${list.length} di ${points.length} punti${selected.size ? ` · ${selected.size} selezionati` : ''}`;
     if (!points.length) {
-      $('db-table').innerHTML = '<p class="hint">Database vuoto. Inserisci un punto a sinistra, importa un file Excel o salva le coordinate dal PIANIFICATORE.</p>';
+      $('db-table').innerHTML = `<div class="navbox"><p><b>Database vuoto.</b> Importa il tuo file Excel: l'elenco dei punti comparirà qui, con 🛰 CALCOLA ROTTA su ogni riga.</p>
+        <div class="row"><button id="db-empty-xlsx" class="primary">📥 Importa da Excel (.xlsx)</button><button id="db-empty-json">⤒ Ripristina backup JSON</button></div>
+        <p class="hint">Puoi anche inserire un punto a mano nel modulo a sinistra o salvarlo dal PIANIFICATORE.</p></div>`;
+      $('db-empty-xlsx').onclick = () => $('db-xlsx').click();
+      $('db-empty-json').onclick = () => $('db-restore').click();
       return;
     }
     const allSel = list.length && list.every((p) => selected.has(p.id));
