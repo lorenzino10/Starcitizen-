@@ -3,7 +3,7 @@
 // - tutto il resto dello stesso sito (HTML, JS, CSS, snapshot dati): network-first, con la
 //   copia in cache come riserva quando la rete manca. Le richieste verso altri siti (es. l'API
 //   CitizenHQ per l'aggiornamento live) non vengono toccate.
-const CACHE = 'navcom-v0.5.1';
+const CACHE = 'navcom-v0.5.2';
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(['./', 'index.html', 'css/navcom.css', 'js/app.js'])).then(() => self.skipWaiting()));
@@ -27,7 +27,9 @@ self.addEventListener('fetch', (e) => {
     })));
     return;
   }
-  e.respondWith(fetch(req).then((res) => {
+  // no-cache: il browser rivalida ogni file con il sito (ETag) invece di usare per 10 minuti una
+  // copia vecchia; evita di mescolare file di versioni diverse subito dopo un aggiornamento.
+  e.respondWith(fetch(req.url, { cache: 'no-cache', credentials: 'same-origin' }).then((res) => {
     if (res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(req, copy)); }
     return res;
   }).catch(() => caches.match(req, { ignoreSearch: true }).then((hit) => hit || Response.error())));

@@ -21,6 +21,15 @@ function download(name, data, type) {
 
 export async function initPointsDb(app) {
   const { $, esc, store } = app;
+  // Pagina e script di versioni diverse (cache del browser dopo un aggiornamento): meglio dirlo
+  // subito che fallire in silenzio a meta' di un import.
+  const REQUIRED = ['db-table', 'db-wizard', 'db-xlsx', 'db-group', 'db-priority', 'db-sourceref', 'db-f-group', 'db-f-priority', 'db-count', 'db-form-msg'];
+  const missing = REQUIRED.filter((id) => !$(id));
+  if (missing.length) {
+    const banner = $('db-banner') ?? $('db-table');
+    if (banner) banner.innerHTML = '<div class="err"><b>Pagina non aggiornata del tutto</b>: il browser sta usando file di versioni diverse. Ricarica con <b>Ctrl+F5</b> (o chiudi e riapri la scheda) e riprova. Nessun punto è stato modificato.</div>';
+    throw new Error(`DATABASE PUNTI: elementi mancanti nella pagina (${missing.join(', ')}): ricarica con Ctrl+F5`);
+  }
   const db = await PointsDB.open();
   let points = [];
   let byId = new Map();
@@ -262,7 +271,7 @@ export async function initPointsDb(app) {
         <label>Duplicati<select id="wz-dup"><option value="ignore" ${W.onDuplicate === 'ignore' ? 'selected' : ''}>ignora (mantieni i punti esistenti)</option><option value="update" ${W.onDuplicate === 'update' ? 'selected' : ''}>aggiorna i punti esistenti</option></select></label>
       </div>
       <label class="check"><input type="checkbox" id="wz-incomplete" ${W.keepIncomplete ? 'checked' : ''}> Conserva le righe con coordinate incomplete come schede incomplete</label>
-      <div class="row"><button id="wz-check">🔍 Controlla</button><button id="wz-import" class="primary" ${W.plan ? '' : 'disabled'}>📥 Importa</button><button id="wz-close">Chiudi</button></div>
+      <div class="row"><button id="wz-check">🔍 Controlla</button><button id="wz-import" class="primary">📥 Importa</button><button id="wz-close">Chiudi</button></div>
       <div id="wz-out">${W.result ?? (W.plan ? planHtml(W.plan) : '<p class="hint">Controlla le associazioni e premi "Controlla": niente viene salvato finché non premi "Importa".</p>')}</div></div>`;
     $('wz-sheet').onchange = () => { W.sheet = +$('wz-sheet').value; initSheet(); renderWizard(); };
     $('wz-header').onchange = () => { W.header = Math.max(0, (+$('wz-header').value || 1) - 1); W.mapping = guessMapping((sheet.rows[W.header] ?? []).map((v) => String(v ?? ''))); W.plan = null; W.result = null; renderWizard(); };
@@ -272,23 +281,34 @@ export async function initPointsDb(app) {
     $('wz-dup').onchange = () => { W.onDuplicate = $('wz-dup').value; W.plan = null; W.result = null; renderWizard(); };
     $('wz-incomplete').onchange = () => { W.keepIncomplete = $('wz-incomplete').checked; W.plan = null; W.result = null; renderWizard(); };
     $('wz-close').onclick = () => { wizard = null; renderWizard(); };
-    $('wz-check').onclick = () => {
+    const check = () => {
       const missing = ['name', 'x', 'y', 'z'].filter((k) => W.mapping[k] === undefined);
       const cands = candidates();
       W.cands = cands;
       W.plan = planImport(cands, points, { onDuplicate: W.onDuplicate, keepIncomplete: W.keepIncomplete });
       W.plan.missingCols = missing;
       W.result = null;
-      renderWizard();
     };
+    $('wz-check').onclick = () => { check(); renderWizard(); };
     $('wz-import').onclick = async () => {
+      if (!W.plan) check(); // "Importa" senza "Controlla": stesso controllo, poi salvataggio
       const P = W.plan;
+      if (!P.insert.length && !P.update.length) {
+        W.result = `<p class="warn"><b>Nessun punto da salvare.</b> ${P.skipped.length ? `${P.skipped.length} righe sono duplicati di punti già presenti (scegli "aggiorna i punti esistenti" per sovrascriverli) o escluse.` : ''} ${P.errors.length ? `${P.errors.length} righe hanno errori.` : ''} ${P.missingCols?.length ? 'Controlla l\'associazione delle colonne.' : ''}</p>${planHtml(P, true)}`;
+        W.plan = null; renderWizard(); return;
+      }
       try {
         await db.putMany([...P.insert, ...P.update.map((u) => u.after)]);
         W.result = `<p class="ok"><b>Importazione completata.</b> Nuovi: ${P.insert.length} (di cui incompleti: ${P.incomplete.length}) · aggiornati: ${P.update.length} · duplicati ignorati: ${P.skipped.filter((s) => s.reason.startsWith('duplicato')).length} · altre righe escluse: ${P.skipped.filter((s) => !s.reason.startsWith('duplicato')).length} · righe con errori: ${P.errors.length}.</p>${planHtml(P, true)}`;
         W.plan = null;
+        // filtri azzerati, così i punti appena importati si vedono subito nella tabella
+        for (const id of ['db-q', 'db-f-resource']) $(id).value = '';
+        for (const id of ['db-f-system', 'db-f-category', 'db-f-status', 'db-f-group', 'db-f-priority']) $(id).value = '';
+        $('db-f-complete').checked = false;
+        renderTable();
       } catch (e) { W.result = `<p class="err">Importazione non riuscita, nessun punto salvato: ${esc(e.message)}</p>`; }
       renderWizard();
+      $('wz-out')?.scrollIntoView({ block: 'center' });
     };
   }
 
