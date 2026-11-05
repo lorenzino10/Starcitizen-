@@ -1,5 +1,11 @@
 # Registro delle modifiche
 
+## Dati (2026-11-05): Excel dei punti interessanti
+- Nuovo file `data/punti_interesse.xlsx`: 2.503 punti di Stanton, Pyro e Nyx, classificati in 16 gruppi (campi asteroidi ai Lagrange, basi minerarie su asteroide, cluster, anello Glaciem, grotte, relitti, derelict, bunker, avamposti, stazioni...). 700 con XYZ di sistema in metri, il resto di superficie (lat/lon e coordinate locali, schede incomplete).
+- Fonti: Star Citizen Wiki API 4.10.1 e starmap.space (via sc-nav, solo dati); frame verificato a campione contro CitizenHQ (scarto ≤ 0,1 m su 9 punti). Pyro riportato al frame CitizenHQ (+85,2299335°).
+- Colonne compatibili con l'import del DATABASE PUNTI (collaudato con il lettore di NAVCOM: 0 errori), tutti i punti "Da verificare".
+- Generatore: `tools/build_punti_interesse.py`.
+
 ## 0.5.0-web (2026-11-05): DATABASE PUNTI personale
 - Nuova scheda **🗂 DATABASE PUNTI**: destinazioni inserite o importate dall'utente (NAVCOM non genera coordinate). Campi: ID, nome, sistema, X/Y/Z, unità km/m, categoria, materiale/risorsa, stato, note, data di inserimento, data dell'ultima verifica.
 - **Inserimento**: manuale (anche incollando `/showlocation`), da Excel `.xlsx`, dal pianificatore ("Salva queste coordinate"), da backup JSON.
