@@ -20,7 +20,8 @@
 </header>
 
 <nav class="tabs" role="tablist">
-  <button role="tab" data-tab="route" class="active">🧭 ROTTA</button>
+  <button role="tab" data-tab="reverse" class="active">⌖ RICERCA INVERSA QT</button>
+  <button role="tab" data-tab="route">🧭 ROTTA DA STAZIONE</button>
   <button role="tab" data-tab="halo">☄ AARON HALO</button>
   <button role="tab" data-tab="points">📍 PUNTI PERSONALI</button>
   <button role="tab" data-tab="saved">💾 ROTTE SALVATE</button>
@@ -31,7 +32,46 @@
 <div id="banner"></div>
 
 <!-- ROTTA ------------------------------------------------------------------>
-<section id="tab-route" class="tab active">
+<section id="tab-reverse" class="tab active">
+  <div class="cols">
+    <div class="panel form">
+      <h2>Punto desiderato P</h2>
+      <p class="hint">Qualsiasi posizione XYZ nel frame della griglia del sistema selezionato in alto (origine al centro del sistema, stessi assi dei dati importati).</p>
+      <div class="radios" id="v-src">
+        <label><input type="radio" name="v-src" value="xyz" checked> Coordinate XYZ</label>
+        <label><input type="radio" name="v-src" value="custom"> Punto personale</label>
+      </div>
+      <div data-vsrc="xyz">
+        <div class="radios"><label><input type="radio" name="v-unit" value="1000" checked> km</label><label><input type="radio" name="v-unit" value="1"> m</label></div>
+        <div class="xyz"><label>X<input id="v-x" inputmode="decimal" value="0"></label><label>Y<input id="v-y" inputmode="decimal" value="0"></label><label>Z<input id="v-z" inputmode="decimal" value="0"></label></div>
+      </div>
+      <div data-vsrc="custom" hidden><select id="v-custom"></select></div>
+      <label>Rotte da mostrare
+        <select id="v-limit"><option>10</option><option selected>25</option><option>50</option><option>100</option></select></label>
+      <label class="check"><input type="checkbox" id="v-blocked"> Includi tratte bloccate da corpi celesti</label>
+      <h2>La mia posizione (facoltativa)</h2>
+      <label class="check"><input type="checkbox" id="v-use-start"> Ottimizza anche il percorso completo da dove mi trovo</label>
+      <div id="v-start-box" hidden>
+        <div class="radios">
+          <label><input type="radio" name="v-start-src" value="point" checked> Punto noto</label>
+          <label><input type="radio" name="v-start-src" value="xyz"> Coordinate XYZ</label>
+        </div>
+        <div data-vstart="point"><input type="search" id="v-start-filter" placeholder="filtra…"><select id="v-start"></select></div>
+        <div data-vstart="xyz" hidden>
+          <div class="radios"><label><input type="radio" name="v-sunit" value="1000" checked> km</label><label><input type="radio" name="v-sunit" value="1"> m</label></div>
+          <div class="xyz"><label>X<input id="v-sx" inputmode="decimal" value="0"></label><label>Y<input id="v-sy" inputmode="decimal" value="0"></label><label>Z<input id="v-sz" inputmode="decimal" value="0"></label></div>
+        </div>
+        <label>Residuo massimo accettato (km, vuoto = nessun limite)<input id="v-maxres" inputmode="decimal" placeholder="es. 50"></label>
+        <label>Velocità in volo convenzionale (m/s, opzionale)<input id="v-conv" type="number" min="0" step="10"></label>
+        <p class="hint">Con la velocità QT (in DATI E IMPOSTAZIONI) e questa velocità, il percorso completo viene ordinato per tempo stimato. Senza le velocità, l'ordine è per distanza QT totale. Accelerazioni e allineamento non sono modellati.</p>
+      </div>
+      <button id="v-go" class="primary">⌖ CERCA ROTTE</button>
+    </div>
+    <div class="panel wide" id="v-out"><p class="hint">Inserisci un punto qualsiasi: NAVCOM esamina tutte le tratte fra i marker QT del sistema e ti dice quale passa più vicina, dove interrompere il salto e quanto resta da fare in volo convenzionale.</p></div>
+  </div>
+</section>
+
+<section id="tab-route" class="tab">
   <div class="cols">
     <div class="panel form">
       <h2>Partenza</h2>

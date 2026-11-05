@@ -7,10 +7,11 @@ import { distance, toArray, vec } from './core/vector.js';
 import { ATTRIBUTION, fetchSystem, parsePositions } from './data/citizenhq.js';
 import { bodySeed, obstructionModel } from './data/bodies.js';
 import { Store } from './data/store.js';
-import { haloOptions, navPoints, planToTarget } from './planner.js';
+import { haloOptions, navPoints, planToTarget, reverseFromStore } from './planner.js';
+import { completePath } from './core/reverse.js';
 import { CYAN, AMBER, GREEN, RED, systemPlot } from './plot.js';
 
-const VERSION = '0.2.0-web';
+const VERSION = '0.3.0-web';
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const ICON = { [STATUS.VERIFIED]: '🟢', [STATUS.DATA]: '🔵', [STATUS.THEORETICAL]: '🟠' };
@@ -18,7 +19,7 @@ const ICON = { [STATUS.VERIFIED]: '🟢', [STATUS.DATA]: '🔵', [STATUS.THEORET
 const store = new Store();
 const SETTINGS_KEY = 'navcom.settings';
 const settings = (() => {
-  const def = { margin: 1.2, hud: 1, speed: 0, system: 'stanton' };
+  const def = { margin: 1.2, hud: 1, speed: 0, conv: 0, system: 'stanton' };
   try { return { ...def, ...JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? '{}') }; } catch { return def; }
 })();
 const saveSettings = () => { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch { /* opzionale */ } };
@@ -27,6 +28,7 @@ let system = settings.system;
 let points = new Map();
 let lastRoute = null;
 let lastHalo = null;
+let lastReverse = null;
 
 // ---------------------------------------------------------------- utilita'
 function parseNum(s) {
@@ -95,11 +97,154 @@ function refreshPoints() {
   fillSelect($('r-dest'), all.filter((p) => !p.key.startsWith('cp:')), $('r-dest-filter').value);
   const cps = all.filter((p) => p.key.startsWith('cp:'));
   fillSelect($('r-custom'), cps);
+  fillSelect($('v-custom'), cps);
+  fillSelect($('v-start'), all, $('v-start-filter').value);
   $('r-custom-empty').hidden = cps.length > 0;
   const qt = all.filter((p) => p.qtValid);
   fillSelect($('h-start'), qt, $('h-start-filter').value);
   fillSelect($('h-dest'), qt);
   renderPoints(); renderSaved(); renderData();
+}
+
+
+// ---------------------------------------------------------------- RICERCA INVERSA QT
+const km = (m) => (m / 1000).toLocaleString('it-IT', { maximumFractionDigits: 3 });
+const xyzKm = (v) => `${km(v.x)} / ${km(v.y)} / ${km(v.z)}`;
+
+function reverseTarget() {
+  if (radioVal('v-src') === 'custom') {
+    const p = points.get($('v-custom').value);
+    if (!p) throw new Error('Nessun punto personale selezionato.');
+    return { pos: p.pos, name: p.name };
+  }
+  const k = +radioVal('v-unit');
+  return { pos: vec(parseNum($('v-x').value) * k, parseNum($('v-y').value) * k, parseNum($('v-z').value) * k), name: 'Punto P' };
+}
+
+function reverseStart() {
+  if (!$('v-use-start').checked) return null;
+  if (radioVal('v-start-src') === 'point') {
+    const p = points.get($('v-start').value);
+    if (!p) throw new Error('Seleziona la tua posizione.');
+    return { key: p.qtValid ? p.key : null, name: p.name, pos: p.pos };
+  }
+  const k = +radioVal('v-sunit');
+  return { key: null, name: 'La mia posizione', pos: vec(parseNum($('v-sx').value) * k, parseNum($('v-sy').value) * k, parseNum($('v-sz').value) * k) };
+}
+
+function calcReverse() {
+  const out = $('v-out');
+  let target, start;
+  try { target = reverseTarget(); start = reverseStart(); } catch (e) { out.innerHTML = `<p class="err">${esc(e.message)}</p>`; return; }
+  const t0 = performance.now();
+  const res = reverseFromStore(store, system, target.pos, settings.margin, { includeBlocked: $('v-blocked').checked, limit: 300 });
+  let path = null;
+  if (start) {
+    const mr = $('v-maxres').value.trim();
+    path = completePath(start, res.routes, res.model, {
+      qtSpeed: settings.speed * 1e6, convSpeed: settings.conv, maxResidual: mr ? parseNum(mr) * 1000 : Infinity,
+    });
+  }
+  lastReverse = { target, start, res, path, sel: 0, ms: performance.now() - t0, view: '3D' };
+  renderReverse();
+}
+
+function renderReverse() {
+  const L = lastReverse, out = $('v-out');
+  if (!L) return;
+  const { res, target } = L;
+  const n = +$('v-limit').value;
+  const rows = res.routes.slice(0, n);
+  out.innerHTML = res.warnings.map((w) => `<p class="${w.level === 'err' ? 'err' : 'warn'}">${esc(w.text)}</p>`).join('');
+  out.insertAdjacentHTML('beforeend', `<div class="metrics">
+    <div class="metric"><span>MARKER QT DEL SISTEMA</span><b>${res.qtCount}</b></div>
+    <div class="metric"><span>TRATTE ESAMINATE (A→B e B→A)</span><b>${res.examined.toLocaleString('it-IT')}</b></div>
+    <div class="metric"><span>CON INTERRUZIONE UTILE</span><b>${res.total.toLocaleString('it-IT')}</b></div>
+    ${rows.length ? `<div class="metric"><span>MIGLIOR RESIDUO</span><b>${fmtAuto(rows[0].residual)}</b></div>` : ''}</div>
+    <p class="hint">P = ${esc(xyzKm(target.pos))} km · marker QT più vicino: ${res.nearestMarker ? `${esc(res.nearestMarker.point.name)} a ${fmtAuto(res.nearestMarker.distance)}` : '—'}
+    · ${res.blocked.toLocaleString('it-IT')} tratte scartate perché bloccate da corpi celesti · calcolo ${L.ms.toFixed(0)} ms</p>`);
+  if (!res.qtCount) { out.insertAdjacentHTML('beforeend', '<p class="warn">Nessun marker QT in archivio per questo sistema: importa i dati in DATI E IMPOSTAZIONI.</p>'); return; }
+  if (!rows.length) { out.insertAdjacentHTML('beforeend', '<p class="warn">Nessuna tratta passa vicino al punto con un\'interruzione intermedia. L\'opzione migliore è andare al marker più vicino indicato sopra e proseguire in volo convenzionale.</p>'); return; }
+
+  out.insertAdjacentHTML('beforeend', '<h2>Rotte che passano più vicine a P</h2>');
+  out.append(table([
+    { label: '#', get: (r) => rows.indexOf(r) + 1, num: true },
+    { label: 'Partenza QT (A)', get: (r) => r.from.name },
+    { label: 'Destinazione QT (B)', get: (r) => r.to.name },
+    { label: 'Tratta totale', get: (r) => fmtKm(r.legLength), num: true },
+    { label: 'A → interruzione', get: (r) => fmtKm(r.fromStart), num: true },
+    { label: 'HUD verso B', get: (r) => fmtKm(r.hudRemaining), num: true },
+    { label: 'Interruzione X / Y / Z (km)', get: (r) => xyzKm(r.dropPoint) },
+    { label: 'Residuo verso P', get: (r) => fmtKm(r.residual), num: true },
+    { label: 'Stato', get: (r) => `${ICON[r.status]} ${r.status}${r.blocked ? ' · BLOCCATA' : ''}` },
+  ], rows, { selected: L.sel < rows.length ? L.sel : -1, onClick: (i) => { L.sel = i; L.selPath = null; renderReverse(); } }));
+
+  let x = rows[L.sel] ?? rows[0];
+  if (L.path) {
+    out.insertAdjacentHTML('beforeend', `<h2>Percorso completo da ${esc(L.start.name)}</h2>
+      <p class="hint">${L.path.length && L.path[0].time !== null ? 'Ordinato per tempo stimato (velocità costanti, nessuna accelerazione).' : 'Ordinato per distanza QT totale (posizione → A → interruzione). Inserisci le velocità per ordinare per tempo.'}</p>`);
+    const prow = L.path.slice(0, n);
+    if (!prow.length) out.insertAdjacentHTML('beforeend', '<p class="warn">Nessuna rotta rispetta il residuo massimo indicato, oppure il salto verso A risulta bloccato.</p>');
+    else {
+      out.append(table([
+        { label: '#', get: (r) => prow.indexOf(r) + 1, num: true },
+        { label: 'Salta a A', get: (r) => (r.toA ? `${r.from.name} (${fmtAuto(r.toA)})` : `${r.from.name} (sei già lì)`) },
+        { label: 'poi verso B', get: (r) => r.to.name },
+        { label: 'HUD verso B', get: (r) => fmtKm(r.hudRemaining), num: true },
+        { label: 'QT totale', get: (r) => fmtAuto(r.qtTotal), num: true },
+        { label: 'Residuo verso P', get: (r) => fmtKm(r.residual), num: true },
+        { label: 'Tempo stimato', get: (r) => (r.time === null ? '—' : `${Math.floor(r.time / 60)}m ${Math.round(r.time % 60)}s`), num: true },
+        { label: 'Stato', get: (r) => `${ICON[r.pathStatus]} ${r.pathStatus}` },
+      ], prow, { selected: L.selPath ?? -1, onClick: (i) => { L.selPath = i; renderReverse(); } }));
+      if (L.selPath !== null && L.selPath !== undefined) x = prow[L.selPath];
+    }
+  }
+
+  const cls = x.blocked ? 'bad' : x.status === STATUS.THEORETICAL ? 'warn' : '';
+  const steps = [];
+  if (L.start && x.toA !== undefined && x.toA > 0) steps.push(`Da <b>${esc(L.start.name)}</b> salta in QT verso <b>${esc(x.from.name)}</b> (${fmtKm(x.toA)})`);
+  steps.push(`Da <b>${esc(x.from.name)}</b> (A) imposta la destinazione QT <b>${esc(x.to.name)}</b> (B) e salta: tratta di ${fmtKm(x.legLength)}`);
+  steps.push(`Interrompi quando la distanza verso ${esc(x.to.name)} è <span class="big">${fmtKm(x.hudRemaining)}</span><br>lettura HUD attesa: ${hudText(x.hudRemaining)}<br>(avrai percorso ${fmtKm(x.fromStart)} da A)`);
+  steps.push(`Punto di interruzione teorico: X ${km(x.dropPoint.x)} · Y ${km(x.dropPoint.y)} · Z ${km(x.dropPoint.z)} km`);
+  steps.push(`Volo convenzionale fino a P: <b>${fmtKm(x.residual)}</b>`);
+  const st = x.pathStatus ?? x.status;
+  out.insertAdjacentHTML('beforeend', `<div class="navbox ${cls}">${ICON[st]} <b>${esc(st)}</b>
+    <ol>${steps.map((s) => `<li>${s}</li>`).join('')}</ol>${[...x.notes, ...(x.pathNotes ?? [])].map((t) => `⚠ ${esc(t)}<br>`).join('')}</div>
+    <p class="hint">Rotta geometrica: "Supportata" significa marker QT da fonte dati e nessun ostacolo noto, non che il salto sia garantito in gioco. Le distanze non includono il tempo di reazione né la decelerazione del QT.</p>
+    <div class="radios"><label><input type="radio" name="v-view" value="3D" ${L.view === '3D' ? 'checked' : ''}> 3D</label><label><input type="radio" name="v-view" value="2D" ${L.view === '2D' ? 'checked' : ''}> 2D</label></div>
+    <div id="v-plot" class="plot"></div>
+    <div class="row"><label>Nome rotta<input id="v-name" value="${esc(`${x.from.name} → ${x.to.name} verso ${target.name}`)}"></label>
+      <button id="v-save">💾 Salva rotta</button>${x.status !== STATUS.VERIFIED ? '<button id="v-verify">✔ Ho provato A → B in gioco</button>' : ''}</div><p id="v-msg" class="ok"></p>`);
+  const draw = () => {
+    const top = rows.slice(0, 10);
+    const seen = new Set();
+    const segs = [];
+    for (const r of top) {
+      const k = [r.from.key, r.to.key].sort().join('|');
+      if (seen.has(k) || r === x) continue;
+      seen.add(k);
+      segs.push([r.from.pos, r.to.pos, `${r.from.name} – ${r.to.name}`, '#2f6f95', { legend: false, opacity: 0.6, width: L.view === '3D' ? 3 : 1 }]);
+    }
+    segs.push([x.from.pos, x.to.pos, 'Tratta scelta A→B', CYAN]);
+    segs.push([x.dropPoint, target.pos, 'Volo convenzionale', GREEN]);
+    const marks = [[x.from.pos, 'A', CYAN, 'circle'], [x.to.pos, 'B', CYAN, 'square'], [x.dropPoint, 'Interruzione', AMBER, 'x'], [target.pos, 'P', GREEN, 'star', 'top center']];
+    if (L.start && x.toA) { segs.push([L.start.pos, x.from.pos, 'Salto verso A', '#b48cff']); marks.push([L.start.pos, 'Io', '#b48cff', 'diamond']); }
+    systemPlot($('v-plot'), { points: [...points.values()].filter((p) => p.qtValid), bodies: res.model.bodies, mode: L.view, segments: segs, marks });
+  };
+  draw();
+  out.querySelectorAll('input[name="v-view"]').forEach((el) => el.addEventListener('change', () => { L.view = radioVal('v-view'); draw(); }));
+  $('v-save').onclick = () => {
+    store.saveRoute($('v-name').value || 'Ricerca inversa', system, {
+      type: 'reverse', target: { name: target.name, xyz_m: toArray(target.pos) },
+      a: { key: x.from.key, name: x.from.name, xyz_m: toArray(x.from.pos) }, b: { key: x.to.key, name: x.to.name, xyz_m: toArray(x.to.pos) },
+      legLength_m: x.legLength, fromA_m: x.fromStart, hudRemaining_m: x.hudRemaining, dropPoint_m: toArray(x.dropPoint),
+      residual_m: x.residual, status: x.status, notes: x.notes,
+      start: L.start ? { name: L.start.name, xyz_m: toArray(L.start.pos), toA_m: x.toA ?? null } : null,
+      obstructionMargin: settings.margin, dataVersion: store.locationMeta(system)?.gameVersion ?? null,
+    });
+    $('v-msg').textContent = 'Rotta salvata.'; renderSaved();
+  };
+  if ($('v-verify')) $('v-verify').onclick = () => { store.markVerified(x.from.key, x.to.key, system); calcReverse(); };
 }
 
 // ---------------------------------------------------------------- ROTTA
@@ -284,7 +429,8 @@ function renderSaved() {
   for (const r of list) {
     const p = r.payload;
     let text = '';
-    if (p.type === 'qt') text = `Salta verso <b>${esc(p.qtDest.name)}</b>, interrompi a <b>${fmtKm(p.hudRemaining_m)}</b>, poi volo convenzionale per ${fmtKm(p.residual_m)}. Stato: ${esc(p.status)}`;
+    if (p.type === 'reverse') text = `Da <b>${esc(p.a.name)}</b> salta verso <b>${esc(p.b.name)}</b>, interrompi a <b>${fmtKm(p.hudRemaining_m)}</b> dall'arrivo, poi volo convenzionale per ${fmtKm(p.residual_m)} fino a ${esc(p.target.name)}. Stato: ${esc(p.status)}`;
+    else if (p.type === 'qt') text = `Salta verso <b>${esc(p.qtDest.name)}</b>, interrompi a <b>${fmtKm(p.hudRemaining_m)}</b>, poi volo convenzionale per ${fmtKm(p.residual_m)}. Stato: ${esc(p.status)}`;
     else if (p.type === 'aaron_halo') text = `Fascia ${p.band}: salta verso <b>${esc(p.qtDest)}</b> e interrompi fra ${fmtKm(p.enterHud_m)} e ${fmtKm(p.exitHud_m)}${p.peakHud_m ? ` (picco ${fmtKm(p.peakHud_m)})` : ''}`;
     const d = document.createElement('div');
     d.className = 'card';
@@ -350,7 +496,7 @@ function bind() {
   $('system').value = system;
   $('system').onchange = async () => {
     system = settings.system = $('system').value; saveSettings();
-    lastRoute = lastHalo = null; $('r-out').innerHTML = '<p class="hint">Scegli partenza e destinazione, poi premi CALCOLA ROTTA.</p>'; $('h-out').innerHTML = '';
+    lastRoute = lastHalo = lastReverse = null; $('v-out').innerHTML = ''; $('r-out').innerHTML = '<p class="hint">Scegli partenza e destinazione, poi premi CALCOLA ROTTA.</p>'; $('h-out').innerHTML = '';
     await ensureData(); refreshPoints();
   };
   document.querySelectorAll('input[name="r-mode"]').forEach((el) => el.addEventListener('change', () => {
@@ -364,6 +510,18 @@ function bind() {
     $(inp).addEventListener('input', () => fillSelect($(sel), pick().sort((a, b) => (b.qtValid - a.qtValid) || a.name.localeCompare(b.name)), $(inp).value));
   }
   $('r-go').onclick = calcRoute;
+  $('v-go').onclick = calcReverse;
+  $('v-limit').onchange = () => renderReverse();
+  document.querySelectorAll('input[name="v-src"]').forEach((el) => el.addEventListener('change', () => {
+    document.querySelectorAll('[data-vsrc]').forEach((d) => { d.hidden = d.dataset.vsrc !== radioVal('v-src'); });
+  }));
+  document.querySelectorAll('input[name="v-start-src"]').forEach((el) => el.addEventListener('change', () => {
+    document.querySelectorAll('[data-vstart]').forEach((d) => { d.hidden = d.dataset.vstart !== radioVal('v-start-src'); });
+  }));
+  $('v-use-start').onchange = () => { $('v-start-box').hidden = !$('v-use-start').checked; };
+  $('v-start-filter').addEventListener('input', () => fillSelect($('v-start'), [...points.values()].sort((a, b) => (b.qtValid - a.qtValid) || a.name.localeCompare(b.name)), $('v-start-filter').value));
+  $('v-conv').value = settings.conv || '';
+  $('v-conv').onchange = () => { settings.conv = Math.max(0, +$('v-conv').value || 0); saveSettings(); };
   $('h-band').oninput = bandInfo;
   document.querySelectorAll('input[name="h-which"]').forEach((el) => el.addEventListener('change', () => { $('h-dest').hidden = radioVal('h-which') !== 'pick'; }));
   $('h-go').onclick = calcHalo;
