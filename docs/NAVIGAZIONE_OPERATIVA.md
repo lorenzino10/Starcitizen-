@@ -69,6 +69,22 @@ P deve stare fra C1 e M. Per S2 si esaminano tutte le coppie A-B, combinate con 
 - **Modalità geometrica**: considera tutto. Le tratte bloccate compaiono solo se richieste. Lo stato di ogni tratta resta visibile.
 - Nessuna promozione automatica: una tratta diventa Verificata solo con il pulsante "✔ Provata in gioco".
 
+### Partenza non utilizzabile e cause di scarto (dalla 0.5.6)
+- **Pianeti e lune come partenza**: in CitizenHQ il marker di un pianeta (es. "microTech") sta al **centro** del corpo. Indica il pianeta, non dove ti trovi. Ogni tratta che parte da lì è teorica, quindi in modalità operativa da quel marker non si raggiunge nulla. NAVCOM lo spiega e propone fino a 5 marker vicini (stazioni orbitali, comm array) da cui partono tratte operative, con distanza e numero di tratte. Le proposte sono calcolate dai dati e **non provate in gioco**. La partenza cambia solo se premi "Usa come partenza e ricalcola": NAVCOM non sa dove sei e non sostituisce mai da solo la tua posizione.
+- Una posizione XYZ incollata che cade dentro un pianeta o una luna è trattata allo stesso modo (centro o superficie): mai operativa.
+- **Nessuna rotta operativa**: NAVCOM mostra quante combinazioni sono state scartate e perché. Le cause sono partenza non raggiungibile, tratta teorica (centro, superficie, ostacolo incerto), dati incompleti, ostacolo, collegamento non disponibile (segnato da te) e altro (impostazioni). Il verdetto distingue tre casi:
+  - *informazioni insufficienti*: almeno una parte degli scarti dipende da dati mancanti o incerti, quindi la destinazione **non** è dichiarata irraggiungibile;
+  - *non raggiungibile con i dati attuali*: tutti gli scarti sono ostacoli certi o tratte che hai segnato non disponibili;
+  - *problema di partenza*: la destinazione non è stata nemmeno valutata.
+- I conteggi sono per combinazione: la stessa tratta può comparire in più combinazioni.
+- **Prefiltro esatto**: in modalità operativa le combinazioni che verrebbero comunque rifiutate si scartano prima dei limiti di valutazione (`pool2`, `maxEvaluations`). Così non occupano posti a danno di quelle valide. Il prefiltro usa lo stesso criterio della valutazione finale (verificato da test su tutte le coppie), quindi non rende operativo nulla in più.
+- **MOSTRA ALTERNATIVE GEOMETRICHE**: rilancia lo stesso calcolo in modalità geometrica e mostra il risultato in una sezione separata "NON OPERATIVE". Serve a capire quali tratte verificare in gioco, non a volare.
+- **CALCOLA ROTTA dal DATABASE PUNTI** riparte da "Nessuna: trova da dove partire". La partenza scelta resta solo se spunti "Mantieni questa partenza quando calcoli dal DATABASE PUNTI".
+- **Limite noto: stazioni in orbita bassa**. Port Tressler è a circa 1.126 km dal centro di microTech, dentro la sfera di sicurezza (raggio × 1,2 = 1.200 km). Il controllo ostacoli riduce la sfera a poco meno della distanza della stazione. Così risultano bloccate quasi tutte le tratte che hanno una componente verso il pianeta: da Port Tressler restano 4 tratte operative su 434. È una scelta prudente e non è stata cambiata. Si può allentare solo verificando le tratte in gioco ("✔ Provata in gioco").
+
+### Modello ostacoli di Stanton e dati importati
+Il seed di starmap.space e CitizenHQ non concordano sulla posizione di Calliope, Euterpe e Clio: la distanza fra le due posizioni va da 130.000 a 215.000 km. I marker (avamposti, grotte) usano il frame di CitizenHQ. Dalla 0.5.6 il corpo si controlla nella posizione importata, e la posizione del seed resta come ostacolo **incerto**. Le discrepanze sono elencate in DATI E IMPOSTAZIONI → Fonti.
+
 ## 4. Precisione dell'interruzione
 
 Il pilota non esce "quando legge 13,9 Gm": quella lettura copre un passo intero, cioè 100.000 km. Esce nell'**istante in cui la lettura cambia** da (k+1) a k passi. A quale distanza avviene quel cambio dipende dalla regola di arrotondamento:

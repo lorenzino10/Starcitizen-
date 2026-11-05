@@ -96,3 +96,9 @@ td.actions { display: flex; gap: 4px; }
 td.actions button { padding: 3px 7px; font-size: .75rem; }
 tr.sel td { background: #10314d; }
 tr.err td { color: #e9a25b; }
+.check.disabled { opacity: .45; cursor: not-allowed; }
+.geo-alt { margin-top: 22px; padding-top: 10px; border-top: 2px dashed var(--red); }
+.geo-alt .geo-title { color: var(--red); }
+.navbox table { margin: 6px 0; }
+.navbox td { white-space: normal; }
+.navbox th { position: static; }
