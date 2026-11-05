@@ -5,3 +5,4 @@ __pycache__/
 dati/
 *.sqlite3
 web/node_modules/
+.cache/

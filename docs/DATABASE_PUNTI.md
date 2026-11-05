@@ -32,6 +32,12 @@ compare fra le destinazioni del pianificatore.
 4. **Ripristino di un backup JSON** (unione per ID oppure sostituzione completa).
 5. **Migrazione automatica** dei vecchi "punti personali" (localStorage, metri): una sola volta per punto; se poi lo elimini, non ricompare.
 
+## Excel pronto: punti interessanti
+`data/punti_interesse.xlsx` contiene ~2.500 punti pubblici già classificati (un foglio per gruppo,
+più "TUTTI spazio XYZ" con i 320 punti nello spazio esclusi i segmenti di Glaciem). Si importa con
+il normale import Excel scegliendo il foglio. Fonti, controlli e avvertenze sono nel foglio
+"Fonti e avvertenze". Per rigenerarlo: `python tools/build_punti_interesse.py`.
+
 ## Numeri accettati in import
 `1234.5`, `1234,5`, `1.234,5`, `1,234.5`, `1 234,5`, `-1,2e9`, celle numeriche
 di Excel. Il caso `1.234` (un solo punto seguito da tre cifre) è **ambiguo**:
