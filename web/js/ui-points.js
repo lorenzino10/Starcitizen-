@@ -23,6 +23,8 @@ export async function initPointsDb(app) {
   const { $, esc, store } = app;
   const db = await PointsDB.open();
   let points = [];
+  let byId = new Map();
+  const MAX_ROWS = 400; // righe mostrate insieme: oltre, si restringe con ricerca e filtri
   let selected = new Set();
   let wizard = null;
 
@@ -41,10 +43,16 @@ export async function initPointsDb(app) {
 
   async function reload() {
     points = await db.all();
-    selected = new Set([...selected].filter((id) => points.some((p) => p.id === id)));
+    const ids = new Set(points.map((p) => p.id));
+    selected = new Set([...selected].filter((id) => ids.has(id)));
     setPersonalPoints(points.map((p) => ({ id: p.id, name: p.name, system: p.system, pos: toMeters(p) })));
     renderTable();
+    byId = new Map(points.map((p) => [p.id, p]));
     $('db-resources').innerHTML = [...new Set(points.map((p) => p.resource).filter(Boolean))].sort().map((r) => `<option value="${esc(r)}">`).join('');
+    const groups = [...new Set(points.map((p) => p.group).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'it'));
+    $('db-groups').innerHTML = groups.map((g) => `<option value="${esc(g)}">`).join('');
+    const gSel = $('db-f-group'), gCur = gSel.value;
+    gSel.innerHTML = `<option value="">tutte le classificazioni</option>${groups.map((g) => `<option ${g === gCur ? 'selected' : ''}>${esc(g)}</option>`).join('')}`;
   }
   db.onChange(async () => { await reload(); app.onChange?.(); });
 
@@ -69,6 +77,9 @@ export async function initPointsDb(app) {
     $('db-status').value = p?.status ?? 'Da verificare';
     $('db-verified').value = p?.verifiedAt ? p.verifiedAt.slice(0, 10) : '';
     $('db-notes').value = p?.notes ?? '';
+    $('db-group').value = p?.group ?? '';
+    $('db-priority').value = p?.priority ?? '';
+    $('db-sourceref').value = p?.sourceRef ?? '';
     $('db-paste').value = '';
     $('db-form-title').textContent = p?.id ? `Modifica: ${p.name}` : 'Nuovo punto';
     $('db-cancel').hidden = !p?.id;
@@ -90,12 +101,16 @@ export async function initPointsDb(app) {
       id: id || undefined, name: $('db-name').value, system: $('db-system').value, unit: unitVal(),
       x: $('db-x').value, y: $('db-y').value, z: $('db-z').value, category: $('db-category').value, resource: $('db-resource').value,
       status: $('db-status').value, notes: $('db-notes').value, verifiedAt: $('db-verified').value || null,
+      group: $('db-group').value, priority: $('db-priority').value, sourceRef: $('db-sourceref').value,
       createdAt: old?.createdAt, source: old?.source ?? draftSource,
     });
     if (!r.point) { msg.innerHTML = `<span class="err">${esc(r.errors.join('; '))}</span>`; return; }
     const p = r.point;
     if (p.status === 'Verificato' && !p.verifiedAt) p.verifiedAt = nowIso(); // verifica appena dichiarata
     const dup = points.find((e) => e.id !== p.id && e.system === p.system && (e.name.trim().toLowerCase() === p.name.toLowerCase()));
+    if (old) { // campi non presenti nel modulo restano invariati
+      for (const k of ['legacyId']) if (old[k] !== undefined) p[k] = old[k];
+    }
     const warn = [...r.warnings, ...plausibility(p, rMax(p.system)), ...(dup ? [`esiste già un punto chiamato "${dup.name}" in ${SYSTEMS[p.system]}`] : [])];
     try { await db.put(p); } catch (e) { msg.innerHTML = `<span class="err">${esc(e.message)}</span>`; return; }
     msg.innerHTML = `<span class="ok">Punto "${esc(p.name)}" ${old ? 'aggiornato' : 'salvato'}.</span>${warn.map((w) => `<br><span class="warn">⚠ ${esc(w)}</span>`).join('')}`;
@@ -109,9 +124,9 @@ export async function initPointsDb(app) {
   }
 
   // ------------------------------------------------------------ tabella
-  const criteria = () => ({ q: $('db-q').value, system: $('db-f-system').value, category: $('db-f-category').value, resource: $('db-f-resource').value, status: $('db-f-status').value, completeOnly: $('db-f-complete').checked });
+  const criteria = () => ({ q: $('db-q').value, system: $('db-f-system').value, category: $('db-f-category').value, resource: $('db-f-resource').value, status: $('db-f-status').value, group: $('db-f-group').value, priority: $('db-f-priority').value, completeOnly: $('db-f-complete').checked });
   for (const id of ['db-q', 'db-f-resource']) $(id).addEventListener('input', renderTable);
-  for (const id of ['db-f-system', 'db-f-category', 'db-f-status', 'db-f-complete']) $(id).addEventListener('change', renderTable);
+  for (const id of ['db-f-system', 'db-f-category', 'db-f-status', 'db-f-group', 'db-f-priority', 'db-f-complete']) $(id).addEventListener('change', renderTable);
 
   function renderTable() {
     const list = filterPoints(points, criteria());
@@ -121,24 +136,26 @@ export async function initPointsDb(app) {
       return;
     }
     const allSel = list.length && list.every((p) => selected.has(p.id));
-    const rows = list.map((p) => {
+    const shown = list.slice(0, MAX_ROWS);
+    const rows = shown.map((p) => {
       const ok = isComplete(p);
       return `<tr data-id="${esc(p.id)}" class="${selected.has(p.id) ? 'sel' : ''}">
         <td><input type="checkbox" class="db-sel" ${selected.has(p.id) ? 'checked' : ''} aria-label="seleziona"></td>
         <td><b>${esc(p.name)}</b>${p.notes ? `<br><span class="hint">${esc(p.notes.slice(0, 80))}${p.notes.length > 80 ? '…' : ''}</span>` : ''}</td>
         <td>${esc(SYSTEMS[p.system] ?? p.system)}</td>
         <td class="num">${fmtCoord(p.x)}</td><td class="num">${fmtCoord(p.y)}</td><td class="num">${fmtCoord(p.z)}</td><td>${esc(p.unit)}</td>
-        <td>${esc(p.category)}</td><td>${esc(p.resource)}</td><td>${esc(p.status)}</td>
+        <td>${esc(p.category)}</td><td>${esc(p.group ?? '')}</td><td>${esc(p.priority ?? '')}</td><td>${esc(p.resource)}</td><td>${esc(p.status)}</td>
         <td>${esc(fmtDate(p.createdAt).slice(0, 10))}</td><td>${esc(fmtDate(p.verifiedAt).slice(0, 10))}</td>
         <td class="actions"><button class="small primary db-route" ${ok ? '' : 'disabled title="Scheda incompleta: servono X, Y e Z"'}>🛰 CALCOLA ROTTA</button>
           <button class="small db-edit">Modifica</button><button class="small danger db-del">Elimina</button></td></tr>`;
     }).join('');
     $('db-table').innerHTML = `<div class="tablewrap tall"><table><thead><tr><th><input type="checkbox" id="db-sel-all" ${allSel ? 'checked' : ''} aria-label="seleziona tutti"></th>
-      <th>Nome</th><th>Sistema</th><th class="num">X</th><th class="num">Y</th><th class="num">Z</th><th>Unità</th><th>Categoria</th><th>Risorsa</th><th>Stato</th><th>Inserito</th><th>Verificato</th><th></th></tr></thead>
-      <tbody>${rows || '<tr><td colspan="13" class="hint">Nessun punto con questi filtri.</td></tr>'}</tbody></table></div>`;
+      <th>Nome</th><th>Sistema</th><th class="num">X</th><th class="num">Y</th><th class="num">Z</th><th>Unità</th><th>Categoria</th><th>Classificazione</th><th>Priorità</th><th>Risorsa</th><th>Stato</th><th>Inserito</th><th>Verificato</th><th></th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="15" class="hint">Nessun punto con questi filtri.</td></tr>'}</tbody></table></div>
+      ${list.length > shown.length ? `<p class="hint">Mostrati i primi ${shown.length} di ${list.length}: usa ricerca e filtri per restringere. "Seleziona tutti" vale per tutti i ${list.length} punti filtrati.</p>` : ''}`;
     $('db-sel-all').onchange = (e) => { for (const p of list) e.target.checked ? selected.add(p.id) : selected.delete(p.id); renderTable(); };
     $('db-table').querySelectorAll('tbody tr[data-id]').forEach((tr) => {
-      const p = points.find((x) => x.id === tr.dataset.id);
+      const p = byId.get(tr.dataset.id);
       tr.querySelector('.db-sel').onchange = (e) => { e.target.checked ? selected.add(p.id) : selected.delete(p.id); renderTable(); };
       tr.querySelector('.db-route').onclick = () => app.planTo(p);
       tr.querySelector('.db-edit').onclick = () => { fillForm(p); $('db-form-msg').innerHTML = ''; $('db-name').focus(); $('db-name').scrollIntoView({ block: 'center' }); };
@@ -160,7 +177,7 @@ export async function initPointsDb(app) {
     const out = $('db-dups-out');
     if (!groups.length) { out.innerHTML = '<p class="ok">Nessun duplicato: nomi e coordinate sono tutti distinti per sistema.</p>'; return; }
     out.innerHTML = `<div class="navbox warn"><b>${groups.length} gruppi di possibili duplicati</b> (stesso sistema con coordinate entro 1 m, oppure stesso nome).
-      Seleziona quelli da eliminare con le caselle nella tabella.<ul>${groups.map((g) => `<li>${g.reason === 'coordinate' ? 'stesse coordinate' : 'stesso nome'}: ${g.ids.map((id) => esc(points.find((p) => p.id === id)?.name)).join(' · ')}
+      Seleziona quelli da eliminare con le caselle nella tabella.<ul>${groups.map((g) => `<li>${g.reason === 'coordinate' ? 'stesse coordinate' : 'stesso nome'}: ${g.ids.map((id) => esc(byId.get(id)?.name)).join(' · ')}
       <button class="small" data-ids="${esc(g.ids.slice(1).join(','))}">seleziona i doppioni</button></li>`).join('')}</ul></div>`;
     out.querySelectorAll('button[data-ids]').forEach((b) => { b.onclick = () => { for (const id of b.dataset.ids.split(',')) selected.add(id); renderTable(); }; });
   };

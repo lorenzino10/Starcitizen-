@@ -17,6 +17,9 @@ partendo dalle XYZ che hai digitato tu.
 | Categoria | Mining, Esplorazione, Relitto, Punto personale, Altro |
 | Materiale/risorsa | testo libero (con suggerimenti dai valori già usati) |
 | Stato | Da verificare, Verificato, Non interessante |
+| Classificazione | testo libero (es. Grotte, Relitti, Mining - prospezione), filtrabile; dalla 0.5.1 |
+| Priorità | Alta, Media, Bassa o non assegnata; dalla 0.5.1 |
+| Fonte dei dati | da dove vengono le coordinate (sito, dataset, misura in gioco); dalla 0.5.1 |
 | Note | testo libero |
 | Data di inserimento | automatica; si conserva negli aggiornamenti |
 | Data ultima verifica | manuale; impostata a oggi se scegli "Verificato" senza data |
@@ -31,6 +34,12 @@ compare fra le destinazioni del pianificatore.
 3. **Dal pianificatore**: "💾 Salva queste coordinate nel DATABASE PUNTI" copia nel modulo le XYZ e l'unità che hai inserito; il punto viene salvato solo quando premi "Salva punto".
 4. **Ripristino di un backup JSON** (unione per ID oppure sostituzione completa).
 5. **Migrazione automatica** dei vecchi "punti personali" (localStorage, metri): una sola volta per punto; se poi lo elimini, non ricompare.
+
+## Sinonimi accettati in import
+- Stato "Da georeferenziare" diventa "Da verificare" (la scheda senza XYZ resta comunque incompleta).
+- Priorità "NON ASSEGNATA" diventa vuota; maiuscole e minuscole indifferenti.
+- Colonne riconosciute anche come "Risorsa cercata", "Gruppo" (Classificazione), "Fonte geometria" (Fonte dei dati).
+- Il lettore accetta anche i file .xlsx scritti da programmi .NET/OpenXML SDK (elementi XML con prefisso, es. `<x:row>`).
 
 ## Numeri accettati in import
 `1234.5`, `1234,5`, `1.234,5`, `1,234.5`, `1 234,5`, `-1,2e9`, celle numeriche
@@ -53,6 +62,10 @@ l'eliminazione: non elimina nulla da solo.
 Se un punto è oltre il 105% della distanza dall'origine del punto noto più
 lontano del sistema, NAVCOM lo segnala e suggerisce un possibile errore di
 unità (metri scritti come km o viceversa). Non corregge nulla.
+
+## Grandi volumi
+Duplicati e import usano un indice (ID, nome per sistema, griglia di 1 m): 3.355 punti si controllano in circa 0,3 s e si importano in circa 1 s.
+La tabella mostra al massimo 400 righe alla volta; ricerca e filtri lavorano su tutto il database, e "seleziona tutti" vale per tutti i punti filtrati.
 
 ## Persistenza: cosa sapere
 - I punti sono salvati in **IndexedDB**, nel browser e sul dispositivo che stai usando. Sopravvivono alla chiusura del browser e al riavvio del PC.

@@ -104,11 +104,15 @@
       <label>oppure incolla /showlocation (metri)<input id="db-paste" placeholder="Coordinates: x:… y:… z:…"></label>
       <p class="hint">Coordinate mancanti: la scheda viene salvata come incompleta e non può essere inviata al pianificatore.</p>
       <label>Categoria<select id="db-category"></select></label>
+      <label>Classificazione (libera)<input id="db-group" list="db-groups" placeholder="es. Grotte, Relitti, Mining - prospezione"></label>
+      <datalist id="db-groups"></datalist>
+      <label>Priorità<select id="db-priority"><option value="">non assegnata</option><option>Alta</option><option>Media</option><option>Bassa</option></select></label>
       <label>Materiale o risorsa cercata<input id="db-resource" list="db-resources"></label>
       <datalist id="db-resources"></datalist>
       <label>Stato<select id="db-status"></select></label>
       <label>Data dell'ultima verifica<input type="date" id="db-verified"></label>
       <label>Note personali<textarea id="db-notes" rows="3"></textarea></label>
+      <label>Fonte dei dati<input id="db-sourceref" placeholder="da dove vengono le coordinate (sito, misura in gioco...)"></label>
       <div class="row"><button id="db-save" class="primary">💾 Salva punto</button><button id="db-cancel" hidden>Annulla modifica</button></div>
       <p id="db-form-msg"></p>
       <h2>Importa da Excel</h2>
@@ -127,6 +131,8 @@
         <input type="search" id="db-q" placeholder="cerca per nome…">
         <select id="db-f-system"><option value="">tutti i sistemi</option><option value="stanton">Stanton</option><option value="pyro">Pyro</option><option value="nyx">Nyx</option></select>
         <select id="db-f-category"><option value="">tutte le categorie</option></select>
+        <select id="db-f-group"><option value="">tutte le classificazioni</option></select>
+        <select id="db-f-priority"><option value="">tutte le priorità</option><option>Alta</option><option>Media</option><option>Bassa</option><option value="-">non assegnata</option></select>
         <input id="db-f-resource" list="db-resources" placeholder="risorsa…">
         <select id="db-f-status"><option value="">tutti gli stati</option></select>
         <label class="check"><input type="checkbox" id="db-f-complete"> solo complete</label>

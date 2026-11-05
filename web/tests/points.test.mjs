@@ -210,3 +210,75 @@ test('backup JSON: ripristino esatto, file estranei rifiutati', async () => {
   assert.ok((await db.all()).every((p) => isComplete(p) || p.name === 'Scheda incompleta'));
   db.close();
 });
+
+// ------------------------------------------------------------ 0.5.1: classificazione, file .NET, grandi volumi
+import { writeZip } from '../js/data/xlsx.js';
+import { DupIndex, parsePriority, parseStatus } from '../js/core/points.js';
+
+test('xlsx con prefissi di namespace (OpenXML SDK / .NET) e percorsi assoluti', async () => {
+  const enc = (s) => new TextEncoder().encode(s);
+  const NS = 'xmlns:x="http://schemas.openxmlformats.org/spreadsheetml/2006/main"';
+  const R = 'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"';
+  const buf = writeZip([
+    ['[Content_Types].xml', enc('<?xml version="1.0"?><Types/>')],
+    ['xl/workbook.xml', enc(`<?xml version="1.0" encoding="utf-8"?><x:workbook ${NS}><x:sheets><x:sheet name="IMPORT NAVCOM" sheetId="1" r:id="R1" ${R} /></x:sheets></x:workbook>`)],
+    ['xl/_rels/workbook.xml.rels', enc('﻿<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Type="x/worksheet" Target="/xl/worksheets/sheet1.xml" Id="R1" /><Relationship Type="x/sharedStrings" Target="/xl/sharedStrings.xml" Id="R2" /></Relationships>')],
+    ['xl/sharedStrings.xml', enc(`<x:sst ${NS}><x:si><x:t>Sistema</x:t></x:si></x:sst>`)],
+    ['xl/worksheets/sheet1.xml', enc(`<x:worksheet ${NS}><x:sheetData><x:row r="1"><x:c r="A1" t="str"><x:v>Nome</x:v></x:c><x:c r="B1" t="s"><x:v>0</x:v></x:c><x:c r="C1" t="inlineStr"><x:is><x:t>X</x:t></x:is></x:c></x:row><x:row r="2"><x:c r="A2" t="str"><x:v>Aberdeen</x:v></x:c><x:c r="B2" t="str"><x:v>Stanton</x:v></x:c><x:c r="C2"><x:v>12905757.636</x:v></x:c></x:row></x:sheetData></x:worksheet>`)],
+  ]);
+  const { sheets } = await readXlsx(buf);
+  assert.equal(sheets[0].name, 'IMPORT NAVCOM');
+  assert.deepEqual(sheets[0].rows, [['Nome', 'Sistema', 'X'], ['Aberdeen', 'Stanton', 12905757.636]]);
+});
+
+test('classificazione, priorità, fonte dei dati: import, filtri, export', async () => {
+  assert.equal(parseStatus('Da georeferenziare'), 'Da verificare');
+  assert.equal(parsePriority('ALTA'), 'Alta'); assert.equal(parsePriority('NON ASSEGNATA'), ''); assert.equal(parsePriority('urgente'), null);
+  const header = ['ID', 'Nome', 'Sistema', 'X', 'Y', 'Z', 'Unità', 'Categoria', 'Classificazione', 'Priorità', 'Risorsa cercata', 'Stato', 'Note', 'Fonte dei dati'];
+  const rows = [
+    ['PI-1', 'Grotta A', 'Stanton', null, null, null, 'km', 'Esplorazione', 'Grotte', 'ALTA', 'Hadanite', 'Da georeferenziare', 'n', 'starmap.space'],
+    ['PI-2', 'Base B', 'Pyro', 1, 2, 3, 'km', 'Mining', 'Basi su asteroide (Pyro)', 'NON ASSEGNATA', null, 'Da verificare', null, 'Wiki API'],
+    ['PI-3', 'Strano', 'Nyx', 1, 2, 3, 'km', 'Altro', 'Anomalie', 'urgente', null, 'Da verificare', null, null],
+  ];
+  const m = guessMapping(header);
+  assert.equal(m.group, 8); assert.equal(m.priority, 9); assert.equal(m.resource, 10); assert.equal(m.sourceRef, 13);
+  const cands = rowsToCandidates(rows, m);
+  assert.deepEqual(cands[0].warnings, ['nessuna coordinata: scheda incompleta'], 'nessun avviso per "Da georeferenziare" e "ALTA"');
+  assert.match(cands[2].warnings.join(), /priorità "urgente"/);
+  const pts = planImport(cands, []).insert;
+  assert.deepEqual(pts.map((p) => [p.id, p.group, p.priority, p.status, p.sourceRef]), [
+    ['PI-1', 'Grotte', 'Alta', 'Da verificare', 'starmap.space'],
+    ['PI-2', 'Basi su asteroide (Pyro)', '', 'Da verificare', 'Wiki API'],
+    ['PI-3', 'Anomalie', '', 'Da verificare', ''],
+  ]);
+  assert.deepEqual(filterPoints(pts, { group: 'Grotte' }).map((p) => p.id), ['PI-1']);
+  assert.deepEqual(filterPoints(pts, { priority: 'Alta' }).map((p) => p.id), ['PI-1']);
+  assert.deepEqual(filterPoints(pts, { priority: '-' }).map((p) => p.id), ['PI-2', 'PI-3']);
+  const { sheets } = await readXlsx(await writeXlsx(exportRows(pts)));
+  const [h2, ...r2] = sheets[0].rows;
+  const back = planImport(rowsToCandidates(r2, guessMapping(h2)), []).insert;
+  assert.deepEqual(back.map((p) => [p.id, p.group, p.priority, p.sourceRef]), pts.map((p) => [p.id, p.group, p.priority, p.sourceRef]));
+  assert.deepEqual(parseBackup(backupJson(pts)), pts);
+});
+
+test('grandi volumi: 4000 punti, duplicati e import in tempi brevi, stessi risultati del confronto a coppie', () => {
+  let seed = 7; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const sys = ['stanton', 'pyro', 'nyx'];
+  const pts = Array.from({ length: 4000 }, (_, i) => pt({ name: `P${i % 3700}`, system: sys[i % 3], unit: 'm', x: Math.round(rnd() * 1e6) * 1000, y: Math.round(rnd() * 1e6) * 1000, z: 0 }));
+  pts[10] = { ...pts[10], x: pts[20].x + 0.5, y: pts[20].y, z: pts[20].z, system: pts[20].system }; // stesse coordinate entro 1 m
+  let t = performance.now();
+  const groups = findDuplicates(pts);
+  const tDup = performance.now() - t;
+  const brute = [];
+  for (let i = 0; i < pts.length; i++) for (let j = i + 1; j < pts.length; j++) if (duplicateReason(pts[i], pts[j])) brute.push(`${pts[i].id}|${pts[j].id}`);
+  const fromGroups = new Set(groups.flatMap((g) => g.ids.slice(1).map((id) => `${g.ids[0]}|${id}`)));
+  for (const pair of brute) assert.ok(fromGroups.has(pair), pair);
+  assert.ok(groups.some((g) => g.reason === 'coordinate'));
+  t = performance.now();
+  const plan = planImport(pts.map((p, i) => ({ rowNo: i + 2, point: { ...p, id: undefined }, errors: [], warnings: [], complete: true })), pts.slice(0, 2000));
+  const tPlan = performance.now() - t;
+  assert.ok(plan.skipped.length >= 2000);
+  assert.ok(tDup < 1500 && tPlan < 1500, `troppo lento: duplicati ${tDup | 0} ms, import ${tPlan | 0} ms`);
+  const idx = new DupIndex([pts[20]]);
+  assert.equal(idx.find({ ...pts[10], id: 'nuovo', name: 'altro' }).reason, 'coordinate');
+});
