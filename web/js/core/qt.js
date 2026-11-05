@@ -23,6 +23,11 @@ export const STATUS = {
 export function checkObstructions(a, b, model) {
   const hits = [];
   for (const body of model.bodies) {
+    // Un estremo nel cuore del corpo (marker "centro pianeta" di CitizenHQ): la sfera di prova si
+    // ridurrebbe a ~0 e il risultato dipenderebbe da arrotondamenti al millimetro (meta' delle
+    // direzioni "bloccate" a caso). Quel caso e' gia' classificato come tratta teorica ("centro").
+    const own = !body.uncertain && !/star|stella/i.test(body.name);
+    if (own && (distance(a, body.center) < body.radius * 0.5 || distance(b, body.center) < body.radius * 0.5)) continue;
     const r = Math.min(body.radius * model.margin,
       0.999 * distance(a, body.center), 0.999 * distance(b, body.center));
     if (r <= 0) continue;

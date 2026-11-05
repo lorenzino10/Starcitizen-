@@ -26,20 +26,31 @@ export const bodySeed = (system) => BODY_SEED[system] ?? null;
 
 /**
  * Modello ostacoli. rows = posizioni importate del sistema (servono per Pyro e Nyx).
- * @returns {{bodies, margin, complete, missing:string[], source:string}}
+ * @returns {{bodies, margin, complete, missing:string[], discrepancies?:{name,offset}[], source:string}}
  */
 export function obstructionModel(system, margin = 1.2, rows = [], { starRadius = DEFAULT_STAR_RADIUS } = {}) {
   const seed = bodySeed(system);
   if (seed) {
-    const bodies = [];
+    const bodies = [], discrepancies = [];
     for (const b of seed.bodies) {
+      // Il corpo esiste anche nei dati importati (CitizenHQ, stesso frame dei marker QT) ma in un
+      // punto diverso: i marker in superficie stanno attorno alla posizione importata, quindi il
+      // corpo si controlla li'; la posizione del seed resta come ostacolo INCERTO (mai ignorata).
+      const row = rows.find((r) => /^(planet|moon)$/i.test(r.type ?? '') && r.name?.toLowerCase() === b.name.toLowerCase());
+      const off = row ? Math.hypot(row.x - b.x, row.y - b.y, row.z - b.z) : 0;
+      if (row && off > b.body_radius_m) {
+        bodies.push({ name: b.name, center: vec(row.x, row.y, row.z), radius: b.body_radius_m, uncertain: false });
+        bodies.push({ name: `${b.name} (posizione starmap.space, non concorde)`, center: vec(b.x, b.y, b.z), radius: b.body_radius_m, uncertain: true });
+        discrepancies.push({ name: b.name, offset: off });
+        continue;
+      }
       bodies.push({ name: b.name, center: vec(b.x, b.y, b.z), radius: b.body_radius_m, uncertain: UNCERTAIN.has(b.name) });
       if (b.name === 'Stanton Star') {
         // posizione alternativa secondo CitizenHQ: origine
         bodies.push({ name: 'Stanton Star (origine, CitizenHQ)', center: vec(0, 0, 0), radius: b.body_radius_m, uncertain: true });
       }
     }
-    return { bodies, margin, complete: true, missing: [], source: seed._meta.source };
+    return { bodies, margin, complete: true, missing: [], discrepancies, source: seed._meta.source };
   }
   const radii = RADII[system];
   if (!radii) return { bodies: [], margin, complete: false, missing: ['tutti i corpi celesti'], source: 'nessuna' };

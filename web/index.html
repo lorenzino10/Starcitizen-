@@ -55,6 +55,8 @@
         <label><input type="radio" name="p-start-src" value="point"> Punto noto</label>
         <label><input type="radio" name="p-start-src" value="xyz"> Coordinate XYZ</label>
       </div>
+      <label class="check"><input type="checkbox" id="p-keep-start"> Mantieni questa partenza quando calcoli dal DATABASE PUNTI</label>
+      <p class="hint">Se è spenta, CALCOLA ROTTA dal DATABASE PUNTI riparte da "Nessuna: trova da dove partire". Un pianeta o una luna come partenza indica il centro del corpo, non dove sei: per la modalità operativa scegli una stazione orbitale o incolla /showlocation.</p>
       <div data-pstart="point" hidden>
         <label>Sistema della partenza<select id="p-start-sys"><option value="stanton">Stanton</option><option value="pyro">Pyro</option><option value="nyx">Nyx</option></select></label>
         <input type="search" id="p-start-filter" placeholder="filtra…"><select id="p-start"></select>
@@ -74,7 +76,7 @@
       <label>Criterio di ottimizzazione
         <select id="p-crit"><option value="residuo">Minima distanza residua</option><option value="tempo">Minimo tempo di viaggio</option><option value="operativo">Migliore raggiungibilità operativa</option></select></label>
       <label class="check"><input type="checkbox" id="p-two" checked> Valuta anche l'avvicinamento in due fasi (nuovo salto dopo un'interruzione)</label>
-      <label class="check"><input type="checkbox" id="p-blocked"> Includi tratte bloccate (solo modalità geometrica)</label>
+      <label class="check" id="p-blocked-label"><input type="checkbox" id="p-blocked"> Includi tratte bloccate (solo modalità geometrica)</label>
       <label>Piani da mostrare<select id="p-limit"><option>10</option><option selected>25</option><option>50</option></select></label>
       <button id="p-go" class="primary">🛰 CALCOLA PIANO</button>
       <p class="hint">Nave, HUD, tempo di reazione e criteri: DATI E IMPOSTAZIONI → Parametri di navigazione.</p>

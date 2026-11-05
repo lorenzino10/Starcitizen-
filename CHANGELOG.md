@@ -1,5 +1,18 @@
 # Registro delle modifiche
 
+## 0.5.6-web (2026-11-05): pianificatore, partenza planetaria e cause di scarto
+Segnalazione di Lorenzo: Aaron Halo B5 (settore 043°), partenza microTech, modalità Operativa. Risultato: 435 marker e centinaia di candidati, ma nessun percorso.
+- **Causa**: il marker "microTech" di CitizenHQ è il **centro del pianeta**, non una partenza reale. Ogni tratta che parte da lì è teorica, quindi in modalità operativa nessun marker era raggiungibile. Una partenza diversa (nessuna, oppure una stazione orbitale) dà piani operativi. Nessun criterio di sicurezza è stato abbassato.
+- **Diagnosi della partenza**: se la partenza non permette tratte operative, NAVCOM spiega perché (centro o superficie di un corpo, ostacoli, dati) e propone fino a 5 marker vicini da cui partono tratte operative. Per ciascuno mostra distanza e numero di tratte, con l'avvertenza "non provati in gioco". La partenza cambia **solo** se premi "Usa come partenza e ricalcola".
+- **Cause di scarto** quando non c'è alcuna rotta operativa: partenza non raggiungibile, tratta teorica (centro, superficie, ostacolo incerto), dati incompleti, ostacolo, collegamento non disponibile, altro (impostazioni). NAVCOM distingue "informazioni insufficienti" da "non raggiungibile con i dati attuali".
+- **Nessuna "alternativa sicura"**: il marker più vicino viene indicato come tale, con raggiungibilità non verificata.
+- **MOSTRA ALTERNATIVE GEOMETRICHE**: calcolo separato in modalità geometrica, in una sezione rossa "NON OPERATIVE" con i dettagli su richiesta. Non sostituisce il risultato operativo.
+- **"Includi tratte bloccate"** è disattivata e spenta in modalità operativa.
+- **CALCOLA ROTTA dal DATABASE PUNTI** riparte da "Nessuna: trova da dove partire", salvo che tu abbia spuntato "Mantieni questa partenza quando calcoli dal DATABASE PUNTI".
+- **Prefiltro esatto**: in modalità operativa le combinazioni che sarebbero comunque scartate (tratte teoriche, bloccate, non disponibili, partenza non raggiungibile) si eliminano prima dei limiti di valutazione. Così combinazioni geometricamente migliori ma non operative non riempiono più i posti a scapito di quelle valide.
+- **Correzione ostacoli**: una tratta da un marker al centro di un corpo risultava "bloccata" dal corpo stesso in circa metà delle direzioni, a causa di un artefatto numerico. Ora resta semplicemente teorica ("centro"). Una posizione XYZ libera dentro un pianeta è classificata come centro o superficie e non è mai operativa.
+- **Modello ostacoli di Stanton**: per Calliope, Euterpe e Clio il seed di starmap.space riporta posizioni lontane da 130.000 a 215.000 km da quelle di CitizenHQ, il frame dei marker. Gli avamposti su quelle lune risultavano in spazio libero, quindi tratte "supportate". Ora il corpo si controlla nella posizione importata, e quella del seed resta come ostacolo incerto. Effetto: in modalità operativa i marker di Stanton utilizzabili passano da 93 a 47 su 435. È più restrittivo, non meno.
+
 ## 0.5.5-web (2026-11-05)
 - Import Excel: il menu a tendina "Duplicati" è sostituito da due pulsanti espliciti. "📥 Importa solo i nuovi" lascia invariati i punti già presenti; "♻ Importa e aggiorna i già presenti" ne aggiorna solo i campi presenti nel file. "Controlla" indica quanti punti del file sono già nel database.
 

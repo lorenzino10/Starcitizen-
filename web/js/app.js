@@ -15,8 +15,8 @@ import { ensurePlotly } from './plotly-loader.js';
 import { initPlanner, navOptions } from './ui-plan.js';
 import { initPointsDb } from './ui-points.js';
 
-const VERSION = '0.5.5-web';
-const CACHE_NAME = 'navcom-v0.5.5'; // deve coincidere con CACHE in sw.js
+const VERSION = '0.5.6-web';
+const CACHE_NAME = 'navcom-v0.5.6'; // deve coincidere con CACHE in sw.js
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const ICON = { [STATUS.VERIFIED]: '🟢', [STATUS.DATA]: '🔵', [STATUS.THEORETICAL]: '🟠' };
@@ -391,7 +391,7 @@ function renderHalo() {
     <button id="h-save">💾 Salva questa interruzione</button><span id="h-msg" class="ok"></span>`);
   const b = BANDS[H.band];
   const draw = () => systemPlot($('h-plot'), {
-    points: [...points.values()].filter((p) => p.qtValid), bodies: obstructionModel('stanton', settings.margin).bodies,
+    points: [...points.values()].filter((p) => p.qtValid), bodies: obstructionModel('stanton', settings.margin, store.locations('stanton')).bodies,
     mode: radioVal('h-view'),
     segments: [[o.start.pos, o.dest.pos, 'Tratta QT', CYAN]],
     marks: [[o.start.pos, 'Partenza', CYAN, 'circle'], [pointAt(o.start.pos, o.dest.pos, c.tEnter), 'Ingresso', GREEN, 'triangle-up'],
@@ -471,8 +471,9 @@ function renderData() {
   ], store.data.importLog);
   $('d-log').replaceWith(log); log.id = 'd-log';
   const seed = bodySeed(system);
+  const disc = seed ? obstructionModel(system, settings.margin, store.locations(system)).discrepancies ?? [] : [];
   $('d-sources').innerHTML = `<p>Posizioni: ${esc(ATTRIBUTION)}${meta ? `. Versione dei dati: ${esc(meta.gameVersion ?? 'n.d.')}, scaricati il ${esc(meta.fetchedAt ?? '')}, origine: ${esc(meta.origin)}.` : '.'}</p>
-    <p>Corpi celesti per gli ostacoli: ${seed ? `${esc(seed._meta.source)}. Conflitti noti: ${esc(seed._meta.known_conflicts.join('; '))}` : '<b>nessun dato per questo sistema: tutte le tratte risultano "Teoriche".</b>'}</p>
+    <p>Corpi celesti per gli ostacoli: ${seed ? `${esc(seed._meta.source)}. Conflitti noti: ${esc(seed._meta.known_conflicts.join('; '))}${disc.length ? `. Posizioni non concordi con i dati importati (si usa quella importata, la vecchia resta come ostacolo incerto): ${esc(disc.map((d) => `${d.name} ${Math.round(d.offset / 1e3).toLocaleString('it-IT')} km`).join(', '))}` : ''}` : '<b>nessun dato per questo sistema: tutte le tratte risultano "Teoriche".</b>'}</p>
     <p>Fasce dell'Aaron Halo: ${esc(HALO_SOURCE)}.</p>
     <p>Legenda: 🟢 verificata nel gioco (la segni tu) · 🔵 supportata dai dati (marker QT da fonte, nessun ostacolo noto) · 🟠 teorica, da verificare.</p>`;
 }

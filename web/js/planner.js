@@ -39,7 +39,7 @@ export function planToTarget(store, system, start, target, margin, includeBlocke
 export function haloOptions(store, start, bandNo, margin, destKey = null) {
   const system = 'stanton';
   const pts = navPoints(store, system);
-  const model = obstructionModel(system, margin);
+  const model = obstructionModel(system, margin, store.locations(system));
   const verified = store.verifiedPairs(system);
   const dests = destKey ? [pts.get(destKey)].filter(Boolean) : [...pts.values()].filter((p) => p.qtValid);
   const out = [];

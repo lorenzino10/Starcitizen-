@@ -1,7 +1,7 @@
 // Interfaccia del PIANIFICATORE (Fasi 4 e 5). Nessun calcolo qui: il motore e' in core/plan.js
 // ed e' eseguito in un Web Worker (plan-client.js).
 import { STATUS } from './core/qt.js';
-import { CRITERIA, EVIDENCE, inFlightCorrection } from './core/plan.js';
+import { CRITERIA, EVIDENCE, REJECT, inFlightCorrection } from './core/plan.js';
 import { DEFAULT_HUD, ROUNDING_LABEL } from './core/hud.js';
 import { coordinateChecks, fmtTime, parseShowLocation, pilotInstructions } from './core/instructions.js';
 import { fmtAuto, fmtKm } from './core/units.js';
@@ -73,6 +73,12 @@ export function initPlanner(app) {
     $('p-mode-hint').textContent = radioVal('p-mode') === 'operativa'
       ? 'Solo tratte verificate da te o supportate da dati/fonti, senza ostacoli e non segnate come indisponibili. Se i dati non bastano, NAVCOM lo dice.'
       : 'Tutte le traiettorie matematicamente possibili fra i marker, con lo stato di ciascuna. Serve a esplorare, non a volare.';
+    // le tratte bloccate non hanno senso in modalita' operativa: casella spenta e disattivata
+    const op = radioVal('p-mode') === 'operativa';
+    if (op) $('p-blocked').checked = false;
+    $('p-blocked').disabled = op;
+    $('p-blocked-label').classList.toggle('disabled', op);
+    $('p-blocked-label').title = op ? 'Disponibile solo in modalità geometrica' : '';
   };
   document.querySelectorAll('input[name="p-mode"]').forEach((el) => el.addEventListener('change', modeHint));
   modeHint();
@@ -144,7 +150,7 @@ export function initPlanner(app) {
       target, start,
       opts: {
         ...navOptions(settings), mode: radioVal('p-mode'), criterion: $('p-crit').value,
-        allowTwoStage: $('p-two').checked, includeBlocked: $('p-blocked').checked, limit: +$('p-limit').value,
+        allowTwoStage: $('p-two').checked, includeBlocked: radioVal('p-mode') === 'geometrica' && $('p-blocked').checked, limit: +$('p-limit').value,
       },
     };
   }
@@ -173,7 +179,7 @@ export function initPlanner(app) {
       }
       const t0 = performance.now();
       const res = await runPlanner({ systems, target: inputs.target, start: inputs.start, opts: inputs.opts });
-      last = { inputs, res, sel: 0, view: '3D', ms: performance.now() - t0, compareWith, model: systems[inputs.target.system]?.model };
+      last = { inputs, res, sel: 0, view: '3D', ms: performance.now() - t0, compareWith, model: systems[inputs.target.system]?.model, systems, geo: null, geoSel: 0 };
       render();
     } catch (e) {
       out.innerHTML = `<p class="err">${esc(e.message)}</p>`;
@@ -260,10 +266,13 @@ export function initPlanner(app) {
       out.insertAdjacentHTML('beforeend', `<p class="warn">Ordinamento per tempo incompleto: ${esc([...new Set(plans.flatMap((p) => p.time.missing))].join(', '))} non indicati in DATI E IMPOSTAZIONI. I piani senza tempo determinabile sono in fondo.</p>`);
     }
     if (L.compareWith) out.insertAdjacentHTML('beforeend', compareBox(L.compareWith, plans[0]));
+    if (res.startIssue) out.insertAdjacentHTML('beforeend', startIssueBox(res.startIssue));
     if (!plans.length) {
       out.insertAdjacentHTML('beforeend', inputs.opts.mode === 'operativa'
-        ? `<p class="warn">Dati insufficienti per dichiarare una rotta praticabile in modalità operativa: nessuna combinazione usa solo tratte verificate o supportate, senza ostacoli. Prova la modalità geometrica per esplorare, poi verifica in gioco le tratte e segnale.${res.nearest ? ` Alternativa sicura: vai al marker più vicino (${esc(res.nearest.name)}, ${fmtAuto(res.nearest.distance)} da P).` : ''}</p>`
+        ? noPlansBox(res)
         : '<p class="warn">Nessuna tratta passa vicino a P con un\'interruzione intermedia.</p>');
+      bindStartSuggestions(out);
+      geoSection(out);
       return;
     }
     const p = plans[L.sel] ?? plans[0];
@@ -308,6 +317,133 @@ export function initPlanner(app) {
       $('p-msg').textContent = 'Piano salvato in ROTTE SALVATE, con parametri e versione dei dati.';
       app.renderSaved();
     };
+    bindStartSuggestions(out);
+    geoSection(out);
+  }
+
+  // ------------------------------------------------------------ diagnosi (modalita' operativa)
+  /** Cause che dipendono da dati mancanti o incerti, non da un ostacolo accertato. */
+  const INSUFFICIENT = new Set(['centro', 'superficie', 'dati_incompleti', 'ostacolo_incerto']);
+  const CAUSE_GROUP = {
+    partenza: 'Partenza non raggiungibile', centro: 'Tratta teorica', superficie: 'Tratta teorica',
+    dati_incompleti: 'Dati incompleti', ostacolo_incerto: 'Tratta teorica', ostacolo: 'Ostacolo',
+    non_disponibile: 'Collegamento non disponibile', spazio_libero: 'Altro (impostazioni)', salto_minimo: 'Altro (impostazioni)',
+  };
+  const sumCauses = (...objs) => {
+    const t = {};
+    for (const o of objs) for (const [k, v] of Object.entries(o ?? {})) t[k] = (t[k] ?? 0) + v;
+    return t;
+  };
+
+  function startIssueBox(si) {
+    const why = si.surface?.kind === 'centro'
+      ? `<b>${esc(si.name)}</b> è il marker al <b>centro</b> del corpo celeste (${esc(si.surface.body)}): indica il pianeta, non dove ti trovi. Da lì nessuna tratta è dimostrabile senza ostacoli, quindi in modalità operativa non è una partenza utilizzabile.`
+      : si.surface?.kind === 'superficie'
+        ? `<b>${esc(si.name)}</b> è sulla superficie di ${esc(si.surface.body)}, che ruota: la sua posizione nel frame del sistema cambia nel tempo e le tratte da lì restano teoriche.`
+        : `Da <b>${esc(si.name)}</b> nessuna tratta è ammessa in modalità operativa.`;
+    const reasons = Object.entries(si.reasons).sort((a, b) => b[1] - a[1])
+      .map(([k, v]) => `<li>${esc(REJECT[k] ?? k)}: ${v.toLocaleString('it-IT')} tratte</li>`).join('');
+    const sugg = si.suggestions.length
+      ? `<p>Marker vicini da cui partono tratte operative (calcolate dai dati, <b>non provate in gioco</b>). NAVCOM non sa dove sei: usa uno di questi solo se ci sei davvero o ci arrivi tu.</p>
+        <table class="tbl"><thead><tr><th>Marker</th><th class="num">Distanza dalla partenza scelta</th><th class="num">Tratte operative in uscita</th><th></th></tr></thead><tbody>${
+        si.suggestions.map((s) => `<tr><td>${esc(s.name)}${s.type ? ` <span class="hint">(${esc(s.type)})</span>` : ''}</td><td class="num">${fmtAuto(s.distance)}</td><td class="num">${s.operationalLegs}</td>
+          <td><button class="small" data-use-start="${esc(s.key)}">Usa come partenza e ricalcola</button></td></tr>`).join('')}</tbody></table>`
+      : '<p>Nessun marker vicino con tratte operative nei dati attuali.</p>';
+    return `<div class="navbox warn"><b>Partenza non utilizzabile in modalità operativa.</b><br>${why}
+      <details><summary>Cause per le tratte in uscita</summary><ul>${reasons}</ul></details>
+      ${sugg}<p class="hint">In alternativa scegli "Nessuna: trova da dove partire" oppure incolla la tua posizione da /showlocation in "Coordinate XYZ".</p></div>`;
+  }
+
+  function noPlansBox(res) {
+    const s = res.stats;
+    const all = sumCauses(s.rejected1, s.rejected2, s.rejectedEval);
+    const total = Object.values(all).reduce((a, b) => a + b, 0);
+    const insufficient = Object.entries(all).filter(([k]) => INSUFFICIENT.has(k)).reduce((a, [, v]) => a + v, 0);
+    const hard = (all.ostacolo ?? 0) + (all.non_disponibile ?? 0);
+    let verdict;
+    if (res.startIssue || (all.partenza && all.partenza === total)) {
+      verdict = 'La destinazione non è stata giudicata: il problema è la <b>partenza</b>, da cui nessuna tratta operativa è ammessa.';
+    } else if (s.capped) {
+      verdict = 'Raggiunto il limite di combinazioni valutate senza trovare un piano operativo: il risultato <b>non è conclusivo</b>.';
+    } else if (total && insufficient === 0 && hard > 0) {
+      verdict = 'Tutte le combinazioni sono escluse da <b>ostacoli accertati</b> o da tratte che hai segnato non disponibili: con i dati attuali la destinazione <b>non è raggiungibile</b> con salti quantici operativi.';
+    } else if (insufficient > 0) {
+      verdict = `<b>Non significa che la destinazione sia irraggiungibile</b>: ${insufficient.toLocaleString('it-IT')} combinazioni su ${total.toLocaleString('it-IT')} sono escluse per <b>informazioni insufficienti</b> (tratte teoriche, dati incompleti o incerti). Verificarle in gioco e segnarle come provate le rende operative.`;
+    } else {
+      verdict = 'Nessuna combinazione passa vicino a P con le tratte ammesse.';
+    }
+    const groups = {};
+    for (const [k, v] of Object.entries(all)) {
+      const g = CAUSE_GROUP[k] ?? 'Altro';
+      (groups[g] ??= { n: 0, items: [] }).n += v;
+      groups[g].items.push(`${REJECT[k] ?? k}: ${v.toLocaleString('it-IT')}`);
+    }
+    const rows = Object.entries(groups).sort((a, b) => b[1].n - a[1].n)
+      .map(([g, x]) => `<tr><td>${esc(g)}</td><td class="num">${x.n.toLocaleString('it-IT')}</td><td class="hint">${esc(x.items.join(' · '))}</td></tr>`).join('');
+    return `<div class="navbox warn"><b>Nessuna rotta operativa.</b> ${verdict}
+      ${rows ? `<table class="tbl"><thead><tr><th>Causa di scarto</th><th class="num">Combinazioni</th><th>Dettaglio</th></tr></thead><tbody>${rows}</tbody></table>
+      <p class="hint">Conteggi per combinazione (una tratta può comparire in più combinazioni). Marker QT utilizzabili come estremi in modalità operativa: ${s.usableMarkers} su ${s.markers} (gli altri sono al centro o sulla superficie di un corpo).</p>` : ''}
+      ${res.nearest ? `<p class="hint">Marker QT più vicino a P: ${esc(res.nearest.name)}, ${fmtAuto(res.nearest.distance)}. Raggiungibilità <b>non verificata</b>: non è un'alternativa sicura.</p>` : ''}</div>`;
+  }
+
+  function bindStartSuggestions(out) {
+    out.querySelectorAll('[data-use-start]').forEach((b) => b.addEventListener('click', async () => {
+      const sys = last.inputs.target.system;
+      const radio = document.querySelector('input[name="p-start-src"][value="point"]');
+      radio.checked = true;
+      radio.dispatchEvent(new Event('change'));
+      $('p-start-sys').value = sys; $('p-start-sys').dataset.touched = '1';
+      $('p-start-filter').value = '';
+      await refreshStartList();
+      $('p-start').value = b.dataset.useStart;
+      let inputs;
+      try { inputs = readInputs(); } catch (e) { $('p-out').innerHTML = `<p class="err">${esc(e.message)}</p>`; return; }
+      compute(inputs);
+    }));
+  }
+
+  // ------------------------------------------------------------ alternative geometriche (separate)
+  function geoSection(out) {
+    const L = last;
+    if (L.inputs.opts.mode !== 'operativa') return;
+    const box = document.createElement('div');
+    box.className = 'geo-alt';
+    out.append(box);
+    if (!L.geo) {
+      box.innerHTML = `<button id="p-geo" class="small">MOSTRA ALTERNATIVE GEOMETRICHE</button>
+        <span class="hint">Calcolo separato in modalità geometrica: traiettorie matematicamente possibili, <b>non operative</b>. Non sostituisce il risultato qui sopra.</span>`;
+      box.querySelector('#p-geo').onclick = async () => {
+        box.innerHTML = '<p class="hint">Calcolo delle alternative geometriche…</p>';
+        try {
+          const opts = { ...L.inputs.opts, mode: 'geometrica', includeBlocked: false };
+          const res = await runPlanner({ systems: L.systems, target: L.inputs.target, start: L.inputs.start, opts });
+          if (last !== L) return;
+          L.geo = { res, inputs: { ...L.inputs, opts } };
+          L.geoSel = 0;
+        } catch (e) { box.innerHTML = `<p class="err">${esc(e.message)}</p>`; return; }
+        box.remove();
+        geoSection(out);
+      };
+      return;
+    }
+    const { res, inputs } = L.geo;
+    const head = `<h2 class="geo-title">⚠ ALTERNATIVE GEOMETRICHE: NON OPERATIVE</h2>
+      <p class="err">Traiettorie solo geometriche: possono attraversare zone non verificate, partire da marker al centro o sulla superficie di un corpo, o usare tratte mai provate. <b>Non sono rotte consigliate</b>: servono a capire cosa verificare in gioco.</p>`;
+    if (res.error) { box.innerHTML = `${head}<p class="err">${esc(res.error)}</p>`; return; }
+    if (!res.plans.length) { box.innerHTML = `${head}<p class="warn">Nessuna alternativa geometrica: nessuna tratta passa vicino a P.</p>`; return; }
+    box.innerHTML = head;
+    const plans = res.plans.slice(0, 10);
+    box.append(table([
+      { label: '#', get: (r) => plans.indexOf(r) + 1, num: true },
+      { label: 'Strategia', get: (r) => r.strategy },
+      { label: 'Partenza', get: (r) => r.departure?.name ?? '—' },
+      { label: 'Salti', get: (r) => r.steps.filter((s) => s.kind !== 'conv').map((s) => (s.kind === 'jump' ? `⇢${SYSTEM_NAMES[s.toSystem]}` : s.to.name)).join(' → ') },
+      { label: 'Residuo teorico', get: (r) => fmtKm(r.residual), num: true },
+      { label: 'Stato', get: (r) => `${ICON[r.status]} ${r.status} · NON OPERATIVA` },
+    ], plans, { selected: L.geoSel, onClick: (i) => { L.geoSel = i; box.remove(); geoSection(out); } }));
+    const d = document.createElement('details');
+    d.innerHTML = `<summary>Dettagli dell'alternativa geometrica n. ${L.geoSel + 1} (non operativa)</summary>${sheet(plans[L.geoSel] ?? plans[0], inputs.target, inputs)}`;
+    box.append(d);
   }
 
   function draw(p) {
@@ -419,6 +555,12 @@ export function initPlanner(app) {
     $('p-x').value = String(pt.x); $('p-y').value = String(pt.y); $('p-z').value = String(pt.z);
     $('p-paste').value = '';
     $('p-x').dataset.name = pt.name;
+    // la partenza precedente resta solo se l'hai chiesto esplicitamente
+    if (!$('p-keep-start').checked && radioVal('p-start-src') !== 'none') {
+      const none = document.querySelector('input[name="p-start-src"][value="none"]');
+      none.checked = true;
+      none.dispatchEvent(new Event('change'));
+    }
     app.showTab('plan');
     let inputs;
     try { inputs = readInputs(); } catch (e) { $('p-out').innerHTML = `<p class="err">${esc(e.message)}</p>`; return; }
