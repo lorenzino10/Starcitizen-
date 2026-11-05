@@ -1,5 +1,10 @@
 # Registro delle modifiche
 
+## 0.5.2-web (2026-11-05): import affidabile dopo gli aggiornamenti
+- **Correzione**: subito dopo un aggiornamento il browser poteva tenere in cache per circa 10 minuti la pagina della versione precedente e caricare gli script nuovi. Il DATABASE PUNTI si fermava senza messaggi e l'import "non faceva nulla". Ora il service worker rivalida ogni file con il sito. Se le versioni sono comunque mescolate, compare un avviso che chiede Ctrl+F5, e il resto di NAVCOM continua a funzionare.
+- **"Importa" funziona anche senza "Controlla"**: il controllo viene eseguito comunque. Se non c'è nulla da salvare, perché i punti sono tutti duplicati o le righe hanno errori, lo dice esplicitamente.
+- Dopo l'import i filtri della tabella vengono azzerati, così si vedono subito i punti appena importati.
+
 ## 0.5.1-web (2026-11-05): classificazione e grandi archivi
 - **Correzione**: l'import non leggeva i file .xlsx creati da programmi .NET/OpenXML SDK (elementi con prefisso `x:`), che finivano con "Nessun foglio leggibile".
 - Nuovi campi facoltativi: **Classificazione**, **Priorità** (Alta/Media/Bassa), **Fonte dei dati**. Sono presenti nel modulo, nella tabella, nei filtri, nell'import, nell'export e nel backup.

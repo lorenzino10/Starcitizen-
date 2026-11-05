@@ -15,8 +15,8 @@ import { ensurePlotly } from './plotly-loader.js';
 import { initPlanner, navOptions } from './ui-plan.js';
 import { initPointsDb } from './ui-points.js';
 
-const VERSION = '0.5.1-web';
-const CACHE_NAME = 'navcom-v0.5.1'; // deve coincidere con CACHE in sw.js
+const VERSION = '0.5.2-web';
+const CACHE_NAME = 'navcom-v0.5.2'; // deve coincidere con CACHE in sw.js
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const ICON = { [STATUS.VERIFIED]: '🟢', [STATUS.DATA]: '🔵', [STATUS.THEORETICAL]: '🟠' };
@@ -603,11 +603,13 @@ async function main() {
     ensureSystemData, system: () => system, points: () => points,
     openInDatabase: (draft) => pointsUi?.openDraft(draft),
   });
-  pointsUi = await initPointsDb({
-    $, esc, store, showTab, switchSystem, VERSION, system: () => system,
-    planTo: (pt) => planner.planToPoint(pt),
-    onChange: () => refreshPoints(),
-  });
+  try {
+    pointsUi = await initPointsDb({
+      $, esc, store, showTab, switchSystem, VERSION, system: () => system,
+      planTo: (pt) => planner.planToPoint(pt),
+      onChange: () => refreshPoints(),
+    });
+  } catch (e) { console.error(e); } // il resto di NAVCOM (e l'aggiornamento della cache) continua a funzionare
   // cache offline (service worker) e precaricamento della libreria grafica locale
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
   ensurePlotly().then(cacheLoadedFiles);
