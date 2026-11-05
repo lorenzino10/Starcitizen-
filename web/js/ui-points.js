@@ -294,17 +294,16 @@ export async function initPointsDb(app) {
       <div class="row">
         <label>Unità se la cella è vuota<select id="wz-unit"><option value="">nessuna (errore)</option><option value="km" ${W.defaultUnit === 'km' ? 'selected' : ''}>km</option><option value="m" ${W.defaultUnit === 'm' ? 'selected' : ''}>m</option></select></label>
         <label>Sistema se la cella è vuota<select id="wz-system"><option value="">nessuno (errore)</option>${Object.entries(SYSTEMS).map(([k, v]) => `<option value="${k}" ${W.defaultSystem === k ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
-        <label>Duplicati<select id="wz-dup"><option value="ignore" ${W.onDuplicate === 'ignore' ? 'selected' : ''}>ignora (mantieni i punti esistenti)</option><option value="update" ${W.onDuplicate === 'update' ? 'selected' : ''}>aggiorna i punti esistenti</option></select></label>
       </div>
       <label class="check"><input type="checkbox" id="wz-incomplete" ${W.keepIncomplete ? 'checked' : ''}> Conserva le righe con coordinate incomplete come schede incomplete</label>
-      <div class="row"><button id="wz-check">🔍 Controlla</button><button id="wz-import" class="primary">📥 Importa</button><button id="wz-close">Chiudi</button></div>
+      <div class="row"><button id="wz-check">🔍 Controlla</button><button id="wz-import" class="primary" title="Aggiunge i punti nuovi; quelli già presenti (stesso ID, nome o coordinate) restano come sono">📥 Importa solo i nuovi</button>
+        <button id="wz-update" class="primary" title="Aggiunge i nuovi e aggiorna quelli già presenti: cambiano solo i campi presenti e non vuoti nel file, il resto resta">♻ Importa e aggiorna i già presenti</button><button id="wz-close">Chiudi</button></div>
       <div id="wz-out">${W.result ?? (W.plan ? planHtml(W.plan) : '<p class="hint">Controlla le associazioni e premi "Controlla": niente viene salvato finché non premi "Importa".</p>')}</div></div>`;
     $('wz-sheet').onchange = () => { W.sheet = +$('wz-sheet').value; initSheet(); renderWizard(); };
     $('wz-header').onchange = () => { W.header = Math.max(0, (+$('wz-header').value || 1) - 1); W.mapping = guessMapping((sheet.rows[W.header] ?? []).map((v) => String(v ?? ''))); W.plan = null; W.result = null; renderWizard(); };
     el.querySelectorAll('select[data-field]').forEach((s) => { s.onchange = () => { s.value === '' ? delete W.mapping[s.dataset.field] : (W.mapping[s.dataset.field] = +s.value); W.plan = null; W.result = null; renderWizard(); }; });
     $('wz-unit').onchange = () => { W.defaultUnit = $('wz-unit').value; W.plan = null; W.result = null; renderWizard(); };
     $('wz-system').onchange = () => { W.defaultSystem = $('wz-system').value; W.plan = null; W.result = null; renderWizard(); };
-    $('wz-dup').onchange = () => { W.onDuplicate = $('wz-dup').value; W.plan = null; W.result = null; renderWizard(); };
     $('wz-incomplete').onchange = () => { W.keepIncomplete = $('wz-incomplete').checked; W.plan = null; W.result = null; renderWizard(); };
     $('wz-close').onclick = () => { wizard = null; renderWizard(); };
     const check = () => {
@@ -315,12 +314,12 @@ export async function initPointsDb(app) {
       W.plan.missingCols = missing;
       W.result = null;
     };
-    $('wz-check').onclick = () => { check(); renderWizard(); };
-    $('wz-import').onclick = async () => {
-      if (!W.plan) check(); // "Importa" senza "Controlla": stesso controllo, poi salvataggio
+    $('wz-check').onclick = () => { W.onDuplicate = 'ignore'; check(); renderWizard(); };
+    const doImport = async (mode) => {
+      if (!W.plan || W.onDuplicate !== mode) { W.onDuplicate = mode; check(); } // stesso controllo, poi salvataggio
       const P = W.plan;
       if (!P.insert.length && !P.update.length) {
-        W.result = `<p class="warn"><b>Nessun punto da salvare.</b> ${P.skipped.length ? `${P.skipped.length} righe sono duplicati di punti già presenti (scegli "aggiorna i punti esistenti" per sovrascriverli) o escluse.` : ''} ${P.errors.length ? `${P.errors.length} righe hanno errori.` : ''} ${P.missingCols?.length ? 'Controlla l\'associazione delle colonne.' : ''}</p>${planHtml(P, true)}`;
+        W.result = `<p class="warn"><b>Nessun punto da salvare.</b> ${P.skipped.length ? `${P.skipped.length} righe corrispondono a punti già presenti${mode === 'ignore' ? ': premi <b>♻ Importa e aggiorna i già presenti</b> per aggiornarli' : ' o sono escluse'}.` : ''} ${P.errors.length ? `${P.errors.length} righe hanno errori.` : ''} ${P.missingCols?.length ? 'Controlla l\'associazione delle colonne.' : ''}</p>${planHtml(P, true)}`;
         W.plan = null; renderWizard(); return;
       }
       try {
@@ -336,13 +335,19 @@ export async function initPointsDb(app) {
       renderWizard();
       $('wz-out')?.scrollIntoView({ block: 'center' });
     };
+    $('wz-import').onclick = () => doImport('ignore');
+    $('wz-update').onclick = () => doImport('update');
   }
 
   function planHtml(P, final = false) {
     const warnRows = (W) => (W.cands ?? []).filter((c) => c.point && c.warnings.length);
     const lines = [];
     if (P.missingCols?.length) lines.push(`<p class="warn">Colonne non associate: ${esc(P.missingCols.map((k) => FIELDS.find((f) => f.key === k).label).join(', '))}. Le schede risulteranno incomplete o in errore.</p>`);
-    if (!final) lines.push(`<p><b>Da importare:</b> ${P.insert.length} nuovi${P.incomplete.length ? ` (${P.incomplete.length} incompleti)` : ''} · ${P.update.length} aggiornamenti · ${P.skipped.length} esclusi · <span class="${P.errors.length ? 'err' : ''}">${P.errors.length} righe con errori</span></p>`);
+    if (!final) {
+      const dups = P.skipped.filter((s) => s.reason.startsWith('duplicato')).length;
+      lines.push(`<p><b>Nel file:</b> ${P.insert.length} punti nuovi${P.incomplete.length ? ` (${P.incomplete.length} incompleti)` : ''} · ${dups} già presenti · ${P.skipped.length - dups} esclusi · <span class="${P.errors.length ? 'err' : ''}">${P.errors.length} righe con errori</span></p>`);
+      if (dups) lines.push(`<p class="hint">"📥 Importa solo i nuovi" lascia i ${dups} punti già presenti come sono; "♻ Importa e aggiorna i già presenti" ne aggiorna i campi presenti nel file senza cancellare gli altri.</p>`);
+    }
     if (P.errors.length) lines.push(`<details open><summary class="err">Errori (righe non importate)</summary><ul>${P.errors.slice(0, 100).map((e) => `<li>Riga ${e.rowNo}: ${esc(e.errors.join('; '))}</li>`).join('')}</ul></details>`);
     if (P.skipped.length) lines.push(`<details><summary>Righe escluse (${P.skipped.length})</summary><ul>${P.skipped.slice(0, 100).map((s) => `<li>Riga ${s.rowNo}: ${esc(s.reason)}</li>`).join('')}</ul></details>`);
     if (P.update.length) lines.push(`<details><summary>Aggiornamenti (${P.update.length})</summary><ul>${P.update.slice(0, 100).map((u) => `<li>Riga ${u.rowNo}: "${esc(u.before.name)}" (${esc(u.reason)})</li>`).join('')}</ul></details>`);

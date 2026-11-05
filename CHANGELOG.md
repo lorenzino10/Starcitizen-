@@ -1,5 +1,8 @@
 # Registro delle modifiche
 
+## 0.5.5-web (2026-11-05)
+- Import Excel: il menu a tendina "Duplicati" è sostituito da due pulsanti espliciti. "📥 Importa solo i nuovi" lascia invariati i punti già presenti; "♻ Importa e aggiorna i già presenti" ne aggiorna solo i campi presenti nel file. "Controlla" indica quanti punti del file sono già nel database.
+
 ## 0.5.4-web (2026-11-05): correzione dei pulsanti dell'elenco e coordinate planetarie
 - **Correzione** (segnalata da Lorenzo): `reload()` ricostruiva la mappa `byId` dopo aver disegnato la tabella. Così CALCOLA ROTTA, Modifica ed Elimina restavano inerti subito dopo un import e alla riapertura del database, finché non si toccava un filtro. Ora la mappa si ricostruisce prima della tabella, e ogni pulsante cerca il punto al momento del clic.
 - **Coordinate planetarie**: si conservano corpo celeste, latitudine, longitudine, altitudine, X/Y/Z locali (km) e sistema di riferimento. Restano visibili in tabella, nel modulo, nell'export e nel backup. **Non vengono mai convertite** in XYZ di sistema: un punto che ha solo coordinate planetarie non ha CALCOLA ROTTA.
