@@ -1,0 +1,53 @@
+name: Pubblica NAVCOM web
+
+# Pubblica la cartella web/ su GitHub Pages con uno snapshot aggiornato delle posizioni
+# CitizenHQ (servito dallo stesso sito, quindi utilizzabile anche se il browser
+# non riesce a contattare direttamente l'API).
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 5 * * *"   # snapshot giornaliero
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Test del motore
+        run: node --test web/tests/*.test.mjs
+      - name: Snapshot posizioni da CitizenHQ
+        # se CitizenHQ e' giu' il sito si pubblica comunque (aggiornamento live o import file)
+        continue-on-error: true
+        run: node web/tools/fetch_snapshot.mjs
+      - name: Prepara il sito
+        run: |
+          mkdir -p _site
+          cp -r web/index.html web/css web/js web/data _site/
+          touch _site/.nojekyll
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

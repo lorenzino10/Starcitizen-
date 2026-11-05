@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>STAR CITIZEN NAVCOM</title>
+<meta name="description" content="Pianificatore di navigazione quantica per Star Citizen: tratte QT, punti di interruzione, Aaron Halo.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='none' stroke='%233fd0ff' stroke-width='2'/%3E%3Cpath d='M16 4v24M4 16h24' stroke='%233fd0ff' stroke-width='1.5'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="css/navcom.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.35.2/plotly.min.js" defer></script>
+<script type="module" src="js/app.js"></script>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><span class="logo">◎</span> STAR CITIZEN <b>NAVCOM</b> <small id="version"></small></div>
+  <label class="sys">SISTEMA
+    <select id="system"><option value="stanton">Stanton</option><option value="pyro">Pyro</option><option value="nyx">Nyx</option></select>
+  </label>
+  <div id="datastatus" class="datastatus">—</div>
+</header>
+
+<nav class="tabs" role="tablist">
+  <button role="tab" data-tab="route" class="active">🧭 ROTTA</button>
+  <button role="tab" data-tab="halo">☄ AARON HALO</button>
+  <button role="tab" data-tab="points">📍 PUNTI PERSONALI</button>
+  <button role="tab" data-tab="saved">💾 ROTTE SALVATE</button>
+  <button role="tab" data-tab="data">🗄 DATI E IMPOSTAZIONI</button>
+</nav>
+
+<main>
+<div id="banner"></div>
+
+<!-- ROTTA ------------------------------------------------------------------>
+<section id="tab-route" class="tab active">
+  <div class="cols">
+    <div class="panel form">
+      <h2>Partenza</h2>
+      <input type="search" id="r-start-filter" placeholder="filtra…">
+      <select id="r-start" size="1"></select>
+      <h2>Destinazione</h2>
+      <div class="radios" id="r-mode">
+        <label><input type="radio" name="r-mode" value="official" checked> Punto ufficiale</label>
+        <label><input type="radio" name="r-mode" value="custom"> Punto personale</label>
+        <label><input type="radio" name="r-mode" value="xyz"> Coordinate XYZ</label>
+        <label><input type="radio" name="r-mode" value="starmap"> Starmap</label>
+      </div>
+      <div data-mode="official"><input type="search" id="r-dest-filter" placeholder="filtra…"><select id="r-dest"></select></div>
+      <div data-mode="custom" hidden><select id="r-custom"></select><p class="hint" id="r-custom-empty" hidden>Nessun punto personale per questo sistema: aggiungilo in PUNTI PERSONALI.</p></div>
+      <div data-mode="xyz" hidden>
+        <p class="hint">Coordinate nel frame della griglia di sistema, la stessa origine dei dati importati.</p>
+        <div class="radios"><label><input type="radio" name="r-unit" value="1000" checked> km</label><label><input type="radio" name="r-unit" value="1"> m</label></div>
+        <div class="xyz"><label>X<input id="r-x" inputmode="decimal" value="0"></label><label>Y<input id="r-y" inputmode="decimal" value="0"></label><label>Z<input id="r-z" inputmode="decimal" value="0"></label></div>
+      </div>
+      <div data-mode="starmap" hidden>
+        <p class="warn">Modalità Starmap: formato, unità e origine dei valori della Starmap non sono ancora stati verificati. La conversione in XYZ non è definita e NON viene calcolata. Puoi archiviare le letture in PUNTI PERSONALI.</p>
+      </div>
+      <button id="r-go" class="primary">▶ CALCOLA ROTTA</button>
+      <label class="check"><input type="checkbox" id="r-blocked"> Mostra anche tratte bloccate da corpi celesti</label>
+    </div>
+    <div class="panel wide" id="r-out"><p class="hint">Scegli partenza e destinazione, poi premi CALCOLA ROTTA.</p></div>
+  </div>
+</section>
+
+<!-- AARON HALO ------------------------------------------------------------->
+<section id="tab-halo" class="tab">
+  <div class="cols">
+    <div class="panel form">
+      <h2>Partenza</h2>
+      <input type="search" id="h-start-filter" placeholder="filtra…">
+      <select id="h-start"></select>
+      <h2>Fascia <span id="h-band-val">5</span></h2>
+      <input type="range" id="h-band" min="1" max="10" value="5">
+      <p class="hint" id="h-band-info"></p>
+      <h2>Destinazione QT</h2>
+      <div class="radios"><label><input type="radio" name="h-which" value="best" checked> Trova le migliori</label><label><input type="radio" name="h-which" value="pick"> Scegli io</label></div>
+      <select id="h-dest" hidden></select>
+      <button id="h-go" class="primary">▶ CALCOLA INTERRUZIONE</button>
+      <p class="hint" id="h-credit"></p>
+    </div>
+    <div class="panel wide" id="h-out"><p class="hint">Disponibile solo in Stanton.</p></div>
+  </div>
+</section>
+
+<!-- PUNTI PERSONALI -------------------------------------------------------->
+<section id="tab-points" class="tab">
+  <div class="cols even">
+    <div class="panel form">
+      <h2>Nuovo punto XYZ</h2>
+      <label>Nome<input id="cp-name"></label>
+      <div class="radios"><label><input type="radio" name="cp-unit" value="1000" checked> km</label><label><input type="radio" name="cp-unit" value="1"> m</label></div>
+      <div class="xyz"><label>X<input id="cp-x" inputmode="decimal" value="0"></label><label>Y<input id="cp-y" inputmode="decimal" value="0"></label><label>Z<input id="cp-z" inputmode="decimal" value="0"></label></div>
+      <label>Note<textarea id="cp-notes" rows="2"></textarea></label>
+      <button id="cp-save">Salva punto</button>
+      <h2>Lettura dalla Starmap (solo archivio)</h2>
+      <p class="hint">Scrivi i valori esattamente come li leggi nella Starmap, una riga per campo e con le unità. Vengono conservati grezzi: la conversione in XYZ si attiverà solo dopo aver verificato formato, unità, origine e sistema di riferimento.</p>
+      <label>Nome lettura<input id="sm-name"></label>
+      <label>Valori letti<textarea id="sm-raw" rows="4" placeholder="Distanza: 12.3 Gm"></textarea></label>
+      <label>Contesto<input id="sm-notes" placeholder="dove ti trovavi, cosa era selezionato"></label>
+      <button id="sm-save">Archivia lettura</button>
+    </div>
+    <div class="panel"><h2>Punti personali</h2><div id="cp-list"></div><h2>Letture Starmap</h2><div id="sm-list"></div></div>
+  </div>
+</section>
+
+<!-- ROTTE SALVATE --------------------------------------------------------->
+<section id="tab-saved" class="tab"><div class="panel" id="saved-list"></div></section>
+
+<!-- DATI ------------------------------------------------------------------->
+<section id="tab-data" class="tab">
+  <div class="cols even">
+    <div class="panel form">
+      <h2>Aggiornamento dati</h2>
+      <button id="d-snapshot">⟳ Ricarica snapshot del sito</button>
+      <button id="d-live">⟳ Aggiorna live da CitizenHQ</button>
+      <label class="filebtn">Importa risposta JSON di CitizenHQ<input type="file" id="d-file" accept=".json,application/json"></label>
+      <p class="hint" id="d-msg"></p>
+      <h2>Backup</h2>
+      <button id="d-export">⤓ Esporta archivio (JSON)</button>
+      <label class="filebtn">⤒ Importa backup<input type="file" id="d-import" accept=".json,application/json"></label>
+      <h2>Impostazioni di calcolo</h2>
+      <label>Margine ostacoli (× raggio corpo) <b id="s-margin-val"></b><input type="range" id="s-margin" min="1" max="2" step="0.05"></label>
+      <p class="hint">Stima: il raggio di ostruzione reale del gioco non è pubblicato.</p>
+      <label>Decimali mostrati dall'HUD<input type="number" id="s-hud" min="0" max="3"></label>
+      <p class="hint">Da confermare in gioco: servono solo a mostrare la lettura attesa.</p>
+      <label>Velocità QT di crociera (Mm/s, opzionale)<input type="number" id="s-speed" min="0" step="1"></label>
+      <p class="hint">Se indicata, stima la durata delle finestre. Accelerazione e decelerazione non sono modellate.</p>
+    </div>
+    <div class="panel">
+      <h2>Posizioni in archivio</h2>
+      <input type="search" id="d-filter" placeholder="filtra per nome…">
+      <div class="tablewrap tall" id="d-table"></div>
+      <h2>Storico importazioni</h2>
+      <div class="tablewrap" id="d-log"></div>
+      <h2>Fonti</h2>
+      <div id="d-sources" class="hint"></div>
+    </div>
+  </div>
+</section>
+</main>
+<footer id="footer"></footer>
+</body>
+</html>

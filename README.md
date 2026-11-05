@@ -8,7 +8,29 @@ le interruzioni per l'Aaron Halo.
 Non legge la memoria del gioco, non tocca i file del client, non automatizza
 comandi e non interagisce con l'anti-cheat. Le posizioni si inseriscono a mano.
 
-## Avvio su Windows 11
+## Versione web (GitHub Pages), consigliata
+
+La cartella `web/` contiene NAVCOM come **app web statica**: lo stesso motore
+riscritto in JavaScript (stessi test, stessi risultati), nessun server e
+nessuna installazione. Si apre da qualunque browser, anche dal telefono.
+
+- **Dati**: a ogni pubblicazione e una volta al giorno il workflow
+  `pages.yml` scarica da CitizenHQ le posizioni di Stanton, Pyro e Nyx e le
+  pubblica insieme al sito. Dalla scheda DATI puoi anche aggiornarle in
+  diretta dal browser (CitizenHQ dichiara CORS attivo) oppure importare un
+  file JSON.
+- **Archivio personale** (punti, letture Starmap, rotte, tratte verificate):
+  resta salvato nel browser (localStorage). Usa **Esporta/Importa backup**
+  per spostarlo su un altro PC o browser.
+- **Attivazione, una volta sola**: *Settings → Pages → Build and deployment →
+  Source: GitHub Actions*. Su un repository **privato** GitHub Pages richiede
+  un piano a pagamento (Pro); in alternativa il repository va reso pubblico.
+- **In locale, senza pubblicare**: `cd web` e poi `python -m http.server 8000`, quindi
+  apri <http://127.0.0.1:8000>. Da file:// non funziona, perché i moduli ES
+  richiedono un server.
+- **Test**: `node --test web/tests/*.test.mjs`.
+
+## Avvio su Windows 11 (versione desktop Python)
 
 1. Installa **Python 3.12** da <https://www.python.org/downloads/> e, nella
    prima schermata dell'installer, spunta **"Add python.exe to PATH"**.
