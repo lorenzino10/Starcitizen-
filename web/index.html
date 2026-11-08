@@ -26,6 +26,7 @@
   <button role="tab" data-tab="halo">☄ AARON HALO</button>
   <button role="tab" data-tab="points">📍 PUNTI PERSONALI</button>
   <button role="tab" data-tab="saved">💾 ROTTE SALVATE</button>
+  <button role="tab" data-tab="logistics">📦 LOGISTICS</button>
   <button role="tab" data-tab="data">🗄 DATI E IMPOSTAZIONI</button>
 </nav>
 
@@ -268,6 +269,103 @@
 <section id="tab-saved" class="tab"><div class="panel" id="saved-list"></div></section>
 
 <!-- DATI ------------------------------------------------------------------->
+<!-- LOGISTICS --------------------------------------------------------------->
+<section id="tab-logistics" class="tab">
+  <div id="lg-banner"></div>
+  <nav class="subtabs" role="tablist">
+    <button data-lg="radar" class="active">📡 FREIGHT RADAR</button>
+    <button data-lg="board">📋 MISSION BOARD</button>
+    <button data-lg="manifest">📦 CARGO MANIFEST</button>
+    <button data-lg="dispatch">🛰 FLIGHT DISPATCH</button>
+  </nav>
+  <p class="hint lg-legend">🟢 disponibilità verificata · 🔵 dato storico · 🟠 catalogo (modello, non offerta) · ⚪ dato incerto · 🔴 incompatibilità operativa</p>
+  <div class="cols">
+    <div class="panel form">
+      <h2>Nave e stiva</h2>
+      <label>Nave<select id="lg-ship"></select></label>
+      <label>Capienza nominale (SCU)<input id="lg-scu" inputmode="numeric"></label>
+      <label>Capienza operativa scelta (SCU)<input id="lg-cap" inputmode="numeric"></label>
+      <label>Cassa massima accettata (SCU)<input id="lg-maxbox" inputmode="numeric"></label>
+      <p class="hint" id="lg-ship-src"></p>
+      <h2>Contesto</h2>
+      <label>Posizione attuale<input id="lg-pos" list="lg-places" placeholder="stazione o luogo"></label>
+      <label>Patch del gioco attuale<input id="lg-patch" placeholder="es. 4.10.2"></label>
+      <label>Priorità<select id="lg-prio"></select></label>
+      <label>Scali massimi<input id="lg-maxstops" inputmode="numeric" placeholder="nessun limite"></label>
+      <label>Gradi presso le compagnie (una per riga: Compagnia = Grado)<textarea id="lg-ranks" rows="4" placeholder="Covalex Independent Contractors = Junior&#10;Red Wind Linehaul = Member"></textarea></label>
+      <details><summary class="hint">Tempi e costi (facoltativi)</summary>
+        <label>Movimentazione: secondi per SCU<input id="lg-hscu" inputmode="decimal" placeholder="non indicato"></label>
+        <label>Movimentazione: secondi per scalo<input id="lg-hstop" inputmode="decimal" placeholder="non indicato"></label>
+        <label>Costo operativo: aUEC per Gm<input id="lg-cgm" inputmode="decimal" placeholder="0"></label>
+        <label>Costo operativo: aUEC per scalo<input id="lg-cstop" inputmode="decimal" placeholder="0"></label>
+        <label>Peso del rischio (aUEC per punto di rischio)<input id="lg-crisk" inputmode="decimal" placeholder="0"></label>
+        <p class="hint">I tempi di volo usano i parametri del drive QT in DATI E IMPOSTAZIONI. Senza, il profitto orario resta "non determinabile".</p>
+      </details>
+      <datalist id="lg-places"></datalist>
+      <h2>Archivio</h2>
+      <p class="hint" id="lg-storage"></p>
+      <div class="row wrap">
+        <button id="lg-backup" class="small">💾 Backup completo (punti + logistica)</button>
+        <label class="filebtn">♻ Ripristina backup<input type="file" id="lg-restore" accept=".json,application/json" hidden></label>
+      </div>
+      <p id="lg-arch-msg"></p>
+    </div>
+    <div class="panel">
+      <div data-lgview="radar">
+        <h2>Freight Radar: dove cercare carichi lungo il percorso</h2>
+        <div class="grid3">
+          <label>Partenza<input id="rd-start" list="lg-places" placeholder="posizione attuale"></label>
+          <label>Destinazione finale<input id="rd-dest" list="lg-places" placeholder="es. Port Tressler"></label>
+          <label class="check"><input type="checkbox" id="rd-open"> Itinerario aperto (nessuna destinazione imposta)</label>
+        </div>
+        <div class="radios" id="rd-systems"></div>
+        <button id="rd-go">📡 CERCA OPPORTUNITÀ</button>
+        <div id="rd-out"></div>
+        <h2>Dove conviene cercare? (tue osservazioni)</h2>
+        <div class="grid3">
+          <label>Luogo della bacheca<input id="ob-place" list="lg-places"></label>
+          <label>Offerte di trasporto viste<input id="ob-n" inputmode="numeric" placeholder="0 = nessuna"></label>
+          <label>&nbsp;<button id="ob-save" class="small">Registra visita alla bacheca</button></label>
+        </div>
+        <p class="hint">Per le singole offerte usa "Missione trovata" nel MISSION BOARD: diventano osservazioni con compagnia, rotta e ricompensa.</p>
+        <label>Analisi per<select id="ob-by"><option value="luogo">luogo</option><option value="compagnia">compagnia</option><option value="rotta">rotta</option><option value="patch">patch</option></select></label>
+        <div id="ob-out"></div>
+      </div>
+      <div data-lgview="board" hidden>
+        <h2>Contratti</h2>
+        <div class="row wrap">
+          <button id="cb-new" class="small">➕ Missione trovata (inserimento manuale)</button>
+          <label class="filebtn">📥 Importa JSON/CSV<input type="file" id="cb-import" accept=".json,.csv,text/csv,application/json" hidden></label>
+          <button id="cb-csv" class="small">⬇ Esporta CSV</button>
+          <button id="cb-json" class="small">⬇ Esporta JSON</button>
+          <select id="cb-filter" class="inline"><option value="attivi">attivi</option><option value="tutti">tutti</option><option value="chiusi">chiusi</option></select>
+        </div>
+        <div id="cb-form" hidden></div>
+        <p id="cb-msg"></p>
+        <div id="cb-list"></div>
+        <h2>Catalogo (modelli di missione, non offerte)</h2>
+        <div class="row wrap">
+          <select id="ct-src" class="inline"><option value="">tutte le fonti</option><option value="wiki">Star Citizen Wiki API</option><option value="schp">SCHaulingPlanner</option></select>
+          <input id="ct-q" type="search" placeholder="cerca luogo, compagnia, merce" class="inline">
+        </div>
+        <div id="ct-meta"></div>
+        <div id="ct-list"></div>
+      </div>
+      <div data-lgview="manifest" hidden>
+        <h2>Manifesto di carico</h2>
+        <div id="mf-out"><p class="hint">Calcola un itinerario in FLIGHT DISPATCH.</p></div>
+      </div>
+      <div data-lgview="dispatch" hidden>
+        <h2>Itinerario operativo</h2>
+        <button id="fd-go" class="primary">🛰 CALCOLA / RICALCOLA IL VIAGGIO</button>
+        <div id="fd-out"></div>
+        <h2>Registro</h2>
+        <div id="fd-log"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
 <section id="tab-data" class="tab">
   <div class="cols even">
     <div class="panel form">
