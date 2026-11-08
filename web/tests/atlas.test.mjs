@@ -679,5 +679,5 @@ test('LI-18. compatibilità con il database IndexedDB attuale (v2, nessuno schem
   const ver = await new Promise((res) => { const r = indexedDB.open('navcom-logistics'); r.onsuccess = () => { const v = r.result.version; r.result.close(); res(v); }; });
   assert.equal(ver, 2, 'nessun aggiornamento di schema richiesto');
   const src = readFileSync(new URL('../js/ui-atlas.js', import.meta.url), 'utf8');
-  assert.match(src, /S\.mode = MODES\[S\.mode\] \? S\.mode : 'verificate'/, 'stato salvato senza modalita\' (0.7.0) letto con il valore predefinito');
+  assert.match(src, /S\.mode = S\.modeChosen && MODES\[S\.mode\] \? S\.mode : 'possibili'/, 'stato salvato senza scelta esplicita (0.7.0/0.7.1) letto con il valore predefinito');
 });
