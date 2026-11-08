@@ -186,7 +186,30 @@ export class Geo {
       if (r === false) return null; // ambiguo: nessuna scelta arbitraria
       if (r) return { place: r, how: how === 'alias' ? 'alias' : h };
     }
-    return null;
+    return this.#qualified(name, system);
+  }
+
+  /**
+   * Nome qualificato dal gioco: "Checkmate at the L4 Lagrange of Pyro II", "Orbituary above Pyro III".
+   * Si accetta solo se la parte iniziale e' un luogo UNICO (nome esatto) e, quando la qualifica nomina
+   * un corpo celeste riconoscibile, il luogo appartiene davvero a quel corpo o allo stesso sistema.
+   * Nessun contenitore generico: "L19 Habs in Lorville" resta non risolto (sotto-luogo non presente).
+   */
+  #qualified(name, system) {
+    const m = String(name).match(/^(.+?)\s+(?:at the .+? of|above|orbiting)\s+(.+)$/i);
+    if (!m) return null;
+    let list = this.names.get(normName(m[1])) ?? [];
+    if (system) { const s = list.filter((p) => p.system === system); if (s.length) list = s; }
+    const ids = [...new Set(list.map((p) => p.id))];
+    if (ids.length !== 1) return null;
+    const head = this.get(ids[0]);
+    const ref = (this.names.get(normName(m[2])) ?? []).filter((p) => BODY_KINDS.has(p.kind));
+    if (ref.length === 1) {
+      const body = ref[0];
+      const inside = this.path(head.id).some((x) => x.id === body.id);
+      if (!inside && head.system !== body.system) return null;
+    }
+    return { place: head, how: 'qualificato' };
   }
 
   normList() { return (this._nl ??= this.places.map((p) => [normName(p.name), p])); }

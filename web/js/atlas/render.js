@@ -26,6 +26,7 @@ export const LINE_STYLE = {
   fisso: { c: '#cfe8ff', w: 1.5, dash: [] },
   possibile: { c: '#5b7a99', w: 1, dash: [3, 4] },
   offerta: { c: '#a98fd1', w: 1.5, dash: [1, 4] },
+  regionale: { c: '#c9a0ff', w: 1.2, dash: [10, 6] },
 };
 export const styleOf = (kind) => STYLE[kind] ?? STYLE.other;
 

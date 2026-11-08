@@ -180,3 +180,13 @@ body.at-compact .at-toolbar .at-tools > :not(#at-compact) { display: none; }
   .at-grid, .at-grid.no-l, .at-grid.no-r { grid-template-columns: 1fr; grid-template-rows: auto 55vh auto auto; grid-template-areas: "l" "m" "r" "b"; }
   .at-left { resize: none; max-height: 40vh; }
 }
+
+/* 0.7.1 Location Intelligence estesa */
+.at-pill.reg { border-color: #c9a0ff; color: #c9a0ff; }
+.at-sum { margin: .5em 0; }
+.at-why { border-left: 2px solid #3b5266; padding-left: .5em; margin: .4em 0; }
+.at-sub { margin: .2em 0 .2em .6em; }
+.at-sub > summary { cursor: pointer; }
+.at-modes { gap: .8em; align-items: center; margin: .3em 0; }
+.at-dest { margin-top: .8em; border-top: 1px solid #24384d; padding-top: .5em; }
+.at-dest input { min-width: 16em; }

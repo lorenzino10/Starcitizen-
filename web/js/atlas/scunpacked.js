@@ -66,6 +66,10 @@ const sysOf = (debugName) => {
 };
 
 /** Titolo leggibile: i segnaposto ~mission(X) con un solo valore noto vengono sostituiti. */
+const PLACEHOLDER = /^<=.*=>$/;
+/** Datore della missione; i segnaposto non inizializzati dei file ("<= UNINITIALIZED =>") diventano null. */
+const giverOf = (c) => [c.MissionGiver, c.Faction?.Name].map((x) => (x == null ? null : String(x).trim())).find((x) => x && !PLACEHOLDER.test(x)) ?? null;
+
 export function cleanTitle(title, tokens = {}, fallback = 'Missione') {
   if (!title || /^<=.*=>$/.test(String(title).trim())) return fallback;
   return String(title).replace(/~mission\(([^)]+)\)/g, (_, k) => {
@@ -146,7 +150,7 @@ export function buildMissionCatalog(contracts, geoPlaces, { patch = null, fetche
     const maxBoxTok = /(\d+)\s*SCU/i.exec((tokens.MissionMaxSCUSize ?? [])[0] ?? '');
     missions.push({
       id: `scu:${c.UUID}`, source: SOURCE_ID, category, type: c.MissionType.Name,
-      title: cleanTitle(c.Title, tokens, `${c.MissionType.Name} · ${c.MissionGiver ?? c.Faction?.Name ?? 'datore non indicato'} (titolo assente nei file)`), company: c.MissionGiver ?? c.Faction?.Name ?? null,
+      title: cleanTitle(c.Title, tokens, `${c.MissionType.Name} · ${giverOf(c) ?? 'datore non indicato'} (titolo assente nei file)`), company: giverOf(c),
       rank: c.MinStanding?.Name ?? null, rankIndex: Number.isInteger(c.RankIndex) ? c.RankIndex : null,
       reward, system: sys, route: (tokens.CargoRouteToken ?? [])[0] ?? null,
       offer: [...new Set(offer)], offerUnknown: offerUnknown.length,

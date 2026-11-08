@@ -418,3 +418,266 @@ test('25. regressione: moduli esistenti invariati e nuove funzioni additive', ()
   assert.equal(toPlanning(catalogViews(CAT).find((v) => v.id === 'scu:multi'), geo).ok, false, 'modello con piu\' consegne: abbinamento merce-luogo non inventato');
   assert.ok(measure([], geoLegOf(geo)).stops === 0);
 });
+
+// =====================================================================================
+// 0.7.1 LOCATION INTELLIGENCE ESTESA: ricerca geografica, evidenze, destinazione, stacking.
+// Secondo mondo SINTETICO: pianeta "Arco" con luna "Vala" (basi 061, 045 e 20 basi di pool),
+// pianeta "Micro" con basi, un sistema pyro sintetico. Nessun dato reale.
+import { hierarchy, relation, LEVELS as XL, NO_LINK, OMITTED, expandedSegments, destinationSet } from '../js/atlas/expanded.js';
+import { exploratoryStack, STACK_MODES } from '../js/atlas/stack.js';
+
+const W = (() => {
+  const A0 = { x: 20 * GM, y: 0, z: 0 }, V0 = { x: 20 * GM + 6e7, y: 0, z: 0 }, M0 = { x: -15 * GM, y: 5 * GM, z: 0 };
+  const rows = [
+    row('S2', 'STAR2', 'Star', null, { x: 0, y: 0, z: 0 }),
+    row('arc', 'Arco', 'Planet', 'S2', A0),
+    row('vala', 'Vala', 'Moon', 'arc', V0),
+    row('a061', 'Area 061', 'Outpost', 'vala', { x: V0.x + 3e5, y: 0, z: 0 }),
+    row('a045', 'Area 045', 'Outpost', 'vala', { x: V0.x, y: 3e5, z: 0 }),
+    row('a18', 'Citta Arco', 'LandingZone', 'arc', { x: A0.x + 1e6, y: 0, z: 0 }),
+    row('mic', 'Micro', 'Planet', 'S2', M0),
+    row('mb1', 'Base Micro', 'Outpost', 'mic', { x: M0.x + 1e6, y: 0, z: 0 }),
+    row('mb2', 'Seconda Micro', 'Outpost', 'mic', { x: M0.x, y: 1e6, z: 0 }),
+    row('p2', 'STAR3', 'Star', null, { x: 0, y: 0, z: 0 }, 'pyro'),
+    row('pyb', 'Rifugio Pyro', 'Outpost', 'p2', { x: 4 * GM, y: 0, z: 0 }, 'pyro'),
+  ];
+  for (let i = 0; i < 19; i++) rows.push(row(`pool${i}`, `Pozzo ${i}`, 'Outpost', 'vala', { x: V0.x - 3e5, y: i * 1e4, z: 0 }));
+  const places = normalizePlaces(rows, { source: 'sintetico', patch: '9.9.0' });
+  for (const p of places) { if (p.id === 'vala') p.radius = 3e5; if (p.id === 'arc') p.radius = 1e6; if (p.id === 'mic') p.radius = 1e6; }
+  const g = new Geo(places);
+  const twenty = ['Area 061', ...Array.from({ length: 19 }, (_, i) => `Pozzo ${i}`)];
+  const C = [
+    contract('w-fix', { pick: ['Area 061'], drop: ['Citta Arco'], offer: ['a061'] }),                      // 1 certo, stesso pianeta
+    contract('w-pool20', { pick: twenty, drop: ['Citta Arco'], offer: ['vala'] }),                       // 2 possibile (20 alternative)
+    contract('w-moon', { pick: ['Vala'], drop: ['Citta Arco'], offer: ['vala'] }),                       // 3 regionale: il pool nomina la luna
+    contract('w-offer', { pick: ['Pozzo 3', 'Pozzo 4'], drop: ['Base Micro'], offer: ['vala'] }),        // 3b regionale da offerta sulla luna
+    contract('w-other', { pick: ['Area 045'], drop: ['Citta Arco'], offer: ['a045'] }),                  // 4 altra base della luna
+    contract('w-inter', { pick: ['Area 061'], drop: ['Base Micro'], offer: ['a061'], rank: 2 }),         // 5 interplanetaria certa
+    contract('w-stellar', { pick: ['Area 061'], drop: ['Rifugio Pyro'], offer: ['a061'] }),              // 6 interstellare
+    contract('w-dyn', { pick: ['Area 061'], drop: [null, 'Luogo Dinamico'], offer: ['a061'] }),          // 7 destinazione dinamica
+    contract('w-other2', { pick: ['Seconda Micro'], drop: ['Base Micro'], offer: ['mic'] }),             // 9 contratto diverso verso Micro
+    contract('w-chain', { pick: ['Citta Arco'], drop: ['Seconda Micro'], offer: ['a18'] }),              // 9b seconda tratta documentata
+    contract('w-both', { pick: ['Area 061'], drop: ['Area 061', 'Pozzo 1', 'Pozzo 2'], offer: ['a061'], order: { Name: 'X', MinScu: 10, MaxScu: 20, MaxContainerSize: 8 } }), // 10 certo + possibile
+  ];
+  C.find((c) => c.UUID === 'w-inter').MissionGiver = 'Altra Compagnia';
+  const cat = buildMissionCatalog(C, places, { patch: '9.9.0-LIVE.1', geo: g });
+  return { g, places, cat };
+})();
+const wIdx = (contracts = [], extra = {}) => { const q = new Map(); const views = [...userViews(contracts, W.g, q), ...catalogViews(W.cat)]; return new MissionIndex(views, W.g); };
+const wUser = (over) => { const r = normalizeContract({ system: 'stanton', patch: '9.9.0', status: 'accettata', reward: 10000, title: 'Contratto', company: 'Compagnia Sintetica', ...over }); assert.ok(r.contract, r.errors.join('; ')); return r.contract; };
+const ids = (rows) => [...new Set(rows.map((r) => r.v.id))].sort();
+const POSS = { mode: 'possibili' };
+
+test('LI-1. ritiro esatto nella base selezionata: CERTO, ritiro e consegna distinti', () => {
+  const x = wIdx().forPlaceExpanded('a061', {}, POSS);
+  assert.ok(ids(x.sections.certainOut).includes('scu:w-fix'));
+  assert.ok(!ids(x.sections.certainIn).includes('scu:w-fix'), 'il ritiro non diventa consegna');
+  const r = x.sections.certainOut.find((r) => r.v.id === 'scu:w-fix');
+  assert.equal(r.level, 'certo'); assert.equal(r.role, 'pickup'); assert.match(r.reason, /punto fisso/);
+  assert.deepEqual(hierarchy(W.g, 'a061') && [hierarchy(W.g, 'a061').moon.name, hierarchy(W.g, 'a061').planet.name, hierarchy(W.g, 'a061').system], ['Vala', 'Arco', 'stanton']);
+});
+
+test('LI-2. base fra 20 alternative: POSSIBILE con numero di alternative, mai certa', () => {
+  const x = wIdx().forPlaceExpanded('a061', {}, POSS);
+  const r = x.sections.possibleOut.find((r) => r.v.id === 'scu:w-pool20');
+  assert.ok(r); assert.equal(r.alternatives, 20); assert.equal(r.level, 'possibile');
+  assert.match(r.reason, /IL GIOCO ASSEGNA IL LUOGO EFFETTIVO/);
+  assert.ok(!ids([...x.sections.certainOut, ...x.sections.certainIn]).includes('scu:w-pool20'));
+  assert.equal(r.v.patch, '9.9.0-LIVE.1'); assert.ok(r.v.source);
+});
+
+test('LI-3. missione associata alla luna e non a una base: REGIONALE, separata', () => {
+  const x = wIdx().forPlaceExpanded('a061', {}, POSS);
+  const reg = x.sections.regional.luna.find((r) => r.v.id === 'scu:w-moon');
+  assert.ok(reg, 'pool che nomina Vala'); assert.equal(reg.level, 'regionale'); assert.equal(reg.anchor.id, 'vala');
+  assert.match(reg.reason, /BASE SPECIFICA NON CONFERMATA/);
+  const off = x.sections.offersArea.find((r) => r.v.id === 'scu:w-offer');
+  assert.ok(off && off.via === 'offerta' && off.bucket === 'luna', 'offerta sulla luna = regionale');
+  assert.equal(x.sections.regional.pianeta.length, 0, 'nessun contratto nomina il pianeta Arco');
+});
+
+test('LI-4. missione di un\'altra base della stessa luna: ALTRE BASI, non contata qui', () => {
+  const x = wIdx().forPlaceExpanded('a061', {}, POSS);
+  const g = x.sections.otherBases.luna.find((g) => g.place.id === 'a045');
+  assert.ok(g && ids(g.rows).includes('scu:w-other'));
+  const mine = [...x.sections.certainOut, ...x.sections.certainIn, ...x.sections.possibleOut, ...x.sections.possibleIn, ...x.sections.regional.luna, ...x.sections.offersArea];
+  assert.ok(!ids(mine).includes('scu:w-other'));
+  assert.equal(x.unique.otherBases >= 1, true);
+  assert.ok(!(x.unique.total > ids(mine).length), 'il totale della base non include le altre basi');
+});
+
+test('LI-5. missione interplanetaria Arco → Micro (stesso contratto)', () => {
+  const idx = wIdx();
+  const x = idx.forPlaceExpanded('a061', {}, POSS);
+  assert.ok(ids(x.sections.interplanetary).includes('scu:w-inter'));
+  assert.equal(relation(W.g, 'a061', 'mb1'), 'interplanetaria'); assert.equal(relation(W.g, 'a061', 'a045'), 'luna'); assert.equal(relation(W.g, 'a061', 'a18'), 'pianeta');
+  const d = idx.forDestination('a061', { id: 'mic' });
+  const hit = d.results.find((r) => r.v.id === 'scu:w-inter');
+  assert.equal(hit.evidence, 'certo'); assert.deepEqual(hit.hits, ['mb1']);
+  assert.equal(destinationSet(W.g, { id: 'mic' }).ids.size, 3, 'il pianeta include le sue località, distinte');
+  const sc = idx.forPlaceExpanded('a061', {}, { ...POSS, scope: 'interplanetaria' });
+  assert.ok(ids(sc.sections.certainOut).includes('scu:w-inter') && !ids(sc.sections.certainOut).includes('scu:w-fix'), 'filtro "tra pianeti" sulla gerarchia reale');
+});
+
+test('LI-6. missione interstellare Stanton → Pyro: distinta, nessuna linea fra sistemi', () => {
+  const idx = wIdx();
+  const x = idx.forPlaceExpanded('a061', {}, POSS);
+  assert.ok(ids(x.sections.interstellar).includes('scu:w-stellar'));
+  assert.ok(!ids(x.sections.interplanetary).includes('scu:w-stellar'));
+  const seg = expandedSegments(x, W.g, 'stanton', { force: new Set(['scu:w-stellar']) });
+  assert.ok(!seg.segments.some((s) => s.mission === 'scu:w-stellar'), 'nessuna linea interstellare');
+  const d = idx.forDestination('a061', { system: 'pyro' });
+  assert.ok(d.interstellar); assert.deepEqual(d.results.map((r) => r.v.id), ['scu:w-stellar']);
+});
+
+test('LI-7. destinazione dinamica sconosciuta: resta SCONOSCIUTA, mai assegnata', () => {
+  const idx = wIdx();
+  const x = idx.forPlaceExpanded('a061', {}, POSS);
+  const r = x.sections.certainOut.find((r) => r.v.id === 'scu:w-dyn');
+  assert.ok(r.link.unknown >= 1 && !r.link.ids, 'altro capo non risolto');
+  for (const dest of [{ id: 'mic' }, { id: 'arc' }, { system: 'pyro' }]) assert.ok(!idx.forDestination('a061', dest).results.some((x) => x.v.id === 'scu:w-dyn'), 'nessuna destinazione inventata');
+  assert.ok(x.diagnostics.unresolvedNames.some(([n]) => n === 'Luogo Dinamico'));
+  assert.equal(XL.sconosciuto.label, 'SCONOSCIUTO');
+});
+
+test('LI-8. nessuna falsa promozione da regionale a certa', () => {
+  const idx = wIdx();
+  const x = idx.forPlaceExpanded('a061', {}, POSS);
+  const certain = ids([...x.sections.certainOut, ...x.sections.certainIn]), possible = ids([...x.sections.possibleOut, ...x.sections.possibleIn]);
+  for (const id of ['scu:w-moon', 'scu:w-offer']) { assert.ok(!certain.includes(id)); assert.ok(!possible.includes(id)); }
+  const v = idx.forPlaceExpanded('a061', {}, { mode: 'verificate' });
+  assert.equal(v.sections.regional.luna.length + v.sections.offersArea.length + v.sections.possibleOut.length, 0, 'VERIFICATE: solo certezze');
+  assert.ok(v.diagnostics.hiddenByMode >= 3);
+  const d = idx.forDestination('a061', { id: 'mic' });
+  assert.equal(d.results.find((r) => r.v.id === 'scu:w-offer')?.evidence, 'regionale');
+  assert.ok(!plannable(idx.byId.get('scu:w-moon')).ok, 'una regionale non e\' pianificabile');
+});
+
+test('LI-9. nessun collegamento costruito combinando contratti diversi', () => {
+  const idx = wIdx();
+  const d = idx.forDestination('a061', { id: 'mic' });
+  for (const r of d.results) assert.ok(r.v.ops.some((o) => o.role === 'dropoff' && o.ids.some((id) => ['mic', 'mb1', 'mb2'].includes(id))), r.v.id);
+  assert.ok(!d.results.some((r) => r.v.id === 'scu:w-other2' || r.v.id === 'scu:w-chain'), 'contratti che non partono dall\'origine non entrano');
+  const ch = d.chains.find((c) => c.via.id === 'a18');
+  assert.ok(ch, 'tratta intermedia documentata via Citta Arco');
+  assert.ok(ch.first.every((x) => x.v.id !== ch.second[0].v.id), 'due contratti distinti, dichiarati come sequenza');
+  const none = idx.forDestination('a045', { system: 'pyro' });
+  assert.equal(none.results.length, 0); assert.equal(none.none, NO_LINK); assert.match(none.noneNote, /non significa/i);
+});
+
+test('LI-10. nessuna duplicazione nei riepiloghi', () => {
+  const x = wIdx().forPlaceExpanded('a061', {}, POSS);
+  const both = 'scu:w-both';
+  assert.ok(ids(x.sections.certainOut).includes(both)); assert.ok(ids(x.sections.possibleIn).includes(both), 'stessa missione in due ruoli');
+  const all = [...x.sections.certainOut, ...x.sections.certainIn, ...x.sections.possibleOut, ...x.sections.possibleIn, ...x.sections.regional.luna, ...x.sections.regional.pianeta, ...x.sections.offersArea];
+  assert.equal(x.unique.total, new Set(all.map((r) => r.v.id)).size);
+  assert.equal(x.unique.certain + x.unique.possible + x.unique.regional, x.unique.total, 'ogni missione contata una volta sola');
+  assert.ok(!ids(x.sections.offersArea).includes('scu:w-fix'), 'offerta qui ma gia\' certa: non ripetuta');
+});
+
+test('LI-11. missioni in elenco anche quando la mappa omette le linee', () => {
+  const idx = wIdx();
+  const x = idx.forPlaceExpanded('a061', {}, { ...POSS, maxDraw: 10 });
+  const r = x.sections.possibleOut.find((r) => r.v.id === 'scu:w-pool20');
+  assert.equal(r.drawable, false);
+  const seg = expandedSegments(x, W.g, 'stanton');
+  assert.ok(seg.omitted >= 1 && !seg.segments.some((s) => s.mission === 'scu:w-pool20'));
+  const forced = expandedSegments(x, W.g, 'stanton', { force: new Set(['scu:w-pool20']) });
+  assert.ok(forced.segments.some((s) => s.mission === 'scu:w-pool20' && s.style === 'nonverificata'), 'espansione su richiesta');
+  const cs = idx.connectionsSplit('a061', {}, 10);
+  assert.ok(cs.omitted.some((o) => o.v.id === 'scu:w-pool20')); assert.ok(cs.found > cs.drawn);
+  assert.match(OMITTED, /collegamenti grafici omessi/);
+  assert.ok(x.diagnostics.notDrawn >= 1);
+});
+
+test('LI-12. filtri per patch, compagnia e reputazione', () => {
+  const idx = wIdx();
+  const comp = idx.forPlaceExpanded('a061', { company: 'Altra Compagnia' }, POSS);
+  assert.deepEqual(ids(comp.sections.certainOut), ['scu:w-inter']);
+  const rank = idx.forPlaceExpanded('a061', { maxRank: 1 }, POSS);
+  assert.ok(!ids(rank.sections.certainOut).includes('scu:w-inter') && rank.diagnostics.filteredOut >= 1);
+  const patch = idx.forPlaceExpanded('a061', { patch: '9.8' }, POSS);
+  assert.equal(patch.unique.total, 0); assert.ok(patch.diagnostics.filteredOut > 0);
+  assert.ok(patch.diagnostics.why.some((w) => /filtri/.test(w)), 'la diagnostica spiega lo zero');
+});
+
+test('LI-13. EXECUTIVE STACK: solo dati verificati, vincoli di carico rispettati', () => {
+  const u1 = wUser({ title: 'Mio 1', movements: [{ scu: 120, from: 'Area 061', to: 'Citta Arco', containerMax: 16 }] });
+  const u2 = wUser({ title: 'Mio 2', status: 'confermata', movements: [{ scu: 100, from: 'Area 061', to: 'Base Micro', containerMax: 16 }] });
+  const idx = wIdx([u1, u2]);
+  const c = { geo: W.g, capacity: 240, ship: SHIPS['rsi-constellation-mk5-centaurus'], ranks: {}, start: 'a061' };
+  const b = bestStack('a061', idx, c, { mode: 'executive' });
+  assert.equal(b.mode, 'executive');
+  assert.ok(b.excluded.some((x) => x.v.origin === 'catalogo' && /non verificato|quantità/.test(x.why)), 'quantita\' assunta dal modello: esclusa');
+  const r = b.scenarios.guadagno.result;
+  assert.ok(r.views.every((v) => v.origin === 'utente'));
+  assert.ok(r.metrics.peak <= 240);
+  assert.equal(r.metrics.rewardAccepted, 10000, 'il contratto non accettato non e\' acquisito');
+  assert.equal(r.cls, 'potenziale');
+  const over = evaluateStack(idx.views.filter((v) => v.origin === 'utente'), { ...c, capacity: 100 });
+  assert.ok(over.route ? over.route.peak <= 100 : over.cls === 'incompatibile', 'capacita\' verificata dopo ogni operazione');
+  assert.ok(STACK_MODES.executive && STACK_MODES.exploratory);
+});
+
+test('LI-14. EXPLORATORY STACK: combinazione teorica, nessun manifesto definitivo', () => {
+  const idx = wIdx();
+  const r = exploratoryStack('a061', idx, { geo: W.g, capacity: 1000, ship: SHIPS['rsi-constellation-mk5-centaurus'], ranks: {} }, { limit: 8 });
+  assert.ok(exploratoryStack('a061', idx, { geo: W.g, capacity: 240, ranks: {} }).rejected.some((x) => /capacità/.test(x.why)), 'i massimi noti oltre la capacità vengono esclusi');
+  assert.equal(r.executable, false); assert.equal(r.manifest, null);
+  assert.ok(r.chosen.length > 0);
+  assert.ok(r.chosen.some((x) => x.level === 'possibile' || x.level === 'regionale'));
+  assert.ok(r.unknownPlaces.length > 0, 'luoghi ancora sconosciuti elencati');
+  assert.ok(r.toVerify.length > 0 && r.why.length > 0 && r.constraints.length > 0);
+  const sel = exploratoryStack('a061', idx, { geo: W.g, capacity: 240, ranks: {} }, { selected: [idx.byId.get('scu:w-moon')] });
+  assert.equal(sel.chosen.length, 1); assert.ok(sel.unknownPlaces.some((t) => /ritiro/.test(t)));
+});
+
+test('LI-15. nessuna perdita dei contratti dell\'utente', async () => {
+  const u = wUser({ title: 'Conservato', status: 'osservata', movements: [{ scu: 5, from: 'Area 061', to: null }] });
+  const idx = wIdx([u]);
+  const x = idx.forPlaceExpanded('a061', {}, { mode: 'verificate' });
+  assert.ok(ids(x.sections.certainOut).includes(`user:${u.id}`), 'contratto tuo visibile anche in VERIFICATE');
+  assert.equal(idx.views.filter((v) => v.origin === 'utente').length, 1);
+  const db = await LogisticsDB.open();
+  await db.putContracts([u]);
+  const back = await db.contracts();
+  assert.ok(back.some((c) => c.id === u.id && c.title === 'Conservato'));
+  db.close();
+});
+
+test('LI-16. nessuna regressione: forPlace, connections e navigazione invariati', async () => {
+  const idx = wIdx();
+  const old = idx.forPlace('a061');
+  assert.ok(old.out.some((e) => e.v.id === 'scu:w-fix' && e.strength === 'fisso'));
+  assert.ok(old.out.some((e) => e.v.id === 'scu:w-pool20' && e.strength === 'possibile' && e.alternatives === 20));
+  assert.ok(Array.isArray(idx.connections('a061')));
+  const counts = idx.counts(); assert.ok(counts.get('a061') >= 5);
+  const plan = await import('../js/core/plan.js');
+  assert.ok(plan.DEFAULT_OPTS && plan.STRATEGY, 'motore di navigazione caricato e invariato');
+  const { idx: base } = mk();
+  assert.ok(base.forPlace('ba').out.length >= 3, 'primo mondo sintetico invariato');
+});
+
+test('LI-17. funzionamento offline: stessa ricerca dallo snapshot salvato', () => {
+  const snap = JSON.parse(JSON.stringify({ meta: { patch: '9.9' }, places: W.places, connections: [] }));
+  const g2 = geoFromSnapshot(snap);
+  const cat2 = JSON.parse(JSON.stringify(W.cat));
+  const idx2 = new MissionIndex(catalogViews(cat2), g2);
+  const a = idx2.forPlaceExpanded('a061', {}, POSS).unique, b = wIdx().forPlaceExpanded('a061', {}, POSS).unique;
+  assert.deepEqual(a, b);
+  const sw = readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
+  assert.match(sw, /cache: 'no-cache'/, 'online: rivalidazione di ogni file, nessuna versione vecchia');
+  assert.match(sw, /k !== CACHE/, 'le cache delle versioni precedenti vengono cancellate');
+});
+
+test('LI-18. compatibilità con il database IndexedDB attuale (v2, nessuno schema nuovo)', async () => {
+  const db = await LogisticsDB.open();
+  await db.setMeta('atlasUi', { system: 'stanton', sel: [], mode: 'possibili', scope: 'interplanetaria', dest: { label: 'Micro' } });
+  const ui = await db.getMeta('atlasUi');
+  assert.equal(ui.mode, 'possibili'); assert.equal(ui.scope, 'interplanetaria');
+  db.close();
+  const ver = await new Promise((res) => { const r = indexedDB.open('navcom-logistics'); r.onsuccess = () => { const v = r.result.version; r.result.close(); res(v); }; });
+  assert.equal(ver, 2, 'nessun aggiornamento di schema richiesto');
+  const src = readFileSync(new URL('../js/ui-atlas.js', import.meta.url), 'utf8');
+  assert.match(src, /S\.mode = MODES\[S\.mode\] \? S\.mode : 'verificate'/, 'stato salvato senza modalita\' (0.7.0) letto con il valore predefinito');
+});

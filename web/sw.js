@@ -3,7 +3,7 @@
 // - tutto il resto dello stesso sito (HTML, JS, CSS, snapshot dati): network-first, con la
 //   copia in cache come riserva quando la rete manca. Le richieste verso altri siti (es. l'API
 //   CitizenHQ per l'aggiornamento live) non vengono toccate.
-const CACHE = 'navcom-v0.7.0';
+const CACHE = 'navcom-v0.7.1';
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(['./', 'index.html', 'css/navcom.css', 'js/app.js'])).then(() => self.skipWaiting()));

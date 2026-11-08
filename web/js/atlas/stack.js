@@ -201,7 +201,12 @@ const keepCandidate = (v, ctx) => !(v.origin === 'utente' && ['completata', 'fal
  * gia' accettati (sempre inclusi, mai sacrificati). Tre scenari, selezione progressiva deterministica.
  * @returns {{scenarios:{[k]:{result, added:string[]}}, mandatory, candidates, excluded, notes}}
  */
-export function bestStack(placeId, index, ctx, { maxCandidates = 12, maxAdd = 6, timeBudgetMs = 4000 } = {}) {
+export const STACK_MODES = {
+  executive: { label: 'EXECUTIVE STACK', note: 'solo missioni con ritiro, consegna e quantità verificati; i contratti non accettati restano da trovare e accettare' },
+  exploratory: { label: 'EXPLORATORY STACK', note: 'combinazione teorica con missioni possibili e regionali: nessun manifesto definitivo' },
+};
+
+export function bestStack(placeId, index, ctx, { maxCandidates = 12, maxAdd = 6, timeBudgetMs = 4000, mode = 'executive' } = {}) {
   const t0 = Date.now();
   const mandatory = index.views.filter((v) => v.origin === 'utente' && v.committed);
   const notes = [];
@@ -215,6 +220,7 @@ export function bestStack(placeId, index, ctx, { maxCandidates = 12, maxAdd = 6,
     const viol = violations(v, p.contract ?? null, ctx);
     if (!p.ok) excluded.push({ v, why: p.missing[0] });
     else if (viol.length) excluded.push({ v, why: viol[0] });
+    else if (mode === 'executive' && p.assumed.length) excluded.push({ v, why: `dato non verificato: ${p.assumed[0]} (usa EXPLORATORY STACK)` });
     else candidates.push(v);
   }
   candidates.sort((a, b) => (b.reward ?? -1) - (a.reward ?? -1) || a.id.localeCompare(b.id));
@@ -246,7 +252,66 @@ export function bestStack(placeId, index, ctx, { maxCandidates = 12, maxAdd = 6,
     out[key] = { result: set.length ? cur : null, added };
   }
   if (!candidates.length) notes.push('Nessuna missione pianificabile per questo luogo nei dati disponibili: servono ritiro e consegna certi con le quantità. "Nessuna missione confermata nei dati disponibili" non significa "nessuna missione esistente nel gioco".');
-  return { scenarios: out, mandatory, candidates, excluded, notes, base };
+  return { mode, scenarios: out, mandatory, candidates, excluded, notes, base };
+}
+
+/**
+ * EXPLORATORY STACK: combinazione TEORICA di missioni certe, possibili e regionali per un luogo
+ * (o di quelle scelte dall'utente). Non produce mai un manifesto: elenca cosa va verificato nel
+ * MobiGlas, i luoghi ancora sconosciuti, le quantita' mancanti, i vincoli e il motivo per cui il piano
+ * non e' eseguibile. Selezione deterministica: ricompensa nota decrescente, poi id; si aggiunge una
+ * missione solo se i vincoli noti (casse, grado, capacita' sui massimi noti) non sono violati.
+ */
+export function exploratoryStack(placeId, index, ctx, { selected = null, limit = 6, filters = {} } = {}) {
+  const geo = ctx.geo;
+  let pool;
+  if (selected?.length) pool = selected.map((v) => ({ v, level: v.origin === 'utente' ? 'certo' : 'scelta' }));
+  else {
+    const x = index.forPlaceExpanded(placeId, filters, { mode: 'possibili' });
+    const S = x.sections, m = new Map();
+    for (const r of [...S.certainOut, ...S.certainIn, ...S.possibleOut, ...S.possibleIn, ...S.regional.luna, ...S.regional.pianeta, ...S.offersArea]) if (!m.has(r.v.id)) m.set(r.v.id, { v: r.v, level: r.level });
+    pool = [...m.values()];
+  }
+  const rankL = { certo: 0, scelta: 0, possibile: 1, regionale: 2 };
+  pool = pool.filter((x) => keepCandidate(x.v, ctx)).sort((a, b) => rankL[a.level] - rankL[b.level] || (b.v.reward ?? -1) - (a.v.reward ?? -1) || a.v.id.localeCompare(b.v.id));
+  const chosen = [], rejected = [];
+  let scuKnown = 0;
+  const maxScu = (v) => {
+    const drops = v.ops.filter((o) => o.role === 'dropoff' && o.scu > 0).reduce((s, o) => s + o.scu, 0);
+    return drops || (v.orders?.length ? v.orders.reduce((s, o) => s + (o.scuMax ?? 0), 0) || null : null);
+  };
+  for (const x of pool) {
+    if (chosen.length >= limit) break;
+    const viol = violations(x.v, null, ctx);
+    if (viol.length) { rejected.push({ v: x.v, why: viol[0] }); continue; }
+    const q = maxScu(x.v);
+    if (q && ctx.capacity && scuKnown + q > ctx.capacity && !selected?.length) { rejected.push({ v: x.v, why: `con il massimo noto (${q} SCU) la somma supererebbe la capacità di ${ctx.capacity} SCU` }); continue; }
+    if (q) scuKnown += q;
+    chosen.push({ ...x, scuMax: q });
+  }
+  const toVerify = [], unknownPlaces = [], unknownQty = [], constraints = [], why = [];
+  for (const x of chosen) {
+    const v = x.v;
+    if (v.origin !== 'utente' || !v.committed) toVerify.push(`${v.title}: trovare l'offerta e accettarla nel MobiGlas${v.offer?.length ? ` (offerta associata a ${v.offer.map((o) => geo.get(o.id)?.name ?? o.name).filter(Boolean).slice(0, 3).join(', ')})` : ''}`);
+    for (const o of v.ops) {
+      if (!o.fixed) unknownPlaces.push(`${v.title}: ${o.role === 'pickup' ? 'ritiro' : 'consegna'} ${o.slot} = ${o.size > 1 ? `uno di ${o.size} luoghi` : `non riconosciuto${o.unresolved[0] ? ` (${o.unresolved[0]})` : ''}`}`);
+      if (o.role === 'dropoff' && !(o.scu > 0)) unknownQty.push(`${v.title}: quantità della consegna ${o.slot} non nota`);
+    }
+    if (!v.ops.length) unknownPlaces.push(`${v.title}: nessun punto di ritiro o consegna nei dati`);
+    if (v.maxBox) constraints.push(`${v.title}: casse fino a ${v.maxBox} SCU${ctx.ship?.maxBox ? ` (nave: ${ctx.ship.maxBox} SCU)` : ''}`);
+    if (v.rankIndex != null) constraints.push(`${v.title}: grado richiesto ${v.rank ?? v.rankIndex}`);
+  }
+  if (toVerify.length) why.push(`${toVerify.length} contratti non ancora accettati: non sono acquisiti.`);
+  if (unknownPlaces.length) why.push(`${unknownPlaces.length} punti di ritiro o consegna ancora sconosciuti: il manifesto richiede luoghi certi.`);
+  if (unknownQty.length) why.push(`${unknownQty.length} quantità non disponibili.`);
+  if (ctx.capacity) constraints.push(`capacità indicata ${ctx.capacity} SCU; somma dei massimi noti ${scuKnown} SCU (le quantità reali le assegna il gioco)`);
+  const plannable = chosen.filter((x) => toPlanning(x.v, geo).ok).map((x) => x.v);
+  return {
+    mode: 'exploratory', executable: false, manifest: null, chosen, rejected, toVerify, unknownPlaces, unknownQty, constraints,
+    why: why.length ? why : ['combinazione teorica: va confermata nel MobiGlas prima di diventare un piano'],
+    rewardKnown: chosen.reduce((s, x) => s + (x.v.reward ?? 0), 0), rewardUnknown: chosen.filter((x) => x.v.reward == null).length,
+    plannableNow: plannable.map((v) => v.id),
+  };
 }
 
 /** Confronto fra due risultati per uno scenario. strict: il nuovo deve migliorare davvero. */
