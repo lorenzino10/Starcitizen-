@@ -203,10 +203,10 @@ export async function initLogistics(app) {
   const download = (name, text, type) => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); };
   const day = () => new Date().toISOString().slice(0, 10);
   $('cb-csv').onclick = () => download(`navcom-contratti-${day()}.csv`, contractsToCsv(contracts), 'text/csv');
-  $('cb-json').onclick = () => download(`navcom-logistica-${day()}.json`, JSON.stringify(exportLogistics({ contracts, observations, settings: S, version: VERSION }), null, 1), 'application/json');
+  $('cb-json').onclick = async () => download(`navcom-logistica-${day()}.json`, JSON.stringify(exportLogistics({ contracts, observations, settings: S, version: VERSION, plans: await db.plans(), attachments: await db.attachments() }), null, 1), 'application/json');
   $('lg-backup').onclick = async () => {
     const points = app.pointsDb ? await app.pointsDb().all().catch(() => []) : [];
-    download(`navcom-backup-completo-${day()}.json`, JSON.stringify(exportFull({ points, contracts, observations, settings: S, version: VERSION })), 'application/json');
+    download(`navcom-backup-completo-${day()}.json`, JSON.stringify(exportFull({ points, contracts, observations, settings: S, version: VERSION, plans: await db.plans(), attachments: await db.attachments() })), 'application/json');
   };
   $('lg-restore').onchange = async () => {
     const f = $('lg-restore').files?.[0]; $('lg-restore').value = '';
@@ -215,13 +215,15 @@ export async function initLogistics(app) {
       const r = parseBackup(await f.text());
       const mc = mergeById(contracts, r.contracts), mo = mergeById(observations, r.observations, (x) => x.at);
       await db.putContracts(mc.list); await db.putObservations(mo.list);
+      const mp = mergeById(await db.plans(), r.plans), ma = mergeById(await db.attachments(), r.attachments, (x) => x.at ?? '');
+      await db.putPlans(mp.list); await db.putAttachments(ma.list);
       let pts = '';
       if (r.points && app.pointsDb) {
         const pdb = app.pointsDb(); const have = new Set((await pdb.all()).map((p) => p.id));
         const add = r.points.filter((p) => p.id && !have.has(p.id));
         await pdb.putMany(add); pts = ` · DATABASE PUNTI: ${add.length} punti aggiunti, esistenti invariati`;
       }
-      $('lg-arch-msg').innerHTML = `<span class="ok">Ripristino per unione: contratti +${mc.added} / aggiornati ${mc.updated}; osservazioni +${mo.added}${pts}. Nulla è stato cancellato.</span>${r.errors.length ? `<br><span class="err">${esc(r.errors.join(' · '))}</span>` : ''}`;
+      $('lg-arch-msg').innerHTML = `<span class="ok">Ripristino per unione: contratti +${mc.added} / aggiornati ${mc.updated}; osservazioni +${mo.added}; piani cargo +${mp.added}; screenshot +${ma.added}${pts}. Nulla è stato cancellato.</span>${r.errors.length ? `<br><span class="err">${esc(r.errors.join(' · '))}</span>` : ''}`;
       await refreshAll();
     } catch (e) { $('lg-arch-msg').innerHTML = `<span class="err">${esc(e.message)}</span>`; }
   };
@@ -399,5 +401,7 @@ export async function initLogistics(app) {
   storage();
   await reload(); renderBoard(); renderIntel(); renderDispatch();
   loadCatalog().then(async () => { renderCatalog(); await loadPlaces(); if (!S.patch) $('lg-patch').placeholder = `es. ${currentPatch() || '4.10.2'} (rilevata dai dati)`; });
-  return { refreshAll, showView, db: () => db };
+  // usato dall'ATLANTE: stessa nave, capacita', gradi e patch impostati in LOGISTICS
+  const context = () => ({ capacity: ctx().capacity, ship: ship(), ranks: ranks(), patch: currentPatch(), pos: S.pos, shipKey: S.ship });
+  return { refreshAll, showView, db: () => db, context };
 }

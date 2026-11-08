@@ -40,6 +40,11 @@ jobs:
         continue-on-error: true
         timeout-minutes: 25
         run: node web/tools/fetch_logistics.mjs
+      - name: Atlante (luoghi, modelli di missione, navi da scunpacked-data)
+        # se scunpacked non risponde si riusa l'ultimo snapshot pubblicato: l'atlante non perde i luoghi
+        continue-on-error: true
+        timeout-minutes: 20
+        run: node web/tools/fetch_atlas.mjs
       - name: Controllo dati (corpi celesti e gateway)
         continue-on-error: true
         run: node web/tools/check_bodies.mjs

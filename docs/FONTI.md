@@ -19,3 +19,12 @@
 - Raggi dei corpi per Pyro e Nyx: senza questi dati le tratte in quei sistemi restano "Teoriche".
 - Raggio di ostruzione QT reale: NAVCOM usa raggio del corpo × margine (1,2 di default), che è una **stima**.
 - Formato delle coordinate della Starmap: non ancora identificato, quindi la conversione non è implementata.
+
+## Aggiunte 0.7.0 (8 novembre 2026)
+
+| Fonte | Esito | Cosa offre | Limiti, licenza | Uso in NAVCOM |
+|---|---|---|---|---|
+| **scunpacked-data** `github.com/StarCitizenWiki/scunpacked-data` | ✅ Verificata (commit 4.10.2-LIVE.12881860, 2026-10-28) | `starmap_positions.json` (1.840 entità, i 739 non nascosti identici a CitizenHQ), `contracts/*.json` (pool di luoghi, ordini di trasporto, ricompense, grado), `trade_locations.json`, `ships.json`. | Nessun file LICENSE; dati di gioco di Cloud Imperium. Modelli, non offerte. | **Atlante**: luoghi, modelli di missione, navi. Vedi [ATLAS.md](ATLAS.md). |
+| **CitizenHQ** missioni | ❌ Non verificata | Endpoint missioni non documentato pubblicamente. | — | Non usata. |
+| **UEX Corp** `api.uexcorp.uk/2.0` | ✅ Verificata in GET senza token | Prezzi commodity, terminali. | Termini: solo uso personale non commerciale. | Non integrata (priorità al trasporto). |
+

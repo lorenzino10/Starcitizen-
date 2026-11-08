@@ -5,13 +5,13 @@ import { normalizeObservation } from './intel.js';
 export const FORMAT = 'navcom-logistics';
 export const FULL_FORMAT = 'navcom-backup-completo';
 
-export function exportLogistics({ contracts, observations, settings = null, version = '' }) {
-  return { format: FORMAT, version: 1, app: version, exportedAt: new Date().toISOString(), contracts, observations, settings };
+export function exportLogistics({ contracts, observations, settings = null, version = '', plans = [], attachments = [] }) {
+  return { format: FORMAT, version: 2, app: version, exportedAt: new Date().toISOString(), contracts, observations, settings, plans, attachments };
 }
 
 /** Backup completo NAVCOM: DATABASE PUNTI + logistica, in un solo file. */
-export function exportFull({ points, contracts, observations, settings = null, version = '' }) {
-  return { format: FULL_FORMAT, version: 1, app: version, exportedAt: new Date().toISOString(), points, logistics: exportLogistics({ contracts, observations, settings, version }) };
+export function exportFull({ points, contracts, observations, settings = null, version = '', plans = [], attachments = [] }) {
+  return { format: FULL_FORMAT, version: 2, app: version, exportedAt: new Date().toISOString(), points, logistics: exportLogistics({ contracts, observations, settings, version, plans, attachments }) };
 }
 
 /**
@@ -33,7 +33,9 @@ export function parseBackup(text) {
     const r = normalizeObservation(o);
     if (r.observation) observations.push(r.observation); else errors.push(`osservazione ${o.id ?? ''}: ${r.errors.join('; ')}`);
   }
-  return { contracts, observations, points: j.format === FULL_FORMAT ? (j.points ?? []) : null, settings: lg.settings ?? null, errors };
+  const plans = (lg.plans ?? []).filter((p) => p && p.id && Array.isArray(p.seq) && Array.isArray(p.contracts));
+  const attachments = (lg.attachments ?? []).filter((a) => a && a.id && typeof a.dataUrl === 'string' && a.dataUrl.startsWith('data:image/'));
+  return { contracts, observations, plans, attachments, points: j.format === FULL_FORMAT ? (j.points ?? []) : null, settings: lg.settings ?? null, errors };
 }
 
 /** Unione senza perdita: per ID vince il record aggiornato piu' di recente; nulla viene cancellato. */
