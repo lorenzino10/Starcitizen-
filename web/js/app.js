@@ -14,9 +14,10 @@ import { CYAN, AMBER, GREEN, RED, systemPlot } from './plot.js';
 import { ensurePlotly } from './plotly-loader.js';
 import { initPlanner, navOptions } from './ui-plan.js';
 import { initPointsDb } from './ui-points.js';
+import { initLogistics } from './ui-logistics.js';
 
-const VERSION = '0.5.6-web';
-const CACHE_NAME = 'navcom-v0.5.6'; // deve coincidere con CACHE in sw.js
+const VERSION = '0.6.0-web';
+const CACHE_NAME = 'navcom-v0.6.0'; // deve coincidere con CACHE in sw.js
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const ICON = { [STATUS.VERIFIED]: '🟢', [STATUS.DATA]: '🔵', [STATUS.THEORETICAL]: '🟠' };
@@ -611,6 +612,12 @@ async function main() {
       onChange: () => refreshPoints(),
     });
   } catch (e) { console.error(e); } // il resto di NAVCOM (e l'aggiornamento della cache) continua a funzionare
+  try {
+    await initLogistics({
+      $, esc, store, VERSION, ensureSystemData, navOptions: () => navOptions(settings),
+      pointsDb: () => pointsUi?.db ?? null,
+    });
+  } catch (e) { console.error(e); $('lg-banner').innerHTML = `<p class="err">LOGISTICS non avviata: ${esc(e.message)}</p>`; }
   // cache offline (service worker) e precaricamento della libreria grafica locale
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
   ensurePlotly().then(cacheLoadedFiles);

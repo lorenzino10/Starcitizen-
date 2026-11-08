@@ -102,3 +102,30 @@ tr.err td { color: #e9a25b; }
 .navbox table { margin: 6px 0; }
 .navbox td { white-space: normal; }
 .navbox th { position: static; }
+/* LOGISTICS */
+.subtabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 10px 0 4px; }
+.subtabs button { background: none; border: 1px solid var(--line); color: var(--dim); letter-spacing: .12em; font-size: .8rem; }
+.subtabs button.active { color: #021018; background: var(--cyan); border-color: var(--cyan); }
+.lg-legend { margin: 4px 0 10px; }
+.grid3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 4px 12px; align-items: end; }
+.grid3 label { display: block; margin: 6px 0; color: var(--dim); font-size: .85rem; }
+.row.wrap { flex-wrap: wrap; gap: 6px; }
+select.inline, input.inline { width: auto; min-width: 180px; }
+.alts { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; margin: 10px 0; }
+.altcard { border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; background: #08131e; }
+.altcard h3 { margin: 0 0 4px; font-size: .8rem; letter-spacing: .2em; color: var(--cyan); }
+.altcard ol { padding-left: 18px; margin: 6px 0; line-height: 1.5; }
+.badge { display: inline-block; font-size: .72rem; padding: 0 6px; border-radius: 3px; border: 1px solid var(--amber); color: var(--amber); }
+.badge.old { border-color: var(--dim); color: var(--dim); }
+td.wrapcell { white-space: normal; min-width: 180px; }
+.mrow { display: grid; grid-template-columns: 1.2fr .5fr .6fr 1.4fr 1.4fr auto; gap: 4px; margin: 4px 0; }
+.hold-chart { width: 100%; max-width: 900px; height: auto; margin: 6px 0 10px; }
+.hold-chart .line { fill: none; stroke: var(--cyan); stroke-width: 2; }
+.hold-chart .cap { stroke: var(--red); stroke-dasharray: 5 4; }
+.hold-chart .grid { stroke: #12283d; }
+.hold-chart .dot { fill: var(--cyan); }
+.hold-chart .ax { fill: var(--dim); font-size: 11px; font-family: var(--mono); }
+ol.stops > li { margin: 10px 0; padding: 8px 10px; border-left: 3px solid var(--line); }
+ol.stops ul { margin: 6px 0; padding-left: 18px; line-height: 1.7; }
+@media (max-width: 700px) { .mrow { grid-template-columns: 1fr 1fr; } }
+.row.wrap > * { flex: 0 1 auto; }

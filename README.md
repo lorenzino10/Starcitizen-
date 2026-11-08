@@ -33,6 +33,17 @@ modalità **operativa** usa solo tratte verificate o supportate; in modalità
 in gioco: [docs/COLLAUDO_IN_GIOCO.md](docs/COLLAUDO_IN_GIOCO.md). Novità:
 [CHANGELOG.md](CHANGELOG.md).
 
+**📦 LOGISTICS** (0.6.0): pianificazione del trasporto merci per pilota
+solitario. Le viste sono quattro:
+- FREIGHT RADAR: dove cercare carichi lungo il percorso, con tre alternative;
+- MISSION BOARD: i tuoi contratti, più il catalogo dei modelli di missione (Star Citizen Wiki API e SCHaulingPlanner);
+- CARGO MANIFEST: stiva dopo ogni operazione, con grafico;
+- FLIGHT DISPATCH: ottimizzazione pickup-and-delivery con capacità e precedenze, e ricalcolo durante il viaggio.
+
+Lo storico delle tue osservazioni alimenta "Dove conviene cercare?". Un modello di
+catalogo non viene mai presentato come un'offerta disponibile.
+Dettagli: [docs/LOGISTICS.md](docs/LOGISTICS.md).
+
 **🗂 DATABASE PUNTI** (0.5.0): archivio personale delle tue destinazioni
 (nome, sistema, XYZ in km o m, categoria, risorsa, stato, note, date). I punti
 li inserisci tu, li importi da Excel (.xlsx, con anteprima, associazione delle
@@ -190,6 +201,7 @@ docs/AARON_HALO.md       confronto con SCMiner e Cornerstone
 ## Fonti e attribuzioni
 Posizioni: CitizenHQ (UEX Corp, SC Trade Tools, scunpacked, Star Citizen Wiki).
 Fasce Aaron Halo: CaptSheppard / Cornerstone (cstone.space). Raggi dei corpi
-celesti: starmap.space (tramite ByteCollectiveIO/sc-nav). Dettagli in
+celesti: starmap.space (tramite ByteCollectiveIO/sc-nav). Missioni di trasporto:
+Star Citizen Wiki API e SCHaulingPlanner (FSCSOFT-Official). Dettagli in
 [docs/FONTI.md](docs/FONTI.md). Progetto non ufficiale, non affiliato a Cloud
 Imperium Games.

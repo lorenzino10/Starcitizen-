@@ -1,5 +1,19 @@
 # Registro delle modifiche
 
+## 0.6.0-web (2026-11-08): NAVCOM LOGISTICS INTELLIGENCE
+Nuova scheda **📦 LOGISTICS**, documentata in [docs/LOGISTICS.md](docs/LOGISTICS.md).
+- **Modello dei contratti**: un contratto è fatto di movimenti (merce, SCU, cassa massima, un ritiro, una consegna, quantità caricate e consegnate). Gli stati sono Osservata, Confermata, Accettata, In esecuzione, Completata, Fallita e Non disponibile. Il catalogo non è uno stato: non diventa mai un'offerta senza un'azione tua con luogo e momento.
+- **MISSION BOARD**: inserimento manuale ("Missione trovata"), import ed export JSON e CSV (una riga per movimento), cambi di stato espliciti, catalogo dei modelli con fonte, patch e copertura.
+- **Ottimizzatore pickup-and-delivery**: capacità e precedenze sempre verificate. Metodo esatto fino a 10 operazioni, oltre euristico deterministico. Movimenti più grandi della stiva divisi in più viaggi. Confermati proposti "da accettare"; quelli con grado insufficiente, casse troppo grandi o luoghi ignoti vengono esclusi con il motivo. Priorità: profitto, profitto per ora (solo con tempi noti), pochi scali, rischio, utilizzo della stiva.
+- **CARGO MANIFEST**: per scalo, operazioni, stiva dopo ogni operazione, capacità residua, ricompense maturate e da ottenere, avvisi sulle casse. Grafico SVG della stiva. La compatibilità fisica dichiarata come non verificata.
+- **FLIGHT DISPATCH**: le azioni durante il viaggio ricalcolano senza perdere contratti accettati, merce a bordo e consegne dovute. "Salta questa stazione" non elimina le operazioni obbligatorie. Le stazioni alternative sono previsioni basate sul tuo storico.
+- **Intelligence**: osservazioni (anche visite alla bacheca senza offerte) e variazioni rispetto all'osservazione precedente. "Dove conviene cercare?" mostra conteggi e numerosità del campione, mai probabilità. I dati di patch precedenti restano come storico obsoleto. Analisi per luogo, compagnia, rotta e patch.
+- **FREIGHT RADAR**: luoghi lungo il percorso con deviazione, opportunità compatibili (grado, stiva, casse), livello di evidenza, fonti, patch e cose da verificare. Tre alternative: conservativa, equilibrata, esplorativa.
+- **Fonti**: `web/tools/fetch_logistics.mjs` scrive cataloghi JSON statici in GitHub Actions, prendendo i modelli di missione dalla Star Citizen Wiki API e le 266 missioni osservate di SCHaulingPlanner. Nessuna chiave API.
+- **Nave predefinita**: Constellation Mk V Centaurus, verificata sulla Wiki API (4.10.2): 240 SCU, griglia 7,5 × 5 × 12,5 m, cassa massima 32 SCU. La capienza operativa è impostabile.
+- **Persistenza**: IndexedDB separato, `navcom-logistics`. Il backup completo comprende punti e logistica, e il ripristino unisce senza cancellare.
+- Pianificatore QT, Aaron Halo, DATABASE PUNTI e import/export invariati.
+
 ## 0.5.6-web (2026-11-05): pianificatore, partenza planetaria e cause di scarto
 Segnalazione di Lorenzo: Aaron Halo B5 (settore 043°), partenza microTech, modalità Operativa. Risultato: 435 marker e centinaia di candidati, ma nessun percorso.
 - **Causa**: il marker "microTech" di CitizenHQ è il **centro del pianeta**, non una partenza reale. Ogni tratta che parte da lì è teorica, quindi in modalità operativa nessun marker era raggiungibile. Una partenza diversa (nessuna, oppure una stazione orbitale) dà piani operativi. Nessun criterio di sicurezza è stato abbassato.
