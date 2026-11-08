@@ -1,5 +1,14 @@
 # Registro delle modifiche
 
+## 0.7.2-web (2026-11-08): scheda della base più semplice
+Solo interfaccia della scheda ATLANTE: nessun cambiamento a dati, motore delle evidenze o navigazione.
+- **Riepilogo in alto**: quattro riquadri CERTE · POSSIBILI · REGIONALI · ALTRE BASI; un clic apre la sezione e ci scorre sopra.
+- **Predefinita "Tutte, con etichetta"** (prima VERIFICATE, che a una base mostrava spesso solo 2-3 missioni). Ogni riga resta etichettata CERTO / POSSIBILE / REGIONALE. Una scelta esplicita viene ricordata.
+- **Righe compatte**: titolo, ricompensa, ⬆ ritiro → ⬇ consegna; tappe identiche raggruppate (×N), "qui" / "(anche qui)" per il luogo scelto; motivo e dettagli completi in "dettagli e motivo".
+- Avviso con pulsante **Mostrale** quando il filtro illegali nasconde missioni del luogo.
+- VOGLIO ARRIVARE A spostato in alto; azioni rinominate (Combina dati certi / anche possibili, Perché questi numeri?); dati del luogo e azioni secondarie in un riquadro chiudibile.
+- Pannello destro più largo (520 px, 440 sotto i 1400 px) e mappa più alta.
+
 ## 0.7.1-web (2026-11-08): LOCATION INTELLIGENCE estesa
 Correzione della scheda ATLANTE: una base non mostrava le missioni che la riguardano se non erano legate al suo identificativo esatto. Dettagli in [docs/ATLAS.md](docs/ATLAS.md#location-intelligence-estesa-071).
 - **Ricerca geografica estesa** (`MissionIndex.forPlaceExpanded`, `forPlace` invariato): CERTO, POSSIBILE (il gioco assegna il luogo), REGIONALE (luna, pianeta, sistema: base non confermata), SCONOSCIUTO, più ALTRE BASI NELLA REGIONE non contate come missioni del luogo. Otto sezioni con conteggi indipendenti e missioni uniche senza duplicati.

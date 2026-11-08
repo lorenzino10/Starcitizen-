@@ -26,11 +26,12 @@ export async function initAtlas(app) {
   const db = lg.db();
   const S = { system: 'stanton', level: null, selected: null, sel: new Set(), conn: null, plan: null, planResult: null, ...(await db.getMeta('atlasUi')) ?? {} };
   S.sel = new Set(S.sel ?? []);
-  S.mode = MODES[S.mode] ? S.mode : 'verificate'; S.scope = SCOPES[S.scope] ? S.scope : 'tutte';
+  S.mode = S.modeChosen && MODES[S.mode] ? S.mode : 'possibili'; // predefinita: tutte le evidenze, ognuna etichettata
+  S.scope = SCOPES[S.scope] ? S.scope : 'tutte';
   S.force = new Set(); S.page = {}; S.open = new Set(['certo_out', 'certo_in']);
   let geo = null, cat = null, schp = null, index = null, views = [], meta = {}, queueExtra = new Map(), obsByPlace = new Map();
   let contracts = [], observations = [], plans = [], attachments = [];
-  const saveUi = () => db.setMeta('atlasUi', { system: S.system, level: S.level, selected: S.selected, sel: [...S.sel], mode: S.mode, scope: S.scope, dest: S.dest ?? null });
+  const saveUi = () => db.setMeta('atlasUi', { system: S.system, level: S.level, selected: S.selected, sel: [...S.sel], mode: S.mode, modeChosen: !!S.modeChosen, scope: S.scope, dest: S.dest ?? null });
 
   // ------------------------------------------------------------------ dati
   async function getJson(url) { const r = await fetch(url, { cache: 'no-cache' }); if (!r.ok) throw new Error(`${url}: HTTP ${r.status}`); return r.json(); }
@@ -290,13 +291,13 @@ export async function initAtlas(app) {
     const shown = o.ids.slice(0, 4).map((id) => placeLink(id)).join(', ');
     return `uno fra ${o.size} luoghi (${o.ids.length} riconosciuti${o.anonymous ? `, ${o.anonymous} sottoaree senza nome` : ''})${shown ? `: ${shown}${o.ids.length > 4 ? '…' : ''}` : ''} · <span class="warn">${TO_CONFIRM}</span>`;
   }
-  function missionRow(e, here, extra = '') {
+  function missionRow(e, here, extra = '', { noCheck = false } = {}) {
     const v = e.v;
     const picks = v.ops.filter((o) => o.role === 'pickup'), drops = v.ops.filter((o) => o.role === 'dropoff');
     const qty = v.ops.filter((o) => o.role === 'dropoff' && o.scu).map((o) => `${o.scu} SCU ${esc(o.cargo ?? '')}`).join(', ') || (v.orders?.length ? v.orders.map((o) => `${esc(o.cargo ?? 'merce')} ${o.scuMin ?? '?'}–${o.scuMax ?? '?'} SCU`).join(', ') : 'quantità non nota');
     const boxes = [...new Set(v.ops.map((o) => o.containerMax).filter(Boolean).concat(v.maxBox ? [v.maxBox] : []))];
     const offer = v.offer.length ? v.offer.slice(0, 3).map((o) => (o.id ? placeLink(o.id) : esc(o.name ?? '?'))).join(', ') + (v.offer.length > 3 ? ` +${v.offer.length - 3}` : '') + (v.origin === 'catalogo' ? ' (può comparire)' : '') : 'non nota';
-    return `<div class="at-ms"><label class="check"><input type="checkbox" data-sel="${esc(v.id)}" ${S.sel.has(v.id) ? 'checked' : ''}><span class="t">${ORIGIN[v.origin].icon} ${esc(v.title)}</span></label>${extra}
+    return `<div class="at-ms">${noCheck ? '' : `<label class="check"><input type="checkbox" data-sel="${esc(v.id)}" ${S.sel.has(v.id) ? 'checked' : ''}><span class="t">${ORIGIN[v.origin].icon} ${esc(v.title)}</span></label>`}${extra}
       <div class="s">${esc(v.company ?? 'datore non indicato')} · grado ${esc(v.rank ?? 'n.d.')} · ${fmtA(v.reward)}${v.status && v.origin === 'utente' ? ` · ${esc(STATUS[v.status] ?? v.status)}` : ''}</div>
       <div class="s">Offerta: ${offer}</div>
       <div class="s">Ritiro: ${picks.map(opText).join(' · ') || '<span class="warn">non nei dati</span>'}</div>
@@ -317,11 +318,32 @@ export async function initAtlas(app) {
     if (link.unknown) parts.push(`sconosciuti ${link.unknown}`);
     return `altro capo dello stesso contratto: ${link.size > 1 ? `pool fino a ${link.size} luoghi` : '1 luogo'}${parts.length ? ` · ${parts.join(' · ')}` : ''}`;
   }
+  /** Riga compatta: titolo, etichetta, ritiro → consegna e ricompensa; il resto in "dettagli". */
   function expRow(r) {
+    const v = r.v, lv = r.level === 'altra_base' ? 'ALTRA BASE' : XL[r.level].label;
+    const short = (role) => {
+      const ops = v.ops.filter((o) => o.role === role);
+      if (!ops.length) return '<span class="warn">non nei dati</span>';
+      // tappe identiche raggruppate ("uno fra 936 luoghi ×9"); "qui" quando il luogo scelto è tra le possibilità
+      const g = new Map();
+      for (const o of ops) {
+        const here = S.selected && (o.ids ?? []).includes(S.selected);
+        const key = o.fixed || o.regionalBody ? `id:${o.ids[0]}` : o.size > 1 ? `pool:${o.size}:${here}` : `u:${o.unresolved?.[0] ?? '?'}`;
+        const html = o.fixed ? (o.ids[0] === S.selected ? '<b>qui</b>' : placeLink(o.ids[0])) : o.regionalBody ? `${placeLink(o.ids[0])} <span class="hint">(zona)</span>` : o.size > 1 ? `<span class="hint">uno fra ${o.size} luoghi${here ? ' <b>(anche qui)</b>' : ''}</span>` : `<span class="hint">${esc(o.unresolved?.[0] ?? 'sconosciuto')}</span>`;
+        const e = g.get(key); if (e) e.n++; else g.set(key, { html, n: 1 });
+      }
+      const list = [...g.values()].map((e) => e.html + (e.n > 1 ? ` <span class="hint">×${e.n}</span>` : ''));
+      return list.length > 3 ? `${list.slice(0, 3).join(', ')} <span class="hint">+${list.length - 3} altre tappe</span>` : list.join(', ');
+    };
+    return `<div class="at-ms at-row"><div class="at-row1"><label class="check"><input type="checkbox" data-sel="${esc(v.id)}" ${S.sel.has(v.id) ? 'checked' : ''} title="aggiungi alla selezione per POSSO ACCUMULARLE?"><span class="at-pill ${PILL[r.level]}">${lv}</span> <span class="t">${ORIGIN[v.origin].icon} ${esc(v.title)}</span></label><span class="at-rew">${fmtA(v.reward)}</span></div>
+      <div class="s">⬆ ${short('pickup')} &nbsp;→&nbsp; ⬇ ${short('dropoff')}</div>
+      <details class="at-more"><summary>dettagli e motivo</summary>${expRowFull(r)}</details></div>`;
+  }
+  function expRowFull(r) {
     const lv = r.level === 'altra_base' ? 'ALTRA BASE' : XL[r.level].label;
     const extra = `<div class="s"><span class="at-pill ${PILL[r.level]}">${lv}</span> ${esc(r.reason)}</div><div class="s hint">${esc(relText(r.link))}</div>`
       + (r.op && !r.drawable ? `<div class="s hint">${esc(OMITTED)} ${S.force.has(r.v.id) ? '· linee mostrate su richiesta' : `<button class="mini" data-force="${esc(r.v.id)}">Disegna comunque</button>`}</div>` : '');
-    return missionRow({ v: r.v, strength: r.level === 'certo' ? 'fisso' : 'possibile', alternatives: r.level === 'possibile' ? r.alternatives : 0 }, r.ref, extra);
+    return missionRow({ v: r.v, strength: r.level === 'certo' ? 'fisso' : 'possibile', alternatives: r.level === 'possibile' ? r.alternatives : 0 }, r.ref, extra, { noCheck: true });
   }
   function expSection(key, title, rows, { note = '', hidden = 0 } = {}) {
     const lim = S.page[key] ?? MAX_LIST;
@@ -350,8 +372,28 @@ export async function initAtlas(app) {
     const personalHere = p.kind === 'moon' || p.kind === 'planet' ? geo.children(id).filter((c) => c.kind === 'personal') : [];
     const conn = index.connectionsSplit(id, filters(), 10);
     const hid = (sec) => hiddenBy(res, (r) => r.section === sec);
+    const illegalHidden = $('at-b-illegal')?.checked ? uniqN(res.rows.filter((r) => r.v.illegal && r.level !== 'altra_base' && r.section !== 'sistema')) : 0;
+    const tile = (key, label, n, cls, hint) => `<button class="at-tile ${cls}" data-jump="${key}" title="${esc(hint)}"><b>${n}</b><span>${label}</span></button>`;
     $('at-right').innerHTML = `<div class="at-card">
       <h3>${esc(p.name)}</h3><div class="path">${esc(geo.pathLabel(id))}</div>
+      <div class="at-tiles">
+        ${tile('certo_out', 'CERTE', res.unique.certain, 'sure', 'il luogo è il punto fisso di ritiro o consegna')}
+        ${tile('possibile_out', 'POSSIBILI', res.unique.possible, 'maybe', 'il luogo è una delle alternative: il gioco sceglie')}
+        ${tile('offerte', 'REGIONALI', res.unique.regional, 'reg', 'associate alla luna o al pianeta, base da confermare')}
+        ${tile('altre', 'ALTRE BASI', res.unique.otherBases, 'dim', 'missioni di basi vicine, non contate qui')}
+      </div>
+      <div class="at-seg">${Object.entries(MODES).map(([k, l]) => `<label class="${S.mode === k ? 'on' : ''}"><input type="radio" name="at-mode" value="${k}" ${S.mode === k ? 'checked' : ''}>${k === 'verificate' ? 'Solo certe' : 'Tutte, con etichetta'}</label>`).join('')}
+        <select id="at-scope" title="distanza dell'altro capo del contratto">${Object.entries(SCOPES).map(([k, l]) => `<option value="${k}" ${S.scope === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></div>
+      ${illegalHidden ? `<p class="hint">${illegalHidden} missioni illegali nascoste. <button class="mini" id="at-show-illegal">Mostrale</button></p>` : ''}
+      <div class="at-dest"><label>✈ VOGLIO ARRIVARE A <input id="at-dest-q" list="at-dest-list" value="${esc(S.dest?.label ?? '')}" placeholder="es. microTech, Lorville, Pyro"></label> <button id="at-dest-go" class="primary" style="width:auto">Cerca</button><div id="at-dest-out"></div></div>
+      <div class="row wrap at-actions">
+        <button id="at-c-best" class="primary" style="width:auto" title="${esc(STACK_MODES.executive.note)}">Combina (dati certi)</button>
+        <button id="at-c-explo" title="${esc(STACK_MODES.exploratory.note)}">Combina (anche possibili)</button>
+        <button id="at-c-diag">Perché questi numeri?</button>
+      </div>
+      <div id="at-c-best-out"></div>
+      ${D.why.length ? `<details class="at-why"><summary class="hint">Note sui dati (${D.why.length})</summary>${D.why.map((w) => `<p class="hint">• ${esc(w)}</p>`).join('')}</details>` : ''}
+      <details class="at-sub"><summary class="hint">Dettagli del luogo e altre azioni</summary>
       <dl>
         <dt>Gerarchia</dt><dd>Base: ${esc(BODY_KINDS.has(p.kind) ? '—' : p.name)} · Luna: ${H?.moon ? placeLink(H.moon.id) : '—'} · Pianeta: ${H?.planet ? placeLink(H.planet.id) : '—'} · Sistema: ${esc(SYSTEM_LABEL[p.system])}</dd>
         <dt>Tipo</dt><dd>${esc(KIND_LABEL[p.kind] ?? p.kind)}${p.type ? ` (${esc(p.type)})` : ''}${p.hidden ? ' · nascosto sulla starmap di gioco' : ''}</dd>
@@ -364,26 +406,16 @@ export async function initAtlas(app) {
         <dt>Fonte</dt><dd>${esc(p.source)}${p.patch ? ` · ${esc(p.patch)}` : ''}${p.ext?.starmap ? ` · uuid ${esc(p.ext.starmap.slice(0, 8))}…` : ''}</dd>
         <dt>Tue verifiche</dt><dd>${stats.current.visits} visite nella patch attuale (${esc(stats.current.sample)})${stats.previous.visits ? ` · ${stats.previous.visits} in patch precedenti (obsolete)` : ''}${stats.current.emptyVisits ? ` · ${stats.current.emptyVisits} senza offerte` : ''}</dd>
       </dl>
+      <div class="row wrap">
+        ${p.pos ? '<button id="at-c-qt" class="mini">Rotta QT qui</button>' : ''}
+        <button id="at-c-visit" class="mini">Registra verifica</button>
+        <button id="at-c-add" class="mini">Aggiungi contratto visto qui</button>
+        <button id="at-c-conn" class="mini">${$('at-conn').checked ? 'Nascondi' : 'Mostra'} collegamenti sulla mappa</button>
+      </div>
+      <p class="hint">Grafica: ${conn.drawn} missioni disegnate su ${conn.found}; ${conn.omitted.length} con troppe alternative restano solo in elenco. Non contate qui: ${res.unique.system} associate solo all'intero sistema.</p></details>
+
       ${p.personal ? `<p class="hint">Punto personale del DATABASE PUNTI${p.personal.resource ? ` · ${esc(p.personal.resource)}` : ''}${p.parentHow ? ` · associato a ${esc(geo.get(p.parentId)?.name)} (${esc(p.parentHow)})` : ''}. ${esc(p.personal.notes ?? '')}</p>` : ''}
       ${personalHere.length ? `<p class="hint">Punti personali qui: ${personalHere.map((x) => placeLink(x.id)).join(', ')}</p>` : ''}
-      <div class="row wrap">
-        ${p.pos ? '<button id="at-c-qt">Rotta QT qui</button>' : ''}
-        <button id="at-c-best" class="primary" style="width:auto" title="${esc(STACK_MODES.executive.note)}">EXECUTIVE STACK</button>
-        <button id="at-c-explo" title="${esc(STACK_MODES.exploratory.note)}">EXPLORATORY STACK</button>
-        <button id="at-c-visit">Registra verifica</button>
-        <button id="at-c-add">Aggiungi contratto visto qui</button>
-        <button id="at-c-conn">${$('at-conn').checked ? 'Nascondi' : 'Mostra'} collegamenti</button>
-        <button id="at-c-diag">Diagnostica</button>
-      </div>
-      <div class="row wrap at-modes">
-        ${Object.entries(MODES).map(([k, l]) => `<label class="check"><input type="radio" name="at-mode" value="${k}" ${S.mode === k ? 'checked' : ''}>${l}</label>`).join('')}
-        <label>Distanza<select id="at-scope">${Object.entries(SCOPES).map(([k, l]) => `<option value="${k}" ${S.scope === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>
-      </div>
-      <div id="at-c-best-out"></div>
-      <p class="at-sum"><b>Missioni uniche per questo luogo</b>: certe ${res.unique.certain} · possibili ${res.unique.possible} · regionali ${res.unique.regional}
-        <br><span class="hint">Non contate qui: ${res.unique.system} associate solo all'intero sistema · ${res.unique.otherBases} di altre basi della regione.
-        Grafica: ${conn.drawn} missioni disegnate su ${conn.found} con un altro capo, ${conn.omitted.length} omesse per numero di alternative (restano in elenco).</span></p>
-      ${D.why.length ? `<div class="at-why">${D.why.map((w) => `<p class="hint">• ${esc(w)}</p>`).join('')}</div>` : ''}
       ${expSection('certo_out', '1. MISSIONI CERTE IN USCITA (ritiro qui)', X.certainOut)}
       ${expSection('certo_in', '2. MISSIONI CERTE IN ENTRATA (consegna qui)', X.certainIn)}
       ${expSection('possibile_out', '3. MISSIONI POSSIBILI IN USCITA', X.possibleOut, { note: esc(XL.possibile.note), hidden: hid('possibile_out') })}
@@ -397,7 +429,6 @@ export async function initAtlas(app) {
         ${H?.moon && H.moon.id !== id ? `<p><b>Sulla stessa luna (${esc(H.moon.name)})</b></p>${otherBasesHtml(X.otherBases.luna, 'ob-luna')}` : ''}
         ${H?.planet && H.planet.id !== id ? `<p><b>Nella regione di ${esc(H.planet.name)}</b></p>${otherBasesHtml(X.otherBases.pianeta, 'ob-pianeta')}` : ''}`}</details>
       ${expSection('sistema', `ASSOCIATE SOLO ALL'INTERO SISTEMA ${esc(SYSTEM_LABEL[p.system]).toUpperCase()}`, X.system, { note: 'Non attribuite a questa base: nessuna indicazione di luna, pianeta o base nei dati.', hidden: hid('sistema') })}
-      <div class="at-dest"><label>VOGLIO ARRIVARE A <input id="at-dest-q" list="at-dest-list" value="${esc(S.dest?.label ?? '')}" placeholder="località, luna, pianeta o sistema"></label> <button id="at-dest-go">Cerca</button><div id="at-dest-out"></div></div>
       <p class="hint">Le missioni dei modelli vengono offerte in un luogo e il gioco assegna il punto di ritiro e di consegna al momento: il luogo dell'offerta non è mai copiato nel ritiro. CERTO — POSSIBILE — REGIONALE — SCONOSCIUTO restano sempre distinti.</p>
     </div>`;
     bindCard(id);
@@ -486,7 +517,9 @@ export async function initAtlas(app) {
     $('at-c-conn').onclick = () => { $('at-conn').checked = !$('at-conn').checked; draw(); renderCard(); };
     $('at-c-explo') && ($('at-c-explo').onclick = () => runExplo(id));
     $('at-c-diag') && ($('at-c-diag').onclick = () => diagDialog(id));
-    R.querySelectorAll('input[name=at-mode]').forEach((x) => { x.onchange = () => { S.mode = x.value; saveUi(); draw(); renderCard(); }; });
+    R.querySelectorAll('[data-jump]').forEach((b) => { b.onclick = () => { const d = R.querySelector(`details[data-sec="${b.dataset.jump}"]`); if (!d) return; d.open = true; S.open.add(b.dataset.jump); d.scrollIntoView({ behavior: 'smooth', block: 'start' }); }; });
+    $('at-show-illegal') && ($('at-show-illegal').onclick = () => { $('at-b-illegal').checked = false; draw(); renderCard(); });
+    R.querySelectorAll('input[name=at-mode]').forEach((x) => { x.onchange = () => { S.mode = x.value; S.modeChosen = true; saveUi(); draw(); renderCard(); }; });
     $('at-scope') && ($('at-scope').onchange = () => { S.scope = $('at-scope').value; saveUi(); renderCard(); });
     R.querySelectorAll('details[data-sec]').forEach((d) => { d.ontoggle = () => { if (d.open) S.open.add(d.dataset.sec); else S.open.delete(d.dataset.sec); }; });
     R.querySelectorAll('[data-page]').forEach((b) => { b.onclick = () => { const k = b.dataset.page; if (k === 'dest') return; S.page[k] = (S.page[k] ?? (b.dataset.step ? 10 : MAX_LIST)) + (b.dataset.step ? 10 : MAX_LIST); renderCard(); }; });
