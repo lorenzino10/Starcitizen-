@@ -19,7 +19,8 @@
 </header>
 
 <nav class="tabs" role="tablist">
-  <button role="tab" data-tab="plan" class="active">🛰 PIANIFICATORE</button>
+  <button role="tab" data-tab="atlas" class="active">🌌 ATLANTE</button>
+  <button role="tab" data-tab="plan">🛰 PIANIFICATORE</button>
   <button role="tab" data-tab="db">🗂 DATABASE PUNTI</button>
   <button role="tab" data-tab="reverse">⌖ RICERCA INVERSA QT</button>
   <button role="tab" data-tab="route">🧭 ROTTA DA STAZIONE</button>
@@ -34,7 +35,81 @@
 <div id="banner"></div>
 
 <!-- PIANIFICATORE --------------------------------------------------------->
-<section id="tab-plan" class="tab active">
+<section id="tab-atlas" class="tab active">
+  <div id="at-banner"></div>
+  <div class="at-toolbar">
+    <span class="at-crumbs" id="at-crumbs"></span>
+    <span class="at-tools">
+      <button id="at-home" title="Vista generale del sistema">⌂ Sistema</button>
+      <label class="check"><input type="checkbox" id="at-2d">Vista 2D</label>
+      <label class="check"><input type="checkbox" id="at-compress">Scala compressa</label>
+      <label class="check"><input type="checkbox" id="at-conn">Tutti i collegamenti</label>
+      <label class="check"><input type="checkbox" id="at-disc">Discovery</label>
+      <button id="at-hide-l" title="Mostra/nascondi pannello sinistro">◧</button>
+      <button id="at-hide-r" title="Mostra/nascondi scheda">◨</button>
+      <button id="at-hide-b" title="Mostra/nascondi piano">⬓</button>
+      <button id="at-compact" title="Modalità compatta per il secondo monitor">▣ Compatta</button>
+    </span>
+  </div>
+  <div class="at-grid" id="at-grid">
+    <aside class="panel at-left" id="at-left">
+      <h2>Ricerca</h2>
+      <input id="at-q" placeholder="cerca un luogo (es. Mining Area 061)" autocomplete="off">
+      <div id="at-results" class="at-results"></div>
+      <h2>Filtri missioni</h2>
+      <div class="form">
+        <label class="check"><input type="checkbox" id="at-o-utente" checked>🟢 contratti tuoi</label>
+        <label class="check"><input type="checkbox" id="at-o-storica" checked>🔵 osservate in passato</label>
+        <label class="check"><input type="checkbox" id="at-o-catalogo" checked>🟠 modelli dai file di gioco</label>
+        <label>Compagnia<select id="at-f-company"><option value="">tutte</option></select></label>
+        <label>Grado massimo richiesto<select id="at-f-rank"><option value="">qualsiasi</option></select></label>
+        <label>Tipo<select id="at-f-cat"><option value="">tutti</option><option value="hauling">Hauling (cargo)</option><option value="delivery">Delivery (pacchi)</option></select></label>
+        <label>SCU minime<input id="at-f-scu" inputmode="numeric" placeholder="0"></label>
+        <label>Patch (prefisso)<input id="at-f-patch" placeholder="es. 4.10"></label>
+        <label>Luoghi alternativi al massimo <output id="at-f-alt-v"></output><input type="range" id="at-f-alt" min="1" max="60" value="60"></label>
+        <p class="hint">Un modello con "uno fra N luoghi" lascia scegliere al gioco: con il cursore nascondi i pool troppo ampi.</p>
+      </div>
+      <h2>Livelli della mappa</h2>
+      <div class="form">
+        <label class="check"><input type="checkbox" id="at-l-outpost" checked>Basi e avamposti</label>
+        <label class="check"><input type="checkbox" id="at-l-station" checked>Stazioni</label>
+        <label class="check"><input type="checkbox" id="at-l-poi">Punti di interesse</label>
+        <label class="check"><input type="checkbox" id="at-l-asteroid">Asteroidi e punti di navigazione</label>
+        <label class="check"><input type="checkbox" id="at-l-personal" checked>Punti personali</label>
+        <label class="check"><input type="checkbox" id="at-l-hidden">Luoghi nascosti sulla starmap</label>
+        <label class="check"><input type="checkbox" id="at-l-cargo">Solo luoghi con missioni note</label>
+        <label class="check"><input type="checkbox" id="at-l-terminal">Solo luoghi con terminale commerciale</label>
+      </div>
+      <h2>Gerarchia</h2>
+      <div id="at-tree" class="at-tree"></div>
+    </aside>
+    <div class="at-map">
+      <canvas id="at-canvas" aria-label="Mappa 3D del sistema"></canvas>
+      <div class="at-hover" id="at-hover"></div>
+      <div class="at-maplegend hint">🖱 trascina: ruota · tasto destro o Maiusc: sposta · rotella: zoom · clic: seleziona · i numeri sono gruppi di luoghi vicini (clic per avvicinarti)</div>
+    </div>
+    <aside class="panel at-right" id="at-right"><p class="hint">Seleziona un luogo sulla mappa, nella ricerca o nella gerarchia.</p></aside>
+    <section class="panel at-bottom" id="at-bottom">
+      <nav class="subtabs">
+        <button data-atb="sel" class="active">Missioni selezionate</button>
+        <button data-atb="plan">Manifesto e itinerario</button>
+        <button data-atb="plans">Piani salvati</button>
+        <button data-atb="disc">Discovery</button>
+        <button data-atb="queue">Coda di normalizzazione</button>
+        <button data-atb="sources">Fonti</button>
+      </nav>
+      <div id="at-b-sel" class="atb active"></div>
+      <div id="at-b-plan" class="atb"></div>
+      <div id="at-b-plans" class="atb"></div>
+      <div id="at-b-disc" class="atb"></div>
+      <div id="at-b-queue" class="atb"></div>
+      <div id="at-b-sources" class="atb"></div>
+    </section>
+  </div>
+  <dialog id="at-dlg" class="at-dlg"><div id="at-dlg-body"></div></dialog>
+</section>
+
+<section id="tab-plan" class="tab">
   <div class="cols">
     <div class="panel form">
       <h2>Destinazione P</h2>

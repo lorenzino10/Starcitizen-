@@ -1,5 +1,21 @@
 # Registro delle modifiche
 
+## 0.7.0-web (2026-11-08): 3D MISSION ATLAS & CARGO INTELLIGENCE
+Nuova scheda **🌌 ATLANTE**, ora la prima. Documentazione in [docs/ATLAS.md](docs/ATLAS.md).
+- **Mappa 3D** su canvas 2D (nessuna libreria, nessun WebGL): rotazione, zoom, pan, clic, ricerca, centra, reset, vista 2D dall'alto, scala visiva compressa opzionale (le distanze restano reali), raggruppamento dei punti vicini ed etichette senza sovrapposizioni. Mai distanze euclidee fra sistemi.
+- **Globo** di pianeti e lune con raggio noto (Stanton e Pyro; Nyx resta schematico). I luoghi in superficie hanno lat/lon nel frame fisso del corpo, dichiarate come non coordinate di gioco.
+- **Database geografico unificato** da scunpacked-data: 1.822 luoghi con id canonico, alias, tipo, genitore, frame, fonte, patch, servizi dei terminali. Risoluzione dei nomi esatta, compatta, per suffisso unico e con alias curati; i nomi ambigui o sconosciuti vanno in **coda di normalizzazione** (245).
+- **Catalogo missioni** dai file di gioco: 1.520 modelli di trasporto (1.049 con ricompensa fissa), con offerta, ritiro e consegna separati e pool di alternative dichiarati. Unito allo storico SCHaulingPlanner e ai tuoi contratti, ognuno con la propria origine.
+- **LOCATION INTELLIGENCE**: scheda del luogo con missioni in uscita, in arrivo, in transito e offerte; "Punto da confermare nel MobiGlas" dove il luogo non è certo.
+- **Linee delle missioni** con stili distinti (confermata, ipotetica, percorso NAVCOM, geometria non verificata, offerta) e TUTTI I COLLEGAMENTI aggregati con filtri; clic su una linea = i suoi contratti.
+- **Mission Stacking** (sette tipi) e **BEST STACK FINDER** (massimo guadagno, massima efficienza, minimo viaggio), riusando l'ottimizzatore di LOGISTICS: capacità e precedenze sempre verificate, classi ESEGUIBILE / POTENZIALMENTE ACCUMULABILE / DA VERIFICARE / INCOMPATIBILE.
+- **Piani cargo** salvati in IndexedDB con manifest, grafico della stiva e riordino validato; modalità compatta per il secondo monitor.
+- **Discovery**: punteggio deterministico e spiegato; visite alla bacheca registrate a mano, frequenze per patch, mai probabilità.
+- **Inserimento manuale** con più ritiri e consegne, screenshot facoltativo (solo nel browser) e controllo dei duplicati.
+- **Dati**: `web/tools/fetch_atlas.mjs` nel workflow Pages; se fallisce, si riusa l'ultimo snapshot pubblicato con la sua data. Copia offline in IndexedDB.
+- **IndexedDB `navcom-logistics` v2**: nuovi store `plans` e `attachments`, migrazione automatica senza perdita di dati; backup completo v2.
+- 25 nuovi test con dati sintetici. Pianificatore, Aaron Halo, DATABASE PUNTI e LOGISTICS invariati.
+
 ## 0.6.0-web (2026-11-08): NAVCOM LOGISTICS INTELLIGENCE
 Nuova scheda **📦 LOGISTICS**, documentata in [docs/LOGISTICS.md](docs/LOGISTICS.md).
 - **Modello dei contratti**: un contratto è fatto di movimenti (merce, SCU, cassa massima, un ritiro, una consegna, quantità caricate e consegnate). Gli stati sono Osservata, Confermata, Accettata, In esecuzione, Completata, Fallita e Non disponibile. Il catalogo non è uno stato: non diventa mai un'offerta senza un'azione tua con luogo e momento.

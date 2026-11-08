@@ -15,9 +15,10 @@ import { ensurePlotly } from './plotly-loader.js';
 import { initPlanner, navOptions } from './ui-plan.js';
 import { initPointsDb } from './ui-points.js';
 import { initLogistics } from './ui-logistics.js';
+import { initAtlas } from './ui-atlas.js';
 
-const VERSION = '0.6.0-web';
-const CACHE_NAME = 'navcom-v0.6.0'; // deve coincidere con CACHE in sw.js
+const VERSION = '0.7.0-web';
+const CACHE_NAME = 'navcom-v0.7.0'; // deve coincidere con CACHE in sw.js
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const ICON = { [STATUS.VERIFIED]: '🟢', [STATUS.DATA]: '🔵', [STATUS.THEORETICAL]: '🟠' };
@@ -36,6 +37,7 @@ let lastRoute = null;
 let lastHalo = null;
 let lastReverse = null;
 let planner = null;
+let atlas = null;
 let pointsUi = null;
 
 // ---------------------------------------------------------------- utilita'
@@ -568,6 +570,7 @@ function showTab(name) {
   document.querySelectorAll('.tabs button').forEach((x) => x.classList.toggle('active', x.dataset.tab === name));
   document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.id === `tab-${name}`));
   window.dispatchEvent(new Event('resize'));
+  if (name === 'atlas') atlas?.refresh();
 }
 
 async function switchSystem(sys) {
@@ -586,9 +589,11 @@ async function cacheLoadedFiles() {
   try {
     if (!('serviceWorker' in navigator) || !globalThis.caches) return;
     await navigator.serviceWorker.ready;
-    const snapshots = new URL('data/', location.href).href; // le posizioni restano nel localStorage
+    // le posizioni CitizenHQ restano nel localStorage; i cataloghi dell'atlante e della logistica
+    // vanno in cache per l'uso offline (oltre alla copia in IndexedDB)
+    const positions = /\/data\/(positions-[a-z]+|index)\.json/;
     const urls = performance.getEntriesByType('resource').map((e) => e.name)
-      .filter((u) => u.startsWith(location.origin) && !u.startsWith(snapshots));
+      .filter((u) => u.startsWith(location.origin) && !positions.test(u));
     const cache = await caches.open(CACHE_NAME);
     const have = new Set((await cache.keys()).map((r) => r.url));
     await Promise.all(urls.filter((u) => !have.has(u)).map((u) => cache.add(u).catch(() => {})));
@@ -612,12 +617,22 @@ async function main() {
       onChange: () => refreshPoints(),
     });
   } catch (e) { console.error(e); } // il resto di NAVCOM (e l'aggiornamento della cache) continua a funzionare
+  let logistics = null;
   try {
-    await initLogistics({
+    logistics = await initLogistics({
       $, esc, store, VERSION, ensureSystemData, navOptions: () => navOptions(settings),
       pointsDb: () => pointsUi?.db ?? null,
     });
   } catch (e) { console.error(e); $('lg-banner').innerHTML = `<p class="err">LOGISTICS non avviata: ${esc(e.message)}</p>`; }
+  if (logistics) {
+    try {
+      atlas = await initAtlas({
+        $, esc, store, VERSION, ensureSystemData, navOptions: () => navOptions(settings), logistics,
+        pointsDb: () => pointsUi?.db ?? null,
+        planTo: (pt) => planner.planToPoint(pt),
+      });
+    } catch (e) { console.error(e); $('at-banner').innerHTML = `<p class="err">ATLANTE non avviato: ${esc(e.message)}</p>`; }
+  } else $('at-banner').innerHTML = '<p class="err">ATLANTE non disponibile: serve l\'archivio della logistica.</p>';
   // cache offline (service worker) e precaricamento della libreria grafica locale
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
   ensurePlotly().then(cacheLoadedFiles);

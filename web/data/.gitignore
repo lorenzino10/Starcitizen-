@@ -1,4 +1,5 @@
-# Generati dal workflow Pages (web/tools/fetch_snapshot.mjs)
+# Generati dal workflow Pages (web/tools/fetch_snapshot.mjs, fetch_logistics.mjs, fetch_atlas.mjs)
 positions-*.json
 index.json
 logistics/
+atlas/

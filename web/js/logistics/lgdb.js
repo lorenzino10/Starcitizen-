@@ -2,14 +2,16 @@
 // DATABASE PUNTI "navcom" non viene toccato ne' aggiornato di versione). Stesse regole: i dati
 // restano su questo browser; senza IndexedDB si lavora in memoria e lo si dice.
 const DB_NAME = 'navcom-logistics';
-const DB_VERSION = 1;
-const STORES = ['contracts', 'observations'];
+// v2 (0.7.0): aggiunti "plans" (piani cargo dell'atlante) e "attachments" (screenshot del MobiGlas
+// allegati volontariamente). L'aggiornamento crea solo i contenitori mancanti: nessun dato toccato.
+const DB_VERSION = 2;
+const STORES = ['contracts', 'observations', 'plans', 'attachments'];
 
 const req = (r) => new Promise((resolve, reject) => { r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error); });
 const done = (tx) => new Promise((resolve, reject) => { tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error); tx.onabort = () => reject(tx.error ?? new Error('transazione annullata')); });
 
 class Memory {
-  constructor() { this.s = { contracts: new Map(), observations: new Map(), meta: new Map() }; }
+  constructor() { this.s = { contracts: new Map(), observations: new Map(), plans: new Map(), attachments: new Map(), meta: new Map() }; }
   async all(st) { return [...this.s[st].values()].map((x) => structuredClone(x)); }
   async putMany(st, list) { for (const x of list) this.s[st].set(x.id, structuredClone(x)); }
   async deleteMany(st, ids) { for (const id of ids) this.s[st].delete(id); }
@@ -58,12 +60,19 @@ export class LogisticsDB {
   putObservations(list) { return list.length ? this.#w(() => this.b.putMany('observations', list)) : Promise.resolve(); }
   deleteContracts(ids) { return this.#w(() => this.b.deleteMany('contracts', ids)); }
   deleteObservations(ids) { return this.#w(() => this.b.deleteMany('observations', ids)); }
+  plans() { return this.b.all('plans'); }
+  putPlans(list) { return list.length ? this.#w(() => this.b.putMany('plans', list)) : Promise.resolve(); }
+  deletePlans(ids) { return this.#w(() => this.b.deleteMany('plans', ids)); }
+  attachments() { return this.b.all('attachments'); }
+  putAttachments(list) { return list.length ? this.#w(() => this.b.putMany('attachments', list)) : Promise.resolve(); }
+  deleteAttachments(ids) { return this.#w(() => this.b.deleteMany('attachments', ids)); }
   getMeta(k) { return this.b.getMeta(k); }
   setMeta(k, v) { return this.b.setMeta(k, v); }
-  async replaceAll({ contracts = [], observations = [] }) {
+  async replaceAll({ contracts = [], observations = [], plans = null }) {
     await this.#w(async () => {
       await this.b.clear('contracts'); await this.b.clear('observations');
       await this.b.putMany('contracts', contracts); await this.b.putMany('observations', observations);
+      if (plans) { await this.b.clear('plans'); await this.b.putMany('plans', plans); }
     });
   }
   close() { this.b.close(); }

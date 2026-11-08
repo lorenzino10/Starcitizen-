@@ -12,7 +12,17 @@ comandi e non interagisce con l'anti-cheat. Le posizioni si inseriscono a mano.
 
 App: <https://lorenzino10.github.io/Starcitizen-/>
 
-**🛰 PIANIFICATORE** (funzione principale, Fasi 4–5): inserisci X, Y, Z
+**🌌 ATLANTE** (0.7.0, prima scheda): mappa 3D di Stanton, Pyro e Nyx
+(rotazione, zoom, pan, ricerca, vista 2D, globo dei corpi con raggio noto) con
+1.822 luoghi e 1.520 modelli di missione di trasporto presi dai file di gioco
+(scunpacked-data, patch 4.10.2). Per ogni luogo: missioni in uscita, in arrivo,
+in transito e offerte, sempre distinte; combinazioni di missioni (stacking) con
+capacità verificata dopo ogni operazione; BEST STACK FINDER con tre scenari;
+piano cargo salvabile; Discovery dei luoghi da esplorare. I modelli non sono
+offerte disponibili: il punto reale si conferma nel MobiGlas. Dettagli e limiti:
+[docs/ATLAS.md](docs/ATLAS.md).
+
+**🛰 PIANIFICATORE** (Fasi 4–5): inserisci X, Y, Z
 arbitrarie nel sistema scelto (Stanton, Pyro o Nyx) e, se vuoi, la tua posizione,
 anche in un altro sistema. NAVCOM cerca la strategia migliore:
 - una interruzione;
@@ -202,6 +212,7 @@ docs/AARON_HALO.md       confronto con SCMiner e Cornerstone
 Posizioni: CitizenHQ (UEX Corp, SC Trade Tools, scunpacked, Star Citizen Wiki).
 Fasce Aaron Halo: CaptSheppard / Cornerstone (cstone.space). Raggi dei corpi
 celesti: starmap.space (tramite ByteCollectiveIO/sc-nav). Missioni di trasporto:
-Star Citizen Wiki API e SCHaulingPlanner (FSCSOFT-Official). Dettagli in
+Star Citizen Wiki API, SCHaulingPlanner (FSCSOFT-Official) e scunpacked-data
+(StarCitizenWiki, file di gioco: luoghi, modelli di missione, navi). Dettagli in
 [docs/FONTI.md](docs/FONTI.md). Progetto non ufficiale, non affiliato a Cloud
 Imperium Games.

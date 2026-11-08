@@ -155,9 +155,9 @@ I cataloghi sono scritti da `web/tools/fetch_logistics.mjs` in `web/data/logisti
 Al 2026-11-08 si collegano 69 dei 100 luoghi di SCHaulingPlanner, più quelli risolti per suffisso. Gli altri restano "posizione non nota".
 
 ## 9. Persistenza e backup
-- Database IndexedDB separato, `navcom-logistics`, con contratti, osservazioni e impostazioni. Il DATABASE PUNTI (`navcom`) non viene toccato.
+- Database IndexedDB separato, `navcom-logistics`, con contratti, osservazioni e impostazioni; dalla 0.7.0 (schema v2) anche `plans` e `attachments` per l'ATLANTE ([ATLAS.md](ATLAS.md)). Il DATABASE PUNTI (`navcom`) non viene toccato.
 - **Backup completo** (DATABASE PUNTI + logistica) in un solo JSON, formato `navcom-backup-completo`. Il **ripristino unisce** i dati e non cancella nulla: per lo stesso ID vince la versione aggiornata più di recente, e i punti esistenti restano invariati.
-- Esportazione separata dei contratti in CSV e JSON (`navcom-logistics` v1).
+- Esportazione separata dei contratti in CSV e JSON (`navcom-logistics`, formato v2 dalla 0.7.0: comprende anche piani e screenshot dell'ATLANTE; i file v1 si importano ancora).
 
 ## 10. Limiti noti
 - Nessuna offerta in tempo reale: non esiste una fonte pubblica dei mission board attivi. La disponibilità la verifichi tu.
