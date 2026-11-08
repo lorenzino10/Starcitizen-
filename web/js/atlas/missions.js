@@ -12,6 +12,7 @@
 //   storica   missioni osservate da terzi (SCHaulingPlanner)  -> esistite in passato, patch ignota
 //   utente    contratti tuoi (MISSION BOARD / LogisticsDB)    -> con il loro stato
 import { normName, isCommitted } from '../logistics/model.js';
+import { expandPlace, expandDestination, counterparts } from './expanded.js';
 
 export const ORIGIN = {
   utente: { icon: '🟢', label: 'Contratto tuo' },
@@ -113,7 +114,8 @@ export function plannable(v) {
   const missing = [];
   if (!v.ops.length) missing.push('nessun punto di ritiro o consegna nei dati');
   for (const o of v.ops) {
-    if (!o.fixed) missing.push(o.size > 1 ? `${o.role === 'pickup' ? 'ritiro' : 'consegna'} ${o.slot}: uno fra ${o.size} luoghi (${TO_CONFIRM})` : `${o.role === 'pickup' ? 'ritiro' : 'consegna'} ${o.slot}: luogo non riconosciuto${o.unresolved.length ? ` (${o.unresolved[0]})` : ''}`);
+    if (o.regionalBody) missing.push(`${o.role === 'pickup' ? 'ritiro' : 'consegna'} ${o.slot}: il dato indica solo un corpo celeste, non una base (${TO_CONFIRM})`);
+    else if (!o.fixed) missing.push(o.size > 1 ? `${o.role === 'pickup' ? 'ritiro' : 'consegna'} ${o.slot}: uno fra ${o.size} luoghi (${TO_CONFIRM})` : `${o.role === 'pickup' ? 'ritiro' : 'consegna'} ${o.slot}: luogo non riconosciuto${o.unresolved.length ? ` (${o.unresolved[0]})` : ''}`);
     else if (!(o.scu > 0) && o.role === 'dropoff') missing.push(`${o.cargo ?? 'merce'}: quantità SCU non nota`);
   }
   return { ok: missing.length === 0, missing };
@@ -127,6 +129,11 @@ export function plannable(v) {
 export class MissionIndex {
   constructor(views, geo) {
     this.geo = geo; this.views = views; this.byId = new Map(views.map((v) => [v.id, v]));
+    // un "luogo unico" che e' un corpo celeste (pool = "Vala") NON e' un punto fisso: indica solo la
+    // regione, la base la sceglie il gioco. Diventa regionale, mai certo ne' pianificabile.
+    for (const v of views) for (const o of v.ops) {
+      if (o.fixed && geo?.get(o.ids[0]) && ['star', 'planet', 'moon'].includes(geo.get(o.ids[0]).kind)) { o.fixed = false; o.regionalBody = true; }
+    }
     this.at = new Map(); // placeId -> {out:[], in:[], transit:[], offer:[]}
     const slot = (id) => { if (!this.at.has(id)) this.at.set(id, { out: [], in: [], transit: [], offer: [] }); return this.at.get(id); };
     for (const v of views) {
@@ -143,6 +150,38 @@ export class MissionIndex {
     const rank = { utente: 0, storica: 1, catalogo: 2 };
     const cmp = (a, b) => rank[a.v.origin] - rank[b.v.origin] || (a.strength === b.strength ? 0 : a.strength === 'fisso' ? -1 : 1) || a.alternatives - b.alternatives || (b.v.reward ?? -1) - (a.v.reward ?? -1) || a.v.id.localeCompare(b.v.id);
     for (const s of this.at.values()) for (const k of ['out', 'in', 'transit']) s[k] = dedupe(s[k]).sort(cmp);
+    // indici geografici costruiti una volta al caricamento (l'indice si ricrea solo quando cambiano i dati)
+    this.bySystem = new Map();
+    for (const v of views) { const k = v.system ?? 'n.d.'; if (!this.bySystem.has(k)) this.bySystem.set(k, []); this.bySystem.get(k).push(v); }
+  }
+
+  /**
+   * Ricerca geografica estesa (CERTO / POSSIBILE / REGIONALE / ALTRE BASI), vedi expanded.js.
+   * forPlace() resta invariato per chi lo usa gia'.
+   */
+  forPlaceExpanded(placeId, filters = {}, options = {}) { return expandPlace(this, placeId, filters, options); }
+
+  /** VOGLIO ARRIVARE A: dest = {id} (luogo, pianeta, luna) oppure {system}. */
+  forDestination(originId, dest, filters = {}, options = {}) { return expandDestination(this, originId, dest, filters, options); }
+
+  /** Diagnostica di un luogo (conteggi e motivi di uno zero). */
+  diagnostics(placeId, filters = {}, options = {}) { return this.forPlaceExpanded(placeId, filters, options).diagnostics; }
+
+  /**
+   * Collegamenti separati in: linee disegnabili (pool <= maxDraw) e missioni trovate ma non
+   * disegnate. Il numero di missioni pertinenti non dipende dal limite grafico.
+   */
+  connectionsSplit(placeId, filters = {}, maxDraw = 10) {
+    const lines = this.connections(placeId, { ...filters, maxAlternatives: maxDraw });
+    const drawn = new Set(lines.flatMap((c) => c.missions));
+    const found = new Set(), omitted = [];
+    for (const role of ['out', 'in']) for (const e of this.at.get(placeId)?.[role] ?? []) {
+      if (!keep({ v: e.v, alternatives: 1 }, { ...filters, maxAlternatives: null })) continue;
+      if (!counterparts(e.v, e.op).length) continue;
+      found.add(e.v.id);
+      if (!drawn.has(e.v.id) && !omitted.some((x) => x.v.id === e.v.id)) omitted.push({ v: e.v, alternatives: Math.max(e.op.size, ...counterparts(e.v, e.op).map((o) => o.size)) });
+    }
+    return { lines, found: found.size, drawn: drawn.size, omitted };
   }
 
   /** @param filters {origin:Set, company, maxRank, category, minScu, patch, maxAlternatives} */
@@ -197,7 +236,7 @@ function dedupe(list) {
   return list.filter((e) => { const k = `${e.v.id}|${e.op.role}|${e.op.slot}`; if (seen.has(k)) return false; seen.add(k); return true; });
 }
 
-function keep(e, f) {
+export function keep(e, f) {
   const v = e.v;
   if (f.origin && !f.origin.has(v.origin)) return false;
   if (f.company && v.company !== f.company) return false;

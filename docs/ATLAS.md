@@ -17,6 +17,8 @@ nessuna chiave, nessuna missione inventata.
 | Posizione dei luoghi sul globo | ✅ con limiti | Lat/lon nel frame **fisso** del corpo, dai dati statici. Non sono le coordinate del gioco (che ruotano). Se un luogo dista più del 10 % del raggio dalla superficie è "in orbita" e non va sul globo. |
 | LOCATION INTELLIGENCE (scheda) | ✅ | Gerarchia, tipo, coordinate e frame, marker QT, servizi del terminale, fonte e patch, tue visite. Freight elevator e accesso nave: **non indicati dai dati**. |
 | Missioni IN USCITA / IN ARRIVO / TRANSITO / OFFERTE | ✅ | OFFERTA, RITIRO e CONSEGNA sempre distinti. Ritiro ignoto = "Punto da confermare nel MobiGlas". |
+| Location Intelligence estesa (0.7.1) | ✅ | CERTO / POSSIBILE / REGIONALE / SCONOSCIUTO, altre basi della regione, filtri di distanza, VOGLIO ARRIVARE A, diagnostica. Sezione dedicata sotto. |
+| EXECUTIVE / EXPLORATORY STACK (0.7.1) | ✅ | Executive solo con dati verificati; exploratory = combinazione teorica senza manifesto, conversione in contratto dopo il MobiGlas. |
 | Linee delle missioni | ✅ | Confermata (verde), ipotetica (ambra tratteggiata), percorso NAVCOM (ciano), geometria non verificata (rossa puntinata), offerta→ritiro. Mai linee fra sistemi. |
 | TUTTI I COLLEGAMENTI | ✅ | Aggregati per coppia, filtri; per default solo pool con ≤ 10 alternative. Clic su una linea = contratti di quella coppia. |
 | Mission Stacking | ✅ | SAME PICKUP, SAME DROPOFF, MULTI PICKUP, MULTI DROPOFF, ROUTE OVERLAP, RETURN TRIP, SEQUENTIAL. Capacità verificata dopo ogni operazione. |
@@ -58,8 +60,8 @@ LogisticsDB (tuo browser)       ──► contratti, osservazioni, piani, screen
 
 - Luoghi: **1.822** (Stanton 848, Pyro 287, Nyx 687). I 739 non nascosti coincidono con CitizenHQ.
 - Modelli di missione di trasporto: **1.520** su 5.153 contratti letti (Stanton 1.122, Pyro 298, Nyx 57, sistema non determinabile 43). **1.049** con ricompensa fissa.
-- Pool di luoghi: **4.555**, di cui solo **133** con un luogo unico. Il resto sono pool di alternative: il gioco sceglie il punto quando genera la missione.
-- Nomi non riconosciuti in coda di normalizzazione: **245**.
+- Pool di luoghi: **4.555**, di cui solo **242** con un luogo unico (133 prima dei nomi qualificati della 0.7.1). Il resto sono pool di alternative: il gioco sceglie il punto quando genera la missione.
+- Nomi non riconosciuti in coda di normalizzazione: **235** (245 nella 0.7.0).
 - Navi con stiva: **127**.
 
 **Attenzione:** sono *modelli* dai file di gioco, non offerte. Nessun modello è
@@ -71,7 +73,7 @@ Luogo canonico: `{id (uuid starmap), name, aliases, type, kind, system, parentId
 pos{x,y,z} m, frame, hidden, qtValid, radius, radiusSource, services, source,
 patch, updatedAt, ext}`.
 
-Ordine di risoluzione di un nome: esatto → senza spazi → suffisso unico
+Ordine di risoluzione di un nome: esatto → senza spazi → suffisso unico → nome qualificato dal gioco (0.7.1: "Checkmate at the L4 Lagrange of Pyro II", "Orbituary above Pyro III": accettato solo se la parte iniziale è un luogo unico e coerente con il corpo nominato)
 ("Wide Forest Station" → "ARC-L1 Wide Forest Station") → alias curati (spazioporti:
 Teasa → Lorville, August Dunlow → Orison, Riker Memorial → Area18, NB Int. /
 New Babbage Interstellar → New Babbage). Se il nome è presente in più sistemi e
@@ -103,6 +105,52 @@ corpo più vicino entro 1,5 raggi. Le coordinate non vengono mai convertite.
   dell'informazione 1,5, potenziale 3, destinazione 2, deviazione 2, fonti 1,5,
   costo 1. Livelli: mai verificato, parziale, numeroso, obsoleto, storico,
   conflitto. Ogni riga dice perché.
+
+## Location Intelligence estesa (0.7.1)
+
+Quando selezioni un luogo, NAVCOM interroga la gerarchia geografica reale (base → luna → pianeta →
+sistema) e classifica ogni missione con un solo livello di evidenza:
+
+| Livello | Quando | Etichetta mostrata |
+|---|---|---|
+| CERTO | il luogo è il punto fisso di ritiro o consegna (pool di 1) | luogo certo |
+| POSSIBILE | il luogo è una delle alternative di un pool | POSSIBILE — IL GIOCO ASSEGNA IL LUOGO EFFETTIVO |
+| REGIONALE | il pool o l'offerta nomina la luna, il pianeta (o il corpo stesso), non una base | ASSOCIAZIONE REGIONALE — BASE SPECIFICA NON CONFERMATA |
+| SCONOSCIUTO | nome non risolto o punto anonimo | resta sconosciuto, mai associato |
+
+- Un pool di un solo elemento che è un corpo celeste ("Vala") **non** è un punto fisso: diventa regionale e non è pianificabile.
+- Sezioni con conteggi indipendenti: certe in uscita, certe in entrata, possibili in uscita, possibili in entrata, regionali da verificare, offerte nell'area, collegamenti interplanetari, collegamenti interstellari. Il riepilogo conta ogni missione una volta sola (precedenza certo > possibile > regionale).
+- **ALTRE BASI NELLA REGIONE**: missioni di altre basi della stessa luna o dello stesso pianeta, raggruppate per base, mai contate come missioni del luogo selezionato.
+- **Sistema intero**: i modelli associati solo alla stella del sistema sono contati a parte e mai estesi alle basi.
+- **Modalità** VERIFICATE (solo certezze e contratti tuoi) e MOSTRA ANCHE POSSIBILITÀ, salvata con lo stato dell'atlante.
+- **Filtro di distanza** sulla gerarchia: stessa base, stessa luna, stesso pianeta o sua regione, tra pianeti, tra sistemi, tutte. Il collegamento esiste solo dentro lo stesso contratto.
+- **VOGLIO ARRIVARE A** (località, luna, pianeta o sistema, discendenti inclusi e distinti): contratti certi, con alternative compatibili, regionali, tuoi; tratte intermedie documentate (due contratti distinti, dichiarati come sequenza). Se nulla collega: "NESSUN COLLEGAMENTO DOCUMENTATO NEI DATI DISPONIBILI", che non significa assenza nel gioco. Fra sistemi: gateway e jump point dai dati del motore NAVCOM, nessuna distanza sommata.
+- **Mappa**: linee certe, possibili, regionali (viola tratteggiato, dal corpo celeste) e percorso NAVCOM. Le missioni con pool oltre 10 luoghi restano in elenco con "Missione individuata nel catalogo — collegamenti grafici omessi per numero elevato di alternative." e il pulsante "Disegna comunque".
+- **Diagnostica** dalla scheda: modelli caricati, esatte, in pool, regionali, altre basi, scartate dai filtri, nascoste dalla modalità, non disegnate, nomi non risolti, patch diverse o ignote, collegamenti interplanetari e interstellari, motivi di uno zero.
+- **Indici**: per luogo (ritiri, consegne, offerte, appartenenza ai pool), per sistema, gerarchia e discendenti memorizzati; il risultato di ogni luogo è memorizzato per filtri e modalità. Nessuna scansione dei modelli al passaggio del mouse; elenchi a pagine di 25.
+
+### Collaudo con i dati reali (snapshot 4.10.2-LIVE.12881860, 8 novembre 2026)
+
+Conteggi di missioni uniche; "UI" = filtri predefiniti della scheda (missioni illegali escluse).
+
+| ArcCorp Mining Area 061 (Stanton → ArcCorp → Wala) | senza filtri | UI |
+|---|---|---|
+| Associazioni esatte (punto fisso) | 3 | 3 |
+| Associazioni in pool di alternative | 118 | 118 |
+| Pool che nominano Wala o ArcCorp | 0 | 0 |
+| Offerte su Area 061, Wala o ArcCorp (regionali) | 228 | 228 |
+| Associate solo a Stanton (non attribuite) | 235 | 235 |
+| Altre basi della regione (non contate) | 292 | 292 |
+| Collegamenti interplanetari | 110 (certe 0) | 73 (certe 0) |
+| Collegamenti interstellari | 108 (certe 0) | 77 (certe 0) |
+| Verso microTech | certe 0 · possibili 109 · regionali 54 · tratte intermedie 1 | certe 0 · possibili 72 · regionali 37 · tratte intermedie 1 |
+| Escluse dai filtri | 0 | 63 |
+| Nomi di luogo non risolti in queste missioni | 235 | 235 |
+| Missioni in VERIFICATE | 3 | 3 |
+
+Le 3 missioni certe di Area 061 sono storiche (SCHaulingPlanner): **nessun modello di catalogo ha Area 061 come punto fisso**, e nessun modello collega con certezza Area 061 a microTech. Gli zeri sono giustificati dai dati.
+
+Località di controllo con missioni certe: **Ruin Station** (Pyro → Terminus), la più citata come punto fisso nel catalogo: 84 missioni esatte, 153 in pool, collegamenti interplanetari 196 (certe 9), interstellari 139 (certe 12). Area18: 10 esatte, 309 in pool.
 
 ## Schema del database (browser)
 
@@ -145,3 +193,10 @@ collegamenti non inventati, i sette tipi di stack, capacità, casse, gradi, best
 stack, piano e riordino, manifest, osservazioni, duplicati, migrazione IndexedDB
 v1→v2, backup, fallback 2D, prestazioni (5.000 luoghi, 3.000 missioni), cambio di
 patch, Discovery, regressione dei moduli esistenti.
+
+Dalla 0.7.1, 18 test in più (LI-1 … LI-18) su un secondo mondo sintetico (pianeta "Arco"
+con luna "Vala", pianeta "Micro", sistema pyro): ritiro esatto, base fra 20 alternative,
+missione della luna, altra base della stessa luna, tratta interplanetaria e interstellare,
+destinazione dinamica, nessuna promozione da regionale a certa, nessun collegamento fra
+contratti diversi, nessun duplicato nei riepiloghi, elenco anche senza linee, filtri,
+stack executive ed exploratory, contratti dell'utente, regressione, offline, IndexedDB.

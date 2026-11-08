@@ -1,10 +1,11 @@
-// Interfaccia dell'ATLANTE 3D e della CARGO INTELLIGENCE (0.7.0).
+// Interfaccia dell'ATLANTE 3D e della CARGO INTELLIGENCE (0.7.0, Location Intelligence estesa 0.7.1).
 // Mappa al centro, ricerca e filtri a sinistra, LOCATION INTELLIGENCE a destra, piano in basso.
 // Dati: cataloghi statici data/atlas/ (scunpacked, via GitHub Actions) + catalogo SCHaulingPlanner +
 // contratti e osservazioni dell'utente (IndexedDB "navcom-logistics", condiviso con LOGISTICS).
 import { SYSTEMS, SYSTEM_LABEL, KIND_LABEL, BODY_KINDS, geoFromSnapshot, geoFromCitizenHQ } from './atlas/geo.js';
 import { ORIGIN, TO_CONFIRM, catalogViews, schpViews, userViews, MissionIndex, normalizationQueue, findDuplicates, missionSegments } from './atlas/missions.js';
-import { CLASSES, SCENARIOS, evaluateStack, suggestStack, bestStack, geoLegOf } from './atlas/stack.js';
+import { CLASSES, SCENARIOS, STACK_MODES, evaluateStack, suggestStack, bestStack, exploratoryStack, geoLegOf } from './atlas/stack.js';
+import { LEVELS as XL, SCOPES, MODES, NO_LINK, NO_LINK_NOTE, OMITTED, expandedSegments } from './atlas/expanded.js';
 import { LEVELS, observationsByPlace, placeStats, discoveryScore, rankDiscovery } from './atlas/discovery.js';
 import { stopsOf, moveStop, measure, planFromStack, manifestOf } from './atlas/plan.js';
 import { AtlasView, fmtLen } from './atlas/render.js';
@@ -25,9 +26,11 @@ export async function initAtlas(app) {
   const db = lg.db();
   const S = { system: 'stanton', level: null, selected: null, sel: new Set(), conn: null, plan: null, planResult: null, ...(await db.getMeta('atlasUi')) ?? {} };
   S.sel = new Set(S.sel ?? []);
+  S.mode = MODES[S.mode] ? S.mode : 'verificate'; S.scope = SCOPES[S.scope] ? S.scope : 'tutte';
+  S.force = new Set(); S.page = {}; S.open = new Set(['certo_out', 'certo_in']);
   let geo = null, cat = null, schp = null, index = null, views = [], meta = {}, queueExtra = new Map(), obsByPlace = new Map();
   let contracts = [], observations = [], plans = [], attachments = [];
-  const saveUi = () => db.setMeta('atlasUi', { system: S.system, level: S.level, selected: S.selected, sel: [...S.sel] });
+  const saveUi = () => db.setMeta('atlasUi', { system: S.system, level: S.level, selected: S.selected, sel: [...S.sel], mode: S.mode, scope: S.scope, dest: S.dest ?? null });
 
   // ------------------------------------------------------------------ dati
   async function getJson(url) { const r = await fetch(url, { cache: 'no-cache' }); if (!r.ok) throw new Error(`${url}: HTTP ${r.status}`); return r.json(); }
@@ -184,7 +187,17 @@ export async function initAtlas(app) {
       // senza un limite scelto dal cursore, i collegamenti "possibili" arrivano da pool di al massimo 10 luoghi
       for (const c of index.connections(S.selected, { ...f, maxAlternatives: f.maxAlternatives ?? 10 })) {
         if (!inSys(c.from) || !inSys(c.to)) continue;
+        if (S.mode === 'verificate' && !c.fixed) continue; // VERIFICATE: solo collegamenti con luoghi certi
         lines.push({ a: geo.get(c.from).pos, b: geo.get(c.to).pos, style: c.strength, width: Math.min(6, 1 + Math.log2(c.missions.length)), arrow: true, id: `conn:${c.from}>${c.to}`, pickable: true, conn: c, alpha: 0.8 });
+      }
+    }
+    // associazioni regionali (dal corpo celeste) e missioni espanse su richiesta: mai fra sistemi
+    if (S.selected && (($('at-conn').checked && S.mode === 'possibili') || S.force.size)) {
+      const seg = expandedSegments(expanded(S.selected), geo, S.system, { force: S.force });
+      for (const x of seg.segments) {
+        if (!(S.force.has(x.mission) || x.style === 'regionale')) continue;
+        if (x.style === 'regionale' && !$('at-conn').checked) continue;
+        lines.push({ a: geo.get(x.from).pos, b: geo.get(x.to).pos, style: x.style, arrow: true, id: `ms:${x.mission}`, pickable: true, alpha: 0.7 });
       }
     }
     return lines;
@@ -263,6 +276,8 @@ export async function initAtlas(app) {
     const cur = $('at-f-company').value;
     $('at-f-company').innerHTML = '<option value="">tutte</option>' + companies.map((c) => `<option ${c === cur ? 'selected' : ''}>${esc(c)}</option>`).join('');
     $('at-f-rank').innerHTML = '<option value="">qualsiasi</option>' + RANKS.map((r, i) => `<option value="${i}">${i} · ${r}</option>`).join('');
+    if (!$('at-dest-list')) document.body.insertAdjacentHTML('beforeend', '<datalist id="at-dest-list"></datalist>');
+    $('at-dest-list').innerHTML = SYSTEMS.map((k) => `<option value="${esc(SYSTEM_LABEL[k])}">sistema</option>`).join('') + geo.places.filter((p) => p.kind !== 'star' && p.kind !== 'personal').map((p) => `<option value="${esc(p.name)}">`).join('');
     $('at-places').innerHTML = geo.places.filter((p) => !BODY_KINDS.has(p.kind) || p.kind !== 'star').map((p) => `<option value="${esc(p.name)}">`).join('');
   }
 
@@ -275,53 +290,77 @@ export async function initAtlas(app) {
     const shown = o.ids.slice(0, 4).map((id) => placeLink(id)).join(', ');
     return `uno fra ${o.size} luoghi (${o.ids.length} riconosciuti${o.anonymous ? `, ${o.anonymous} sottoaree senza nome` : ''})${shown ? `: ${shown}${o.ids.length > 4 ? '…' : ''}` : ''} · <span class="warn">${TO_CONFIRM}</span>`;
   }
-  function missionRow(e, here) {
+  function missionRow(e, here, extra = '') {
     const v = e.v;
     const picks = v.ops.filter((o) => o.role === 'pickup'), drops = v.ops.filter((o) => o.role === 'dropoff');
     const qty = v.ops.filter((o) => o.role === 'dropoff' && o.scu).map((o) => `${o.scu} SCU ${esc(o.cargo ?? '')}`).join(', ') || (v.orders?.length ? v.orders.map((o) => `${esc(o.cargo ?? 'merce')} ${o.scuMin ?? '?'}–${o.scuMax ?? '?'} SCU`).join(', ') : 'quantità non nota');
     const boxes = [...new Set(v.ops.map((o) => o.containerMax).filter(Boolean).concat(v.maxBox ? [v.maxBox] : []))];
     const offer = v.offer.length ? v.offer.slice(0, 3).map((o) => (o.id ? placeLink(o.id) : esc(o.name ?? '?'))).join(', ') + (v.offer.length > 3 ? ` +${v.offer.length - 3}` : '') + (v.origin === 'catalogo' ? ' (può comparire)' : '') : 'non nota';
-    return `<div class="at-ms"><label class="check"><input type="checkbox" data-sel="${esc(v.id)}" ${S.sel.has(v.id) ? 'checked' : ''}><span class="t">${ORIGIN[v.origin].icon} ${esc(v.title)}</span></label>
+    return `<div class="at-ms"><label class="check"><input type="checkbox" data-sel="${esc(v.id)}" ${S.sel.has(v.id) ? 'checked' : ''}><span class="t">${ORIGIN[v.origin].icon} ${esc(v.title)}</span></label>${extra}
       <div class="s">${esc(v.company ?? 'datore non indicato')} · grado ${esc(v.rank ?? 'n.d.')} · ${fmtA(v.reward)}${v.status && v.origin === 'utente' ? ` · ${esc(STATUS[v.status] ?? v.status)}` : ''}</div>
       <div class="s">Offerta: ${offer}</div>
       <div class="s">Ritiro: ${picks.map(opText).join(' · ') || '<span class="warn">non nei dati</span>'}</div>
       <div class="s">Consegna: ${drops.map(opText).join(' · ') || '<span class="warn">non nei dati</span>'}</div>
       <div class="s">Merce: ${qty}${boxes.length ? ` · casse ≤ ${boxes.join('/')} SCU` : ' · dimensioni casse non note'}</div>
-      <div class="s">${esc(ORIGIN[v.origin].label)} · patch ${esc(v.patch ?? 'non nota')}${v.observedAt ? ` · osservata ${esc(String(v.observedAt).slice(0, 10))}` : ''} · ${esc(v.source)}${e.strength === 'possibile' ? ` · <span class="at-pill maybe">qui è uno fra ${e.alternatives} luoghi</span>` : ' · <span class="at-pill sure">luogo certo</span>'}</div>
+      <div class="s">${esc(ORIGIN[v.origin].label)} · patch ${esc(v.patch ?? 'non nota')}${v.observedAt ? ` · osservata ${esc(String(v.observedAt).slice(0, 10))}` : ''} · ${esc(v.source)}${e.strength === 'possibile' ? (e.alternatives ? ` · <span class="at-pill maybe">qui è uno fra ${e.alternatives} luoghi</span>` : '') : ' · <span class="at-pill sure">luogo certo</span>'}</div>
       <button data-show="${esc(v.id)}" class="mini">Mostra sulla mappa</button></div>`;
   }
-  function section(title, list, here, key) {
-    const sure = list.filter((e) => e.strength === 'fisso' || e.v.origin !== 'catalogo');
-    const maybe = list.filter((e) => !(e.strength === 'fisso' || e.v.origin !== 'catalogo'));
-    const lim = (a) => a.slice(0, S[`more-${key}`] ? 500 : MAX_LIST);
-    return `<details class="at-sec" ${sure.length ? 'open' : ''}><summary>${title} (${sure.length} con luogo certo${maybe.length ? `, ${maybe.length} possibili` : ''})</summary>
-      ${sure.length ? lim(sure).map((e) => missionRow(e, here)).join('') : '<p class="hint">Nessuna missione con luogo certo nei dati disponibili.</p>'}
-      ${maybe.length ? `<details><summary class="hint">Modelli in cui questo luogo è una delle alternative (${maybe.length})</summary>${lim(maybe).map((e) => missionRow(e, here)).join('')}</details>` : ''}
-      ${list.length > MAX_LIST && !S[`more-${key}`] ? `<button data-more="${key}" class="mini">Mostra tutte</button>` : ''}</details>`;
+  // ------------------------------------------------------------------ LOCATION INTELLIGENCE ESTESA (0.7.1)
+  const expOpts = () => ({ mode: S.mode, scope: S.scope, maxDraw: 10, currentPatch: currentPatch(), queueSize: (cat?.queue?.length ?? 0) + queueExtra.size });
+  const expanded = (id) => index.forPlaceExpanded(id, filters(), expOpts());
+  const PILL = { certo: 'sure', possibile: 'maybe', regionale: 'reg', altra_base: 'reg' };
+  const REL = { base: 'stessa base', luna: 'stessa luna', pianeta: 'stesso pianeta', interplanetaria: 'tra pianeti', interstellare: 'tra sistemi', ignota: 'senza posizione' };
+  const uniqN = (rows) => new Set(rows.map((r) => r.v.id)).size;
+  function relText(link) {
+    if (link.none) return 'altro capo: nessuno nei dati';
+    const parts = Object.entries(link.rel).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${REL[k] ?? k} ${n}`);
+    if (link.unknown) parts.push(`sconosciuti ${link.unknown}`);
+    return `altro capo dello stesso contratto: ${link.size > 1 ? `pool fino a ${link.size} luoghi` : '1 luogo'}${parts.length ? ` · ${parts.join(' · ')}` : ''}`;
   }
+  function expRow(r) {
+    const lv = r.level === 'altra_base' ? 'ALTRA BASE' : XL[r.level].label;
+    const extra = `<div class="s"><span class="at-pill ${PILL[r.level]}">${lv}</span> ${esc(r.reason)}</div><div class="s hint">${esc(relText(r.link))}</div>`
+      + (r.op && !r.drawable ? `<div class="s hint">${esc(OMITTED)} ${S.force.has(r.v.id) ? '· linee mostrate su richiesta' : `<button class="mini" data-force="${esc(r.v.id)}">Disegna comunque</button>`}</div>` : '');
+    return missionRow({ v: r.v, strength: r.level === 'certo' ? 'fisso' : 'possibile', alternatives: r.level === 'possibile' ? r.alternatives : 0 }, r.ref, extra);
+  }
+  function expSection(key, title, rows, { note = '', hidden = 0 } = {}) {
+    const lim = S.page[key] ?? MAX_LIST;
+    const empty = hidden ? `<p class="hint">${hidden} missioni nascoste dalla modalità VERIFICATE: attiva MOSTRA ANCHE POSSIBILITÀ.</p>` : `<p class="hint">${esc(NO_LINK)}. ${esc(NO_LINK_NOTE)}</p>`;
+    return `<details class="at-sec" data-sec="${key}" ${S.open.has(key) ? 'open' : ''}><summary>${title} (${uniqN(rows)})</summary>${note ? `<p class="hint">${note}</p>` : ''}
+      ${rows.length ? rows.slice(0, lim).map(expRow).join('') : empty}
+      ${rows.length > lim ? `<button class="mini" data-page="${key}">Mostra altre ${Math.min(MAX_LIST, rows.length - lim)} (righe ${lim} di ${rows.length})</button>` : ''}</details>`;
+  }
+  function otherBasesHtml(groups, key) {
+    if (!groups.length) return `<p class="hint">${esc(NO_LINK)}.</p>`;
+    const lim = S.page[key] ?? 10;
+    return groups.slice(0, lim).map((g) => `<details class="at-sub" data-sec="${key}:${esc(g.place.id)}" ${S.open.has(`${key}:${g.place.id}`) ? 'open' : ''}><summary>${esc(g.place.name)} · ${uniqN(g.rows)} missioni</summary>
+      <p><a class="at-go" data-id="${esc(g.place.id)}">Apri ${esc(g.place.name)} sulla mappa</a></p>${g.rows.slice(0, 10).map(expRow).join('')}${g.rows.length > 10 ? `<p class="hint">… altre ${g.rows.length - 10}: apri la base per l'elenco completo.</p>` : ''}</details>`).join('')
+      + (groups.length > lim ? `<button class="mini" data-page="${key}" data-step="10">Mostra altre basi (${groups.length - lim})</button>` : '');
+  }
+  function hiddenBy(res, pred) { return uniqN(res.rows.filter((r) => r.passFilters && r.passScope && !r.pass && pred(r))); }
+
   function renderCard() {
     const id = S.selected; const p = id ? geo.get(id) : null;
     if (!p) { $('at-right').innerHTML = '<p class="hint">Seleziona un luogo.</p>'; return; }
-    const f = filters();
-    const r = index.forPlace(id, f);
+    const res = expanded(id);
+    const X = res.sections, H = res.hierarchy, D = res.diagnostics;
     const sp = geo.surface(id);
     const stats = placeStats(obsByPlace.get(id) ?? [], { currentPatch: currentPatch() });
-    const anySure = [...r.out, ...r.in].some((e) => e.strength === 'fisso' || e.v.origin !== 'catalogo');
     const term = p.services.find((s) => s.id === 'terminale');
     const personalHere = p.kind === 'moon' || p.kind === 'planet' ? geo.children(id).filter((c) => c.kind === 'personal') : [];
+    const conn = index.connectionsSplit(id, filters(), 10);
+    const hid = (sec) => hiddenBy(res, (r) => r.section === sec);
     $('at-right').innerHTML = `<div class="at-card">
       <h3>${esc(p.name)}</h3><div class="path">${esc(geo.pathLabel(id))}</div>
       <dl>
+        <dt>Gerarchia</dt><dd>Base: ${esc(BODY_KINDS.has(p.kind) ? '—' : p.name)} · Luna: ${H?.moon ? placeLink(H.moon.id) : '—'} · Pianeta: ${H?.planet ? placeLink(H.planet.id) : '—'} · Sistema: ${esc(SYSTEM_LABEL[p.system])}</dd>
         <dt>Tipo</dt><dd>${esc(KIND_LABEL[p.kind] ?? p.kind)}${p.type ? ` (${esc(p.type)})` : ''}${p.hidden ? ' · nascosto sulla starmap di gioco' : ''}</dd>
-        <dt>Sistema</dt><dd>${esc(SYSTEM_LABEL[p.system])}</dd>
-        <dt>Corpo</dt><dd>${esc(geo.bodyOf(id)?.name ?? (BODY_KINDS.has(p.kind) ? '—' : 'nessuno (spazio aperto)'))}</dd>
         <dt>Coordinate</dt><dd>${p.pos ? `${fmtKm(p.pos.x)} / ${fmtKm(p.pos.y)} / ${fmtKm(p.pos.z)} · frame ${esc(p.frame)}` : 'non disponibili'}</dd>
         <dt>Sul globo</dt><dd>${esc(sp.ok ? `${(sp.lat * 180 / Math.PI).toFixed(2)}° / ${(sp.lon * 180 / Math.PI).toFixed(2)}° · ${sp.note}` : sp.note)}</dd>
         ${p.radius ? `<dt>Raggio</dt><dd>${fmtKm(p.radius)} (${esc(p.radiusSource)})</dd>` : ''}
         <dt>Marker QT</dt><dd>${p.qtValid ? 'sì (bersaglio quantum nei dati)' : 'no o non indicato'}</dd>
         <dt>Servizi</dt><dd>${term ? `${esc(term.label)}: ${esc(term.tags.slice(0, 12).join(', '))}${term.tags.length > 12 ? '…' : ''}` : 'nessun servizio nei dati'}</dd>
         <dt>Freight elevator</dt><dd>non verificato: i dati pubblici non lo indicano</dd>
-        <dt>Accesso nave</dt><dd>non indicato dai dati</dd>
         <dt>Fonte</dt><dd>${esc(p.source)}${p.patch ? ` · ${esc(p.patch)}` : ''}${p.ext?.starmap ? ` · uuid ${esc(p.ext.starmap.slice(0, 8))}…` : ''}</dd>
         <dt>Tue verifiche</dt><dd>${stats.current.visits} visite nella patch attuale (${esc(stats.current.sample)})${stats.previous.visits ? ` · ${stats.previous.visits} in patch precedenti (obsolete)` : ''}${stats.current.emptyVisits ? ` · ${stats.current.emptyVisits} senza offerte` : ''}</dd>
       </dl>
@@ -329,20 +368,109 @@ export async function initAtlas(app) {
       ${personalHere.length ? `<p class="hint">Punti personali qui: ${personalHere.map((x) => placeLink(x.id)).join(', ')}</p>` : ''}
       <div class="row wrap">
         ${p.pos ? '<button id="at-c-qt">Rotta QT qui</button>' : ''}
-        <button id="at-c-best" class="primary" style="width:auto">TROVA LA MIGLIORE COMBINAZIONE</button>
+        <button id="at-c-best" class="primary" style="width:auto" title="${esc(STACK_MODES.executive.note)}">EXECUTIVE STACK</button>
+        <button id="at-c-explo" title="${esc(STACK_MODES.exploratory.note)}">EXPLORATORY STACK</button>
         <button id="at-c-visit">Registra verifica</button>
         <button id="at-c-add">Aggiungi contratto visto qui</button>
         <button id="at-c-conn">${$('at-conn').checked ? 'Nascondi' : 'Mostra'} collegamenti</button>
+        <button id="at-c-diag">Diagnostica</button>
+      </div>
+      <div class="row wrap at-modes">
+        ${Object.entries(MODES).map(([k, l]) => `<label class="check"><input type="radio" name="at-mode" value="${k}" ${S.mode === k ? 'checked' : ''}>${l}</label>`).join('')}
+        <label>Distanza<select id="at-scope">${Object.entries(SCOPES).map(([k, l]) => `<option value="${k}" ${S.scope === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>
       </div>
       <div id="at-c-best-out"></div>
-      ${!anySure ? '<p class="warn">Nessuna missione confermata nei dati disponibili per questo luogo. Non significa che nel gioco non esistano missioni: registra ciò che trovi al pannello.</p>' : ''}
-      ${section('MISSIONI IN USCITA (ritiro qui)', r.out, id, 'out')}
-      ${section('MISSIONI IN ENTRATA (consegna qui)', r.in, id, 'in')}
-      ${section('MISSIONI IN TRANSITO (uno di più scali)', r.transit, id, 'transit')}
-      <details class="at-sec"><summary>OFFERTE CHE POSSONO COMPARIRE QUI (${r.offer.length})</summary>${r.offer.slice(0, MAX_LIST).map((e) => missionRow({ v: e.v, strength: 'fisso', alternatives: 1 }, id)).join('') || '<p class="hint">Nessuna offerta associata a questo luogo nei dati.</p>'}</details>
-      <p class="hint">Le missioni dei modelli vengono offerte in un luogo e il gioco assegna il punto di ritiro e di consegna al momento: il luogo dell'offerta non è mai copiato nel ritiro.</p>
+      <p class="at-sum"><b>Missioni uniche per questo luogo</b>: certe ${res.unique.certain} · possibili ${res.unique.possible} · regionali ${res.unique.regional}
+        <br><span class="hint">Non contate qui: ${res.unique.system} associate solo all'intero sistema · ${res.unique.otherBases} di altre basi della regione.
+        Grafica: ${conn.drawn} missioni disegnate su ${conn.found} con un altro capo, ${conn.omitted.length} omesse per numero di alternative (restano in elenco).</span></p>
+      ${D.why.length ? `<div class="at-why">${D.why.map((w) => `<p class="hint">• ${esc(w)}</p>`).join('')}</div>` : ''}
+      ${expSection('certo_out', '1. MISSIONI CERTE IN USCITA (ritiro qui)', X.certainOut)}
+      ${expSection('certo_in', '2. MISSIONI CERTE IN ENTRATA (consegna qui)', X.certainIn)}
+      ${expSection('possibile_out', '3. MISSIONI POSSIBILI IN USCITA', X.possibleOut, { note: esc(XL.possibile.note), hidden: hid('possibile_out') })}
+      ${expSection('possibile_in', '4. MISSIONI POSSIBILI IN ENTRATA', X.possibleIn, { note: esc(XL.possibile.note), hidden: hid('possibile_in') })}
+      ${expSection('regionali', '5. MISSIONI REGIONALI DA VERIFICARE', [...X.regional.luna, ...X.regional.pianeta], { note: `${esc(XL.regionale.note)}. Pool che nominano ${H?.moon ? esc(H.moon.name) : 'la luna'} o ${H?.planet ? esc(H.planet.name) : 'il pianeta'} e non una base.`, hidden: hid('regionali') })}
+      ${expSection('offerte', '6. OFFERTE POTENZIALMENTE DISPONIBILI NELL\'AREA', X.offersArea, { note: `Modelli offerti in questo luogo${H?.moon ? `, su ${esc(H.moon.name)}` : ''}${H?.planet ? ` o su ${esc(H.planet.name)}` : ''}. ${esc(XL.regionale.note)}: il gioco sceglie ritiro e consegna.`, hidden: hid('offerte') })}
+      ${expSection('inter', '7. COLLEGAMENTI INTERPLANETARI', X.interplanetary, { note: `Stesso contratto con l'altro capo su un altro pianeta del sistema: ${D.interplanetarySure} con entrambi i luoghi certi, gli altri da pool.` })}
+      ${expSection('stellar', '8. COLLEGAMENTI INTERSTELLARI', X.interstellar, { note: `L'altro capo è in un altro sistema: nessuna linea sulla mappa, si passa da un jump point. ${D.interstellarSure} con entrambi i luoghi certi.` })}
+      <details class="at-sec" data-sec="altre" ${S.open.has('altre') ? 'open' : ''}><summary>ALTRE BASI NELLA REGIONE (${res.unique.otherBases}, non contate come missioni di qui)</summary>
+        ${S.mode === 'verificate' && !X.otherBases.luna.length && !X.otherBases.pianeta.length && D.otherBases ? `<p class="hint">${D.otherBases} missioni di altre basi, visibili con MOSTRA ANCHE POSSIBILITÀ.</p>` : `
+        ${H?.moon && H.moon.id !== id ? `<p><b>Sulla stessa luna (${esc(H.moon.name)})</b></p>${otherBasesHtml(X.otherBases.luna, 'ob-luna')}` : ''}
+        ${H?.planet && H.planet.id !== id ? `<p><b>Nella regione di ${esc(H.planet.name)}</b></p>${otherBasesHtml(X.otherBases.pianeta, 'ob-pianeta')}` : ''}`}</details>
+      ${expSection('sistema', `ASSOCIATE SOLO ALL'INTERO SISTEMA ${esc(SYSTEM_LABEL[p.system]).toUpperCase()}`, X.system, { note: 'Non attribuite a questa base: nessuna indicazione di luna, pianeta o base nei dati.', hidden: hid('sistema') })}
+      <div class="at-dest"><label>VOGLIO ARRIVARE A <input id="at-dest-q" list="at-dest-list" value="${esc(S.dest?.label ?? '')}" placeholder="località, luna, pianeta o sistema"></label> <button id="at-dest-go">Cerca</button><div id="at-dest-out"></div></div>
+      <p class="hint">Le missioni dei modelli vengono offerte in un luogo e il gioco assegna il punto di ritiro e di consegna al momento: il luogo dell'offerta non è mai copiato nel ritiro. CERTO — POSSIBILE — REGIONALE — SCONOSCIUTO restano sempre distinti.</p>
     </div>`;
     bindCard(id);
+    if (S.dest?.label) runDest(id);
+  }
+
+  function parseDest(text) {
+    const t = String(text ?? '').trim(); if (!t) return null;
+    const sys = SYSTEMS.find((k) => SYSTEM_LABEL[k].toLowerCase() === t.toLowerCase());
+    if (sys) return { system: sys, label: SYSTEM_LABEL[sys] };
+    const p = geo.resolveName(t); return p ? { id: p.id, label: p.name } : null;
+  }
+  function gatewaysFor(fromSys, toSys) {
+    // dati del motore NAVCOM: stazioni "<Sistema> Gateway" che portano al jump point
+    const a = geo.inSystem(fromSys).find((x) => x.kind === 'gateway' && x.name.toLowerCase().startsWith(SYSTEM_LABEL[toSys].toLowerCase()));
+    const b = geo.inSystem(toSys).find((x) => x.kind === 'gateway' && x.name.toLowerCase().startsWith(SYSTEM_LABEL[fromSys].toLowerCase()));
+    return a || b ? `${a ? a.name : 'gateway non nei dati'} → jump point → ${b ? b.name : 'gateway non nei dati'}` : 'jump point non presente nei dati';
+  }
+  function runDest(id) {
+    const out = $('at-dest-out'); if (!out) return;
+    const d = parseDest($('at-dest-q').value);
+    if (!d) { out.innerHTML = $('at-dest-q').value.trim() ? '<p class="warn">Destinazione non riconosciuta: scegli un nome dall\'elenco.</p>' : ''; return; }
+    const r = index.forDestination(id, d, filters(), expOpts());
+    const ops = (v, role) => v.ops.filter((o) => o.role === role).map(opText).join(' · ') || 'non nei dati';
+    const destSys = d.system ?? geo.get(d.id)?.system;
+    const head = `<p><b>${esc(geo.get(id).name)} → ${esc(r.dest.label)}</b>${r.dest.kind === 'planet' || r.dest.kind === 'moon' || r.dest.kind === 'sistema' ? ` <span class="hint">(${r.dest.ids.size} località incluse, mostrate distinte)</span>` : ''}
+      · certe ${r.counts.certo} · possibili ${r.counts.possibile} · regionali ${r.counts.regionale} · tuoi contratti ${r.counts.utente}</p>
+      ${r.interstellar ? `<p class="hint">Tratta interstellare: ${esc(gatewaysFor(geo.get(id).system, destSys))}. Nessuna distanza sommata fra sistemi.</p>` : ''}`;
+    const rows = r.results.slice(0, S.page.dest ?? MAX_LIST).map((x) => `<tr>
+      <td><span class="at-pill ${PILL[x.evidence]}">${XL[x.evidence].label}</span>${x.observedByUser ? '<br>contratto tuo' : ''}</td>
+      <td>${ORIGIN[x.v.origin].icon} ${esc(x.v.title)}<br><span class="hint">${esc(x.v.company ?? 'datore non indicato')} · grado ${esc(x.v.rank ?? 'n.d.')}</span></td>
+      <td class="wrapcell">${x.v.offer.length ? x.v.offer.slice(0, 2).map((o) => (o.id ? placeLink(o.id) : esc(o.name ?? '?'))).join(', ') : 'non nota'}</td>
+      <td class="wrapcell">${ops(x.v, 'pickup')}</td>
+      <td class="wrapcell">${x.hits.slice(0, 3).map((h) => placeLink(h)).join(', ')}${x.hits.length > 3 ? ` +${x.hits.length - 3}` : ''}<br><span class="hint">${x.drop.fixed ? 'consegna certa' : `${x.hits.length} di ${x.dropPool} alternative nella destinazione`}</span></td>
+      <td class="num">${x.scu ?? 'n.d.'}</td><td class="num">${fmtA(x.v.reward)}</td>
+      <td class="hint">${esc(x.v.patch ?? 'patch n.d.')}<br>${esc(x.v.source ?? '')}</td><td class="wrapcell hint">${esc(x.reason)}</td></tr>`).join('');
+    const chains = r.chains.length ? `<p><b>Tratte intermedie documentate</b> <span class="hint">(due contratti distinti in sequenza, non un contratto unico)</span></p>${r.chains.map((c) => `<p class="hint">via ${placeLink(c.via.id)}: ${c.first.length} contratti verso lo scalo (${c.first.filter((x) => x.sure).length} certi), ${c.second.length} dallo scalo alla destinazione (${c.second.filter((x) => x.sure).length} con consegna certa)</p>`).join('')}` : '';
+    out.innerHTML = head + (r.results.length ? `<div class="tablewrap"><table><thead><tr><th>Evidenza</th><th>Missione</th><th>Offerta</th><th>Ritiro</th><th>Consegna nella destinazione</th><th class="num">SCU</th><th class="num">Ricompensa</th><th>Patch · fonte</th><th>Motivo</th></tr></thead><tbody>${rows}</tbody></table></div>
+      ${r.results.length > (S.page.dest ?? MAX_LIST) ? `<button class="mini" data-page="dest">Mostra altri (${r.results.length - (S.page.dest ?? MAX_LIST)})</button>` : ''}` : `<p class="warn">${esc(r.none)}.</p><p class="hint">${esc(r.noneNote)}</p>`) + chains;
+    out.querySelectorAll('.at-go').forEach((a) => { a.onclick = () => select(a.dataset.id); });
+    out.querySelectorAll('[data-page]').forEach((b) => { b.onclick = () => { S.page.dest = (S.page.dest ?? MAX_LIST) + MAX_LIST; runDest(id); }; });
+  }
+
+  function diagDialog(id) {
+    const res = expanded(id), d = res.diagnostics;
+    const row = (k, v) => `<tr><td>${k}</td><td class="num">${v}</td></tr>`;
+    dlg(`<h2>Diagnostica del catalogo · ${esc(geo.get(id).name)}</h2>
+      <p class="hint">Modalità ${esc(MODES[res.mode])} · distanza ${esc(SCOPES[res.scope])} · conteggi di missioni uniche, nessuna stima.</p>
+      <div class="tablewrap"><table><tbody>
+      ${row('Modelli caricati', `${d.models} (${Object.entries(d.origins).map(([k, n]) => `${k} ${n}`).join(', ')})`)}
+      ${row('Associate all\'identificativo esatto (punto fisso)', d.exact)}
+      ${row('Con questo luogo in un pool di alternative', d.pools)}
+      ${row(`Associate a ${esc(res.hierarchy?.moon?.name ?? 'luna')} (pool che nomina il corpo)`, d.regionalMoon)}
+      ${row(`Associate a ${esc(res.hierarchy?.planet?.name ?? 'pianeta')} (pool che nomina il corpo)`, d.regionalPlanet)}
+      ${row('Offerte associate a questo luogo, alla luna o al pianeta', d.offersArea)}
+      ${row('Associate solo all\'intero sistema (non attribuite)', d.system)}
+      ${row('Di altre basi della stessa luna o dello stesso pianeta', d.otherBases)}
+      ${row('Scartate dai filtri attivi', d.filteredOut)}
+      ${row('Escluse dal filtro di distanza', d.scopeOut)}
+      ${row('Nascoste dalla modalità VERIFICATE', d.hiddenByMode)}
+      ${row('Escluse dalla visualizzazione grafica (troppe alternative)', d.notDrawn)}
+      ${row('Nomi di luogo non risolti in queste missioni', d.unresolvedTotal)}
+      ${row('Missioni con punti anonimi (sottoaree senza nome)', d.anonymous)}
+      ${row(`Patch diversa da ${esc(currentPatch() || 'quella attuale')}`, d.patchMismatch)}
+      ${row('Patch non indicata dalla fonte', d.patchUnknown)}
+      ${row('Collegamenti interplanetari (di cui certi)', `${d.interplanetary} (${d.interplanetarySure})`)}
+      ${row('Collegamenti interstellari (di cui certi)', `${d.interstellar} (${d.interstellarSure})`)}
+      ${row('Coda di normalizzazione (tutto il catalogo)', d.queueSize ?? 'n.d.')}
+      </tbody></table></div>
+      ${d.why.length ? `<p><b>Perché vedi questi risultati</b></p>${d.why.map((w) => `<p class="hint">• ${esc(w)}</p>`).join('')}` : ''}
+      ${d.unresolvedNames.length ? `<p><b>Nomi non risolti più frequenti qui</b> <span class="hint">(missioni che li contengono; restano SCONOSCIUTI, mai associati a caso)</span></p><p class="hint">${d.unresolvedNames.map(([n, c]) => `${esc(n)} (${c})`).join(' · ')}</p>` : ''}
+      <button id="dg-close">Chiudi</button>`);
+    $('dg-close').onclick = close;
   }
   function bindCard(id) {
     const R = $('at-right');
@@ -356,6 +484,14 @@ export async function initAtlas(app) {
     $('at-c-visit').onclick = () => visitDialog(id);
     $('at-c-add').onclick = () => contractDialog({ offer: id });
     $('at-c-conn').onclick = () => { $('at-conn').checked = !$('at-conn').checked; draw(); renderCard(); };
+    $('at-c-explo') && ($('at-c-explo').onclick = () => runExplo(id));
+    $('at-c-diag') && ($('at-c-diag').onclick = () => diagDialog(id));
+    R.querySelectorAll('input[name=at-mode]').forEach((x) => { x.onchange = () => { S.mode = x.value; saveUi(); draw(); renderCard(); }; });
+    $('at-scope') && ($('at-scope').onchange = () => { S.scope = $('at-scope').value; saveUi(); renderCard(); });
+    R.querySelectorAll('details[data-sec]').forEach((d) => { d.ontoggle = () => { if (d.open) S.open.add(d.dataset.sec); else S.open.delete(d.dataset.sec); }; });
+    R.querySelectorAll('[data-page]').forEach((b) => { b.onclick = () => { const k = b.dataset.page; if (k === 'dest') return; S.page[k] = (S.page[k] ?? (b.dataset.step ? 10 : MAX_LIST)) + (b.dataset.step ? 10 : MAX_LIST); renderCard(); }; });
+    R.querySelectorAll('[data-force]').forEach((b) => { b.onclick = () => { S.force.add(b.dataset.force); draw(); renderCard(); }; });
+    $('at-dest-go') && ($('at-dest-go').onclick = () => { const d = parseDest($('at-dest-q').value); S.dest = d ? { label: d.label } : null; S.page.dest = MAX_LIST; saveUi(); runDest(id); });
   }
   function toggleSel(id, on) { if (on) S.sel.add(id); else S.sel.delete(id); S.plan = null; saveUi(); renderSel(); draw(); }
 
@@ -441,7 +577,7 @@ export async function initAtlas(app) {
     $('at-c-best-out').innerHTML = '<p class="hint">Calcolo in corso…</p>';
     activateBottom('sel');
     setTimeout(() => {
-      const b = bestStack(id, index, stackCtx());
+      const b = bestStack(id, index, stackCtx(), { mode: 'executive' });
       const card = (k) => {
         const s = b.scenarios[k]; const r = s.result;
         if (!r?.route) return `<div><b>${SCENARIOS[k].label}</b><p class="hint">Nessuna combinazione calcolabile.</p></div>`;
@@ -451,9 +587,9 @@ export async function initAtlas(app) {
           <br>qualità: ${r.views.every((v) => v.origin === 'utente') ? 'contratti tuoi' : r.views.some((v) => v.origin === 'catalogo') ? 'include modelli di catalogo' : 'include osservazioni storiche di terzi'}
           <br><button class="mini" data-scen="${k}">Usa questa combinazione</button></div>`;
       };
-      $('at-c-best-out').innerHTML = `<div class="at-scen">${Object.keys(SCENARIOS).map(card).join('')}</div>
+      $('at-c-best-out').innerHTML = `<p><b>${STACK_MODES.executive.label}</b> <span class="hint">${esc(STACK_MODES.executive.note)}</span></p><div class="at-scen">${Object.keys(SCENARIOS).map(card).join('')}</div>
         ${b.notes.map((n) => `<p class="warn">${esc(n)}</p>`).join('')}
-        <p class="hint">${b.mandatory.length} contratti accettati sempre inclusi · ${b.candidates.length} missioni pianificabili per questo luogo · ${b.excluded.length} escluse (luoghi non certi, quantità non note, gradi o casse incompatibili).</p>`;
+        <p class="hint">${b.mandatory.length} contratti accettati sempre inclusi · ${b.candidates.length} missioni con dati verificati per questo luogo · ${b.excluded.length} escluse (luoghi non certi, quantità non note o solo assunte, gradi o casse incompatibili). Per combinare missioni possibili e regionali usa EXPLORATORY STACK.</p>`;
       $('at-c-best-out').querySelectorAll('[data-scen]').forEach((x) => { x.onclick = () => {
         const r = b.scenarios[x.dataset.scen].result;
         S.sel = new Set(r.views.map((v) => v.id)); saveUi();
@@ -462,6 +598,42 @@ export async function initAtlas(app) {
         draw(); activateBottom('plan'); renderCard();
       }; });
     }, 20);
+  }
+
+  function runExplo(id) {
+    const out = $('at-c-best-out');
+    out.innerHTML = '<p class="hint">Calcolo in corso…</p>';
+    setTimeout(() => {
+      const sel = [...S.sel].map((x) => index.byId.get(x)).filter(Boolean);
+      const r = exploratoryStack(id, index, stackCtx(), { selected: sel.length ? sel : null, filters: filters() });
+      const li = (a) => (a.length ? `<ul>${a.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : '<p class="hint">nessuno</p>');
+      out.innerHTML = `<p><b>${STACK_MODES.exploratory.label}</b> · <span class="warn">COMBINAZIONE TEORICA — NON ESEGUIBILE</span> <span class="hint">${sel.length ? `dalle ${sel.length} missioni selezionate` : 'dalle missioni certe, possibili e regionali di questo luogo'} · nessun manifesto definitivo</span></p>
+        ${r.chosen.length ? `<div class="tablewrap"><table><thead><tr><th>Livello</th><th>Missione</th><th>Ritiro</th><th>Consegna</th><th class="num">SCU max noto</th><th class="num">Ricompensa</th><th></th></tr></thead><tbody>${r.chosen.map((x) => `<tr>
+          <td><span class="at-pill ${PILL[x.level] ?? 'maybe'}">${esc(XL[x.level]?.label ?? 'SCELTA')}</span></td><td>${ORIGIN[x.v.origin].icon} ${esc(x.v.title)}<br><span class="hint">${esc(x.v.company ?? '')}</span></td>
+          <td class="wrapcell">${x.v.ops.filter((o) => o.role === 'pickup').map(opText).join('<br>') || 'non nei dati'}</td><td class="wrapcell">${x.v.ops.filter((o) => o.role === 'dropoff').map(opText).join('<br>') || 'non nei dati'}</td>
+          <td class="num">${x.scuMax ?? 'n.d.'}</td><td class="num">${fmtA(x.v.reward)}</td>
+          <td><button class="mini" data-conv="${esc(x.v.id)}">Confermata nel MobiGlas → contratto</button></td></tr>`).join('')}</tbody></table></div>` : '<p class="hint">Nessuna missione compatibile con i vincoli noti.</p>'}
+        <p><b>Perché non è ancora eseguibile</b></p>${li(r.why)}
+        <details><summary>Contratti da verificare (${r.toVerify.length})</summary>${li(r.toVerify)}</details>
+        <details><summary>Località ancora sconosciute (${r.unknownPlaces.length})</summary>${li(r.unknownPlaces)}</details>
+        <details><summary>Quantità non disponibili (${r.unknownQty.length})</summary>${li(r.unknownQty)}</details>
+        <details><summary>Vincoli logistici (${r.constraints.length})</summary>${li(r.constraints)}</details>
+        ${r.rejected.length ? `<details><summary>Escluse (${r.rejected.length})</summary>${li(r.rejected.map((x) => `${x.v.title}: ${x.why}`))}</details>` : ''}
+        <p class="hint">Quando trovi il contratto nel MobiGlas e leggi ritiro e consegna, convertilo: diventa un contratto tuo e passa dai controlli di capacità di POSSO ACCUMULARLE? e del piano cargo.</p>`;
+      out.querySelectorAll('[data-conv]').forEach((b) => { b.onclick = () => convertDialog(b.dataset.conv, id); });
+    }, 20);
+  }
+  /** Da combinazione ipotetica a contratto effettivo: precompila solo cio' che i dati danno per certo. */
+  function convertDialog(viewId, here) {
+    const v = index.byId.get(viewId); if (!v) return;
+    const picks = v.ops.filter((o) => o.role === 'pickup'), drops = v.ops.filter((o) => o.role === 'dropoff');
+    const name = (o) => (o?.fixed ? geo.get(o.ids[0])?.name ?? '' : '');
+    const movements = (drops.length ? drops : [null]).map((d, i) => {
+      const pk = picks.find((o) => o.slot === d?.slot) ?? (picks.length === 1 ? picks[0] : null);
+      return { cargo: d?.cargo ?? v.orders?.[i]?.cargo ?? '', scu: '', containerMax: d?.containerMax ?? v.maxBox ?? '', from: name(pk), to: name(d) };
+    });
+    const offer = v.offer.find((o) => o.id) ? geo.get(v.offer.find((o) => o.id).id)?.name : null;
+    contractDialog({ offer: here, draft: { title: v.title, company: v.company, rank: v.rank, reward: v.reward, status: 'confermata', offerName: offer ?? geo.get(here)?.name, movements, note: `Da ${v.origin === 'catalogo' ? 'modello di catalogo' : v.origin} ${v.id}: inserisci quantità, ritiro e consegna come li mostra il MobiGlas. I campi vuoti non sono stati dedotti.` } });
   }
 
   function renderPlan() {
@@ -556,13 +728,14 @@ export async function initAtlas(app) {
     const o = offer ? geo.get(offer) : null;
     const row = (m = {}) => `<div class="row wrap mrow"><input name="cargo" placeholder="merce" value="${esc(m.cargo ?? '')}"><input name="scu" placeholder="SCU" inputmode="numeric" value="${esc(m.scu ?? '')}"><input name="box" placeholder="cassa max SCU" inputmode="numeric" value="${esc(m.containerMax ?? '')}"><input name="from" list="at-places" placeholder="luogo di ritiro" value="${esc(m.from ?? '')}"><input name="to" list="at-places" placeholder="luogo di consegna" value="${esc(m.to ?? '')}"></div>`;
     dlg(`<h2>Contratto reale</h2><div class="form">
+      ${draft?.note ? `<p class="hint">${esc(draft.note)}</p>` : ''}
       <label>Nome<input id="k-title" value="${esc(draft?.title ?? '')}"></label><label>Compagnia<input id="k-company" value="${esc(draft?.company ?? '')}"></label>
-      <label>Grado richiesto<input id="k-rank"></label><label>Ricompensa (aUEC)<input id="k-reward" inputmode="numeric"></label>
-      <label>Luogo dell'offerta<input id="k-offer" list="at-places" value="${esc(o?.name ?? '')}"></label>
-      <label>Stato<select id="k-status"><option value="osservata">Osservata</option><option value="confermata">Confermata nel MobiGlas</option><option value="accettata">Accettata</option></select></label>
+      <label>Grado richiesto<input id="k-rank" value="${esc(draft?.rank ?? '')}"></label><label>Ricompensa (aUEC)<input id="k-reward" inputmode="numeric" value="${esc(draft?.reward ?? '')}"></label>
+      <label>Luogo dell'offerta<input id="k-offer" list="at-places" value="${esc(draft?.offerName ?? o?.name ?? '')}"></label>
+      <label>Stato<select id="k-status">${[['osservata', 'Osservata'], ['confermata', 'Confermata nel MobiGlas'], ['accettata', 'Accettata']].map(([k, l]) => `<option value="${k}" ${draft?.status === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
       <label>Patch<input id="k-patch" value="${esc(currentPatch())}"></label>
       <p class="hint">Un movimento per ogni ritiro → consegna. Il luogo dell'offerta NON viene copiato nel ritiro: lascialo vuoto se il MobiGlas non lo mostra ancora.</p>
-      <div id="k-rows">${row()}</div><button id="k-addrow" class="mini">+ movimento</button>
+      <div id="k-rows">${(draft?.movements?.length ? draft.movements : [{}]).map(row).join('')}</div><button id="k-addrow" class="mini">+ movimento</button>
       <label>Screenshot del MobiGlas (facoltativo, resta in questo browser)<input type="file" id="k-shot" accept="image/*" multiple></label>
       <div class="row wrap"><button id="k-save" class="primary" style="width:auto">Salva</button><button id="k-cancel">Annulla</button></div><div id="k-msg"></div></div>`);
     $('k-cancel').onclick = close;

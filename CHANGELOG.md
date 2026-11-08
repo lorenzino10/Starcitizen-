@@ -1,5 +1,17 @@
 # Registro delle modifiche
 
+## 0.7.1-web (2026-11-08): LOCATION INTELLIGENCE estesa
+Correzione della scheda ATLANTE: una base non mostrava le missioni che la riguardano se non erano legate al suo identificativo esatto. Dettagli in [docs/ATLAS.md](docs/ATLAS.md#location-intelligence-estesa-071).
+- **Ricerca geografica estesa** (`MissionIndex.forPlaceExpanded`, `forPlace` invariato): CERTO, POSSIBILE (il gioco assegna il luogo), REGIONALE (luna, pianeta, sistema: base non confermata), SCONOSCIUTO, più ALTRE BASI NELLA REGIONE non contate come missioni del luogo. Otto sezioni con conteggi indipendenti e missioni uniche senza duplicati.
+- **Modalità** VERIFICATE / MOSTRA ANCHE POSSIBILITÀ, salvata; **filtro di distanza** sulla gerarchia (stessa base, luna, pianeta, tra pianeti, tra sistemi).
+- **VOGLIO ARRIVARE A**: luogo, luna, pianeta o sistema; solo collegamenti dentro lo stesso contratto, tratte intermedie dichiarate come due contratti; "NESSUN COLLEGAMENTO DOCUMENTATO NEI DATI DISPONIBILI" quando i dati non lo mostrano.
+- **Mappa**: missioni trovate separate dalle linee disegnate; pool troppo grandi restano in elenco con nota e "Disegna comunque"; linee regionali distinte; mai linee fra sistemi.
+- **EXECUTIVE STACK** (solo dati verificati, quantità assunte escluse) ed **EXPLORATORY STACK** (combinazione teorica, nessun manifesto, elenco di cosa verificare) con conversione in contratto dopo la conferma nel MobiGlas.
+- **Diagnostica del catalogo** dalla scheda del luogo, con i motivi di uno zero.
+- **Normalizzazione**: nomi qualificati dal gioco ("Checkmate at the L4 Lagrange of Pyro II") risolti solo se univoci: pool con luogo unico da 133 a 242, coda da 245 a 235. Un pool che nomina solo un corpo celeste non è più un punto fisso. Datori "<= UNINITIALIZED =>" ora "non indicato".
+- Collaudo reale su ArcCorp Mining Area 061: 3 esatte (tutte storiche), 118 in pool, 228 offerte regionali, 0 certe verso microTech.
+- 18 nuovi test sintetici. Service worker 0.7.1: ogni file rivalidato, cache vecchie cancellate (verificato con una pubblicazione simulata).
+
 ## 0.7.0-web (2026-11-08): 3D MISSION ATLAS & CARGO INTELLIGENCE
 Nuova scheda **🌌 ATLANTE**, ora la prima. Documentazione in [docs/ATLAS.md](docs/ATLAS.md).
 - **Mappa 3D** su canvas 2D (nessuna libreria, nessun WebGL): rotazione, zoom, pan, clic, ricerca, centra, reset, vista 2D dall'alto, scala visiva compressa opzionale (le distanze restano reali), raggruppamento dei punti vicini ed etichette senza sovrapposizioni. Mai distanze euclidee fra sistemi.

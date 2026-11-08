@@ -19,7 +19,9 @@ App: <https://lorenzino10.github.io/Starcitizen-/>
 in transito e offerte, sempre distinte; combinazioni di missioni (stacking) con
 capacità verificata dopo ogni operazione; BEST STACK FINDER con tre scenari;
 piano cargo salvabile; Discovery dei luoghi da esplorare. I modelli non sono
-offerte disponibili: il punto reale si conferma nel MobiGlas. Dettagli e limiti:
+offerte disponibili: il punto reale si conferma nel MobiGlas. Dalla 0.7.1 la scheda di una
+base distingue missioni CERTE, POSSIBILI (pool), REGIONALI (luna o pianeta) e di ALTRE BASI della
+regione, con ricerca "voglio arrivare a", filtri di distanza, stack executive/exploratory e diagnostica. Dettagli e limiti:
 [docs/ATLAS.md](docs/ATLAS.md).
 
 **🛰 PIANIFICATORE** (Fasi 4–5): inserisci X, Y, Z
