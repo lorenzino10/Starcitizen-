@@ -12,7 +12,7 @@ import { tmpdir } from 'node:os';
 import { gzipSync } from 'node:zlib';
 import { Geo } from '../js/atlas/geo.js';
 import { SOURCE_URL } from '../js/atlas/scunpacked.js';
-import { SRC, buildGameInfo, buildMining, buildEnvironment, buildSmPois, buildUexPlaces, buildMarket, buildExpeditionShips, makeResolver } from '../js/dest/build.js';
+import { SRC, buildGameInfo, buildMining, buildEnvironment, buildSmPois, buildUexPlaces, buildMarket, buildExpeditionShips, makeResolver, makeSuggester } from '../js/dest/build.js';
 
 const outDir = new URL('../data/destinations/', import.meta.url);
 mkdirSync(outDir, { recursive: true });
@@ -109,7 +109,7 @@ try {
   for (const e of ['space_stations', 'cities', 'outposts', 'poi', 'terminals', 'categories', 'commodities', 'items_prices_all', 'commodities_prices_all', 'fuel_prices_all']) {
     raw[e] = await getJson(`https://api.uexcorp.uk/2.0/${e}`); await sleep(700);
   }
-  uex = buildUexPlaces(raw, { resolve: resolveFull });
+  uex = buildUexPlaces(raw, { resolve: resolveFull, suggest: makeSuggester(geo) });
   market = buildMarket(raw, { fetchedAt });
   const L = Object.values(uex.locations);
   status.uex = { ok: true, at: fetchedAt, locations: L.length, linked: L.filter((l) => l.placeId).length, ambiguous: L.filter((l) => l.candidates.length).length, terminals: Object.keys(uex.terminals).length, itemPrices: market.itemPrices.length, commodityPrices: market.commodityPrices.length };

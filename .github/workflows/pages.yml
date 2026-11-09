@@ -45,6 +45,11 @@ jobs:
         continue-on-error: true
         timeout-minutes: 20
         run: node web/tools/fetch_atlas.mjs
+      - name: Destination Intelligence (file di gioco, UEX, starmap.space)
+        # ogni fonte che non risponde viene sostituita dall'ultimo snapshot pubblicato, dichiarandolo
+        continue-on-error: true
+        timeout-minutes: 20
+        run: node web/tools/fetch_destinations.mjs
       - name: Controllo dati (corpi celesti e gateway)
         continue-on-error: true
         run: node web/tools/check_bodies.mjs

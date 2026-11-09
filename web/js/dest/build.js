@@ -188,7 +188,7 @@ const ts = (v) => (num(v) ? new Date(num(v) * 1000).toISOString() : null);
  * @param raw {space_stations, cities, outposts, poi, terminals, ...}
  * @param resolve (name, system) -> {id, how}|{ambiguous:[ids]}|null
  */
-export function buildUexPlaces(raw, { resolve = () => null } = {}) {
+export function buildUexPlaces(raw, { resolve = () => null, suggest = () => [] } = {}) {
   const locs = {}; const kinds = [['space_stations', 'station'], ['cities', 'city'], ['outposts', 'outpost'], ['poi', 'poi']];
   for (const [key, kind] of kinds) {
     for (const r of raw[key] ?? []) {
@@ -196,6 +196,11 @@ export function buildUexPlaces(raw, { resolve = () => null } = {}) {
       const system = sysKey(r.star_system_name);
       let m = resolve(r.name, system);
       if (!m && r.nickname && r.nickname !== r.name) m = resolve(r.nickname, system);
+      // "Pyro Gateway (Stanton)": la parentesi ripete il sistema in cui si trova la stazione
+      const par = String(r.name).match(/^(.+?)\s*\(([^)]+)\)$/);
+      if (!m && par && sysKey(par[2]) === system) { m = resolve(par[1], system); if (m?.id) m = { ...m, how: 'nome senza sistema fra parentesi' }; }
+      // nomi parziali ("Deakins Research" / "Deakins Research Outpost"): solo proposte da confermare
+      if (!m || (!m.id && !m.ambiguous?.length)) { const c = suggest(par ? par[1] : r.name, system); if (c.length) m = { id: null, how: null, ambiguous: c, partial: true }; }
       const k = `${kind}:${r.id}`;
       locs[k] = {
         key: k, uexId: r.id, kind, name: r.name, nickname: r.nickname && r.nickname !== r.name ? r.nickname : null, system,
@@ -205,7 +210,7 @@ export function buildUexPlaces(raw, { resolve = () => null } = {}) {
         faction: r.faction_name ?? null, jurisdiction: r.jurisdiction_name ?? null,
         live: r.is_available_live != null ? !!+r.is_available_live : null,
         added: ts(r.date_added), modified: ts(r.date_modified),
-        placeId: m?.id ?? null, linkHow: m?.how ?? null, candidates: m?.ambiguous ?? [], source: 'uex',
+        placeId: m?.id ?? null, linkHow: m?.how ?? null, candidates: m?.ambiguous ?? [], candidatesWhy: m?.partial ? 'nome parziale' : m?.ambiguous?.length ? 'omonimi' : null, source: 'uex',
       };
     }
   }
@@ -280,5 +285,15 @@ export function makeResolver(geo) {
     const same = (geo.names.get(normName(name)) ?? []).filter((p) => !system || p.system === system);
     const ids = [...new Set(same.map((p) => p.id))];
     return ids.length > 1 ? { id: null, how: null, ambiguous: ids } : null;
+  };
+}
+
+/** Proposte per nome parziale (uno e' l'inizio dell'altro), stesso sistema, al massimo 3: mai collegate da sole. */
+export function makeSuggester(geo) {
+  return (name, system) => {
+    const k = normName(name); if (k.length < 5) return [];
+    const out = geo.places.filter((p) => p.kind !== 'personal' && p.system === system && !p.hidden)
+      .filter((p) => { const n = normName(p.name); return n !== k && (n.startsWith(`${k} `) || k.startsWith(`${n} `)); }).map((p) => p.id);
+    return out.length && out.length <= 3 ? out : [];
   };
 }
