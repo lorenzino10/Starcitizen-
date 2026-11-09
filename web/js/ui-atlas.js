@@ -226,6 +226,7 @@ export async function initAtlas(app) {
     const p = geo.get(id); if (!p) return;
     if (p.system !== S.system) S.system = p.system;
     S.selected = id; S.conn = null;
+    app.onSelect?.(id);
     let refit = false;
     if (p.kind === 'planet' || p.kind === 'moon') { if (S.level !== id) { S.level = id; refit = true; } }
     else if (p.kind === 'star') { S.level = null; refit = true; }

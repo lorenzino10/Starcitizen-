@@ -18,8 +18,8 @@ import { initLogistics } from './ui-logistics.js';
 import { initAtlas } from './ui-atlas.js';
 import { initDestinations } from './ui-dest.js';
 
-const VERSION = '0.8.0-web';
-const CACHE_NAME = 'navcom-v0.8.0'; // deve coincidere con CACHE in sw.js
+const VERSION = '0.8.1-web';
+const CACHE_NAME = 'navcom-v0.8.1'; // deve coincidere con CACHE in sw.js
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const ICON = { [STATUS.VERIFIED]: '🟢', [STATUS.DATA]: '🔵', [STATUS.THEORETICAL]: '🟠' };
@@ -573,7 +573,7 @@ function showTab(name) {
   document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.id === `tab-${name}`));
   window.dispatchEvent(new Event('resize'));
   if (name === 'atlas') atlas?.refresh();
-  if (name === 'dest') dest?.ensure();
+  if (name === 'dest') dest?.show();
 }
 
 async function switchSystem(sys) {
@@ -635,6 +635,7 @@ async function main() {
         pointsDb: () => pointsUi?.db ?? null,
         planTo: (pt) => planner.planToPoint(pt),
         openDestination: (id) => dest?.open(id),
+        onSelect: (id) => dest?.follow(id),
       });
     } catch (e) { console.error(e); $('at-banner').innerHTML = `<p class="err">ATLANTE non avviato: ${esc(e.message)}</p>`; }
   } else $('at-banner').innerHTML = '<p class="err">ATLANTE non disponibile: serve l\'archivio della logistica.</p>';

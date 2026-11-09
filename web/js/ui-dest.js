@@ -158,17 +158,21 @@ export async function initDestinations(app) {
   function renderShops(c) {
     const box = $('di-shops'); if (!box) return;
     if (!ix.market) { box.innerHTML = '<p class="hint">Prezzi non caricati.</p>'; return; }
-    const rows = ix.shopsOf(c, { q: S.shopQ, cat: S.shopCat, sort: S.shopSort });
-    const per = 150; const shown = rows.slice(0, (S.page + 1) * per);
-    box.innerHTML = `<p class="warn">Catalogo segnalato dalla community (UEX): un articolo in elenco NON è garantito disponibile adesso. Ogni prezzo ha la data della segnalazione.</p>
+    // i filtri si costruiscono una volta sola: ridisegnarli a ogni tasto riportava il cursore all'inizio
+    if (!$('di-shop-list')) {
+      box.innerHTML = `<p class="warn">Catalogo segnalato dalla community (UEX): un articolo in elenco NON è garantito disponibile adesso. Ogni prezzo ha la data della segnalazione.</p>
       <div class="row wrap di-filters"><input id="di-shop-q" placeholder="filtra articolo" value="${esc(S.shopQ)}">
       <select id="di-shop-cat"><option value="">tutte le categorie</option>${ITEM_CATS.map(([k, l]) => `<option value="${k}" ${S.shopCat === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>
       <select id="di-shop-sort">${['nome', 'prezzo', 'categoria', 'data'].map((k) => `<option ${S.shopSort === k ? 'selected' : ''}>${k}</option>`).join('')}</select></div>
-      ${rows.length ? `<div class="tablewrap di-tw tall"><table class="di-t"><thead><tr><th>Articolo</th><th>Categoria</th><th>Compra</th><th>Vende</th><th>Negozio</th><th>Data · versione</th></tr></thead><tbody>${shown.map((r) => `<tr><td>${esc(r.item)}</td><td class="hint">${esc(r.cat)}${r.uexCat ? `<br>${esc(r.uexCat)}` : ''}</td><td>${fmtA(r.buy)}</td><td>${fmtA(r.sell)}</td><td>${esc(r.terminal)}</td><td class="hint">${fmtDate(r.date)}${ageDays(r.date) > 60 ? ' <span class="di-pill warn">vecchia</span>' : ''}${r.version ? ` · ${esc(r.version)}` : ''}</td></tr>`).join('')}</tbody></table></div>
-        ${rows.length > shown.length ? `<button id="di-shop-more" class="small">Mostra altri (${rows.length - shown.length})</button>` : ''}` : '<p class="hint">Nessun articolo segnalato ai terminali di questa destinazione con questi filtri.</p>'}`;
-    $('di-shop-q').oninput = () => { S.shopQ = $('di-shop-q').value; S.page = 0; renderShops(c); $('di-shop-q').focus(); };
-    $('di-shop-cat').onchange = () => { S.shopCat = $('di-shop-cat').value; S.page = 0; renderShops(c); };
-    $('di-shop-sort').onchange = () => { S.shopSort = $('di-shop-sort').value; renderShops(c); };
+      <div id="di-shop-list"></div>`;
+      $('di-shop-q').oninput = () => { S.shopQ = $('di-shop-q').value; S.page = 0; renderShops(c); };
+      $('di-shop-cat').onchange = () => { S.shopCat = $('di-shop-cat').value; S.page = 0; renderShops(c); };
+      $('di-shop-sort').onchange = () => { S.shopSort = $('di-shop-sort').value; renderShops(c); };
+    }
+    const rows = ix.shopsOf(c, { q: S.shopQ, cat: S.shopCat, sort: S.shopSort });
+    const per = 150; const shown = rows.slice(0, (S.page + 1) * per);
+    $('di-shop-list').innerHTML = rows.length ? `<div class="tablewrap di-tw tall"><table class="di-t"><thead><tr><th>Articolo</th><th>Categoria</th><th>Compra</th><th>Vende</th><th>Negozio</th><th>Data · versione</th></tr></thead><tbody>${shown.map((r) => `<tr><td>${esc(r.item)}</td><td class="hint">${esc(r.cat)}${r.uexCat ? `<br>${esc(r.uexCat)}` : ''}</td><td>${fmtA(r.buy)}</td><td>${fmtA(r.sell)}</td><td>${esc(r.terminal)}</td><td class="hint">${fmtDate(r.date)}${ageDays(r.date) > 60 ? ' <span class="di-pill warn">vecchia</span>' : ''}${r.version ? ` · ${esc(r.version)}` : ''}</td></tr>`).join('')}</tbody></table></div>
+        ${rows.length > shown.length ? `<button id="di-shop-more" class="small">Mostra altri (${rows.length - shown.length})</button>` : ''}` : '<p class="hint">Nessun articolo segnalato ai terminali di questa destinazione con questi filtri.</p>';
     $('di-shop-more') && ($('di-shop-more').onclick = () => { S.page++; renderShops(c); });
   }
 
@@ -305,14 +309,16 @@ export async function initDestinations(app) {
   };
   pdb()?.onChange?.(async () => { if (ix) { ix.setPersonal(await personal()); if (S.open?.startsWith('pt:')) open(S.open, { scroll: false }); } });
 
-  let ready = null;
+  let ready = null; let follow = null; // ultimo luogo scelto nell'ATLANTE, aperto quando si entra nella scheda
   const ensure = () => (ready ??= load());
   return {
     ensure,
-    async open(id) { await ensure(); if (!ix) return; app.showTab('dest'); if (id.startsWith('personal:')) id = `pt:${id.slice(9)}`; open(id); },
+    follow(id) { follow = String(id).startsWith('personal:') ? `pt:${String(id).slice(9)}` : id; },
+    async show() { await ensure(); if (!ix || !follow) return; const id = follow; follow = null; if (id !== S.open) open(id); },
+    async open(id) { follow = null; await ensure(); if (!ix) return; app.showTab('dest'); if (id.startsWith('personal:')) id = `pt:${id.slice(9)}`; open(id); },
     /** Dal pianificatore: nome noto -> scheda; altrimenti scheda del punto XYZ arbitrario. */
     async openPoint({ name, system, x, y, z, unit }) {
-      await ensure(); if (!ix) return; app.showTab('dest');
+      follow = null; await ensure(); if (!ix) return; app.showTab('dest');
       const k = unit === 'm' ? 1 : 1000; const pos = { x: +x * k, y: +y * k, z: +z * k };
       const hit = name ? ix.search(name, { system, limit: 3 }).find((r) => r.name.toLowerCase() === String(name).toLowerCase()) : null;
       if (hit) return open(hit.id);
