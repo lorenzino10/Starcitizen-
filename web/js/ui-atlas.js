@@ -408,6 +408,7 @@ export async function initAtlas(app) {
       </dl>
       <div class="row wrap">
         ${p.pos ? '<button id="at-c-qt" class="mini">Rotta QT qui</button>' : ''}
+        <button id="at-c-di" class="mini">📚 Scheda destinazione</button>
         <button id="at-c-visit" class="mini">Registra verifica</button>
         <button id="at-c-add" class="mini">Aggiungi contratto visto qui</button>
         <button id="at-c-conn" class="mini">${$('at-conn').checked ? 'Nascondi' : 'Mostra'} collegamenti sulla mappa</button>
@@ -510,6 +511,7 @@ export async function initAtlas(app) {
     R.querySelectorAll('[data-show]').forEach((b) => { b.onclick = () => { toggleSel(b.dataset.show, true); showMission(b.dataset.show); }; });
     R.querySelectorAll('[data-more]').forEach((b) => { b.onclick = () => { S[`more-${b.dataset.more}`] = true; renderCard(); }; });
     const p = geo.get(id);
+    $('at-c-di') && ($('at-c-di').onclick = () => app.openDestination?.(p.id));
     $('at-c-qt') && ($('at-c-qt').onclick = () => app.planTo?.({ name: p.name, system: p.system, x: p.pos.x, y: p.pos.y, z: p.pos.z, unit: 'm' }));
     $('at-c-best').onclick = () => runBest(id);
     $('at-c-visit').onclick = () => visitDialog(id);

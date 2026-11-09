@@ -20,6 +20,7 @@
 
 <nav class="tabs" role="tablist">
   <button role="tab" data-tab="atlas" class="active">🌌 ATLANTE</button>
+  <button role="tab" data-tab="dest">📚 DESTINATION INTELLIGENCE</button>
   <button role="tab" data-tab="plan">🛰 PIANIFICATORE</button>
   <button role="tab" data-tab="db">🗂 DATABASE PUNTI</button>
   <button role="tab" data-tab="reverse">⌖ RICERCA INVERSA QT</button>
@@ -109,6 +110,38 @@
   <dialog id="at-dlg" class="at-dlg"><div id="at-dlg-body"></div></dialog>
 </section>
 
+<section id="tab-dest" class="tab">
+  <div id="di-banner"></div>
+  <div class="di-grid">
+    <aside class="panel di-left">
+      <h2>1 · Ricerca destinazione</h2>
+      <input id="di-q" placeholder="es. Port Tressler, Daymar, NB, Pyro 1" autocomplete="off">
+      <select id="di-sys"><option value="">tutti i sistemi</option><option value="stanton">Stanton</option><option value="pyro">Pyro</option><option value="nyx">Nyx</option></select>
+      <div id="di-results" class="di-results"><p class="hint">Scrivi il nome di una destinazione.</p></div>
+      <h2>Cerca articolo</h2>
+      <div class="row"><input id="di-item" placeholder="es. Helix, MedPen, Arrowhead"><button id="di-item-go">CERCA</button></div>
+      <h2>Dove posso vendere?</h2>
+      <div class="form">
+        <label>Merce<input id="di-sell" placeholder="es. Agricium, Quantainium"></label>
+        <label>Quantità (SCU)<input id="di-sell-scu" inputmode="numeric" placeholder="es. 20"></label>
+        <label>Mia posizione (facoltativa)<input id="di-sell-from" list="di-places" placeholder="es. Port Tressler"></label>
+        <button id="di-sell-go">DOVE POSSO VENDERE?</button>
+      </div>
+      <h2>Dati e aggiornamenti</h2>
+      <div id="di-sources" class="hint">—</div>
+      <div class="row wrap"><button id="di-refresh" class="small">Aggiorna dal sito</button>
+        <label class="filebtn small">Importa snapshot JSON<input type="file" id="di-import" accept=".json,application/json" hidden></label>
+        <button id="di-export" class="small">Esporta snapshot</button></div>
+      <p class="hint">Fonti: file di gioco (scunpacked-data), UEX Corp (community, uso personale), starmap.space. Matrice campo → fonte in docs/DESTINATIONS.md.</p>
+    </aside>
+    <main class="panel di-main">
+      <div id="di-card"><p class="hint">Cerca una destinazione: la scheda mostra dove si trova, come raggiungerla, ambiente, rischi, servizi, negozi, commercio, risorse e cosa portare. Ogni dato ha fonte e data; quello che le fonti non dicono resta NON DISPONIBILE o DA VERIFICARE.</p></div>
+      <div id="di-tool-out"></div>
+    </main>
+  </div>
+  <datalist id="di-places"></datalist><datalist id="di-ships"></datalist>
+</section>
+
 <section id="tab-plan" class="tab">
   <div class="cols">
     <div class="panel form">
@@ -125,6 +158,7 @@
       </div>
       <div data-psrc="custom" hidden><select id="p-custom"></select></div>
       <button id="p-to-db" class="small">💾 Salva queste coordinate nel DATABASE PUNTI</button>
+      <button id="p-to-di" class="small">📚 INFORMAZIONI DESTINAZIONE</button>
       <h2>Partenza (facoltativa)</h2>
       <div class="radios">
         <label><input type="radio" name="p-start-src" value="none" checked> Nessuna: trova da dove partire</label>

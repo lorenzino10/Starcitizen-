@@ -16,9 +16,10 @@ import { initPlanner, navOptions } from './ui-plan.js';
 import { initPointsDb } from './ui-points.js';
 import { initLogistics } from './ui-logistics.js';
 import { initAtlas } from './ui-atlas.js';
+import { initDestinations } from './ui-dest.js';
 
-const VERSION = '0.7.2-web';
-const CACHE_NAME = 'navcom-v0.7.2'; // deve coincidere con CACHE in sw.js
+const VERSION = '0.8.0-web';
+const CACHE_NAME = 'navcom-v0.8.0'; // deve coincidere con CACHE in sw.js
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const ICON = { [STATUS.VERIFIED]: '🟢', [STATUS.DATA]: '🔵', [STATUS.THEORETICAL]: '🟠' };
@@ -39,6 +40,7 @@ let lastReverse = null;
 let planner = null;
 let atlas = null;
 let pointsUi = null;
+let dest = null;
 
 // ---------------------------------------------------------------- utilita'
 function parseNum(s) {
@@ -571,6 +573,7 @@ function showTab(name) {
   document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.id === `tab-${name}`));
   window.dispatchEvent(new Event('resize'));
   if (name === 'atlas') atlas?.refresh();
+  if (name === 'dest') dest?.ensure();
 }
 
 async function switchSystem(sys) {
@@ -609,6 +612,7 @@ async function main() {
     $, esc, parseNum, radioVal, table, store, settings, saveSettings, fillSelect, renderSaved, showTab, switchSystem, VERSION,
     ensureSystemData, system: () => system, points: () => points,
     openInDatabase: (draft) => pointsUi?.openDraft(draft),
+    openDestinationPoint: (pt) => dest?.openPoint(pt),
   });
   try {
     pointsUi = await initPointsDb({
@@ -630,9 +634,17 @@ async function main() {
         $, esc, store, VERSION, ensureSystemData, navOptions: () => navOptions(settings), logistics,
         pointsDb: () => pointsUi?.db ?? null,
         planTo: (pt) => planner.planToPoint(pt),
+        openDestination: (id) => dest?.open(id),
       });
     } catch (e) { console.error(e); $('at-banner').innerHTML = `<p class="err">ATLANTE non avviato: ${esc(e.message)}</p>`; }
   } else $('at-banner').innerHTML = '<p class="err">ATLANTE non disponibile: serve l\'archivio della logistica.</p>';
+  try {
+    dest = await initDestinations({
+      $, esc, showTab, pointsDb: () => pointsUi?.db ?? null, atlasGeo: () => atlas?.geo?.() ?? null,
+      planTo: (pt) => planner.planToPoint(pt),
+      openAtlas: (id) => { showTab('atlas'); atlas?.select(id); },
+    });
+  } catch (e) { console.error(e); $('di-banner').innerHTML = `<p class="err">DESTINATION INTELLIGENCE non avviata: ${esc(e.message)}</p>`; }
   // cache offline (service worker) e precaricamento della libreria grafica locale
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
   ensurePlotly().then(cacheLoadedFiles);

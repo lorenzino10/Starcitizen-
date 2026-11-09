@@ -104,6 +104,15 @@ export function initPlanner(app) {
     app.openInDatabase({ system: app.system(), unit, x: $('p-x').value, y: $('p-y').value, z: $('p-z').value, source: 'pianificatore' });
   };
   pasteInto('p-spaste', ['p-sx', 'p-sy', 'p-sz'], 'p-sunit');
+  // DESTINATION INTELLIGENCE: scheda della destinazione inserita (nessun effetto sul calcolo)
+  $('p-to-di') && ($('p-to-di').onclick = () => {
+    if (radioVal('p-src') === 'custom') {
+      const p = app.points().get($('p-custom').value);
+      if (p) return app.openDestinationPoint?.({ name: p.name, system: app.system(), x: p.pos?.x ?? p.x, y: p.pos?.y ?? p.y, z: p.pos?.z ?? p.z, unit: 'm' });
+    }
+    const unit = radioVal('p-unit') === '1' ? 'm' : 'km';
+    app.openDestinationPoint?.({ name: $('p-x').dataset.name || '', system: app.system(), x: parseNum($('p-x').value), y: parseNum($('p-y').value), z: parseNum($('p-z').value), unit });
+  });
 
   // ------------------------------------------------------------ elenchi
   async function refreshStartList() {

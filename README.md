@@ -24,6 +24,11 @@ base distingue missioni CERTE, POSSIBILI (pool), REGIONALI (luna o pianeta) e di
 regione, con ricerca "voglio arrivare a", filtri di distanza, stack executive/exploratory e diagnostica. Dettagli e limiti:
 [docs/ATLAS.md](docs/ATLAS.md).
 
+**📚 DESTINATION INTELLIGENCE** (0.8.0): cerca una destinazione (anche un tuo punto) e vedi
+ambiente, sicurezza, hangar e servizi, negozi e prezzi, merci, mining e preparazione della
+spedizione, ognuno con fonte, data e stato; dove non c'è una fonte scrive NON DISPONIBILE.
+Strumenti CERCA ARTICOLO e DOVE POSSO VENDERE. Fonti e limiti: [docs/DESTINATIONS.md](docs/DESTINATIONS.md).
+
 **🛰 PIANIFICATORE** (Fasi 4–5): inserisci X, Y, Z
 arbitrarie nel sistema scelto (Stanton, Pyro o Nyx) e, se vuoi, la tua posizione,
 anche in un altro sistema. NAVCOM cerca la strategia migliore:
