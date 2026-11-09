@@ -1,5 +1,14 @@
 # Registro delle modifiche
 
+## 0.8.0-web (2026-11-09): DESTINATION INTELLIGENCE
+Nuova scheda **📚 DESTINATION INTELLIGENCE**, enciclopedia operativa delle destinazioni. Fonti, matrice campo → fonte, collaudo e lacune in [docs/DESTINATIONS.md](docs/DESTINATIONS.md).
+- **Ricerca universale** su sistemi, corpi, stazioni, città, avamposti, POI, luoghi UEX e punti del DATABASE PUNTI (anche senza XYZ), con abbreviazioni (NB, A18, LV…), numeri romani, omonimi segnalati e sistema · corpo · tipo sempre visibili.
+- **Scheda**: riepilogo a riquadri, poi ambiente e sopravvivenza (esterno solo in superficie, interno solo per strutture, punto XYZ classificato rispetto al corpo più vicino), sicurezza (armistizio mai dedotto dal livello di sicurezza, giurisdizione ereditata e dichiarata), hangar e servizi distinti per fonte e mai ereditati, negozi con filtri, merci, mining (aree di spawn, non giacimenti), preparazione spedizione per nave (documentato / consigli / dati mancanti), collegamento al pianificatore.
+- **Strumenti**: CERCA ARTICOLO e DOVE POSSO VENDERE con distanze reali nello stesso sistema e RAGGIUNGI DESTINAZIONE; prezzi sempre come segnalazioni datate, mai in tempo reale.
+- **Integrazione**: ATLANTE → Scheda destinazione; PIANIFICATORE → INFORMAZIONI DESTINAZIONE; scheda → CALCOLA ROTTA. Algoritmi di navigazione e punti salvati invariati; annotazioni e collegamenti confermati salvati a parte.
+- **Snapshot** generato in GitHub Actions da file di gioco (scunpacked), UEX Corp API 2.0 e starmap.space, senza chiavi; una fonte giù riusa l'ultimo snapshot e lo dichiara. Ogni dato con fonte, data/versione e stato.
+- 16 nuovi test sintetici (172 in totale).
+
 ## 0.7.2-web (2026-11-08): scheda della base più semplice
 Solo interfaccia della scheda ATLANTE: nessun cambiamento a dati, motore delle evidenze o navigazione.
 - **Riepilogo in alto**: quattro riquadri CERTE · POSSIBILI · REGIONALI · ALTRE BASI; un clic apre la sezione e ci scorre sopra.
