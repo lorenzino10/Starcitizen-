@@ -1,29 +1,15 @@
-// Sonda temporanea: stampa nel log la forma delle fonti (status, conteggio, campi, 2 esempi).
+// Sonda temporanea (2): valori ambientali e POI di starmap.space.
 const UA = { 'User-Agent': 'NAVCOM-personal/0.8 (+https://github.com/lorenzino10/Starcitizen-)', Accept: 'application/json' };
-const show = (o, n = 1600) => JSON.stringify(o).slice(0, n);
-async function probe(label, url, pick = (j) => j) {
-  try {
-    const r = await fetch(url, { headers: UA });
-    const t = await r.text();
-    let j; try { j = JSON.parse(t); } catch { console.log(`### ${label} ${r.status} non-JSON ${t.slice(0, 300)}`); return; }
-    const d = pick(j);
-    const arr = Array.isArray(d) ? d : Array.isArray(d?.data) ? d.data : Array.isArray(d?.items) ? d.items : null;
-    console.log(`### ${label} ${r.status} ${arr ? `n=${arr.length}` : 'obj'} hdr=${r.headers.get('x-data-source') ?? ''}`);
-    if (arr) {
-      const keys = new Set(); arr.forEach((x) => Object.keys(x ?? {}).forEach((k) => keys.add(k)));
-      console.log('KEYS', [...keys].join(','));
-      console.log('S1', show(arr[0])); console.log('S2', show(arr[Math.floor(arr.length / 2)]));
-    } else console.log('OBJ', show(j, 2500));
-  } catch (e) { console.log(`### ${label} ERR ${e.message}`); }
-}
-const U = 'https://api.uexcorp.uk/2.0/';
-for (const e of ['star_systems', 'planets', 'moons', 'space_stations', 'cities', 'outposts', 'poi', 'terminals', 'jurisdictions', 'categories', 'fuel_prices_all', 'commodities_prices_all', 'items_prices_all', 'commodities', 'refineries_yields']) await probe(`uex ${e}`, U + e);
-await probe('uex items cat1', U + 'items?id_category=1');
+async function get(url) { const r = await fetch(url, { headers: UA }); const t = await r.text(); try { return [r.status, JSON.parse(t)]; } catch { return [r.status, t.slice(0, 200)]; } }
 const SM = 'https://starmap.space/api/v4/';
-await probe('sm oc Stanton', SM + 'oc/index.php?system=Stanton');
-await probe('sm oc Pyro', SM + 'oc/index.php?system=Pyro');
-await probe('sm oc Nyx', SM + 'oc/index.php?system=Nyx');
-await probe('sm pois microTech', SM + 'pois/index.php?planet=microTech');
-await probe('sm pois all', SM + 'pois/index.php');
-const C = 'https://citizenhq.space/api/v1/';
-for (const e of ['health', 'item-shops', 'stations', 'trade/terminals-list', 'fuel-prices', 'items?q=helix']) await probe(`chq ${e}`, C + e);
+for (const s of ['Stanton', 'Pyro', 'Nyx']) {
+  const [st, j] = await get(SM + 'oc/index.php?system=' + s);
+  console.log('### oc', s, st);
+  for (const o of Array.isArray(j) ? j : []) if (o.Gravitation != null || o.SurfaceMinTemp != null || o.AtmosphereBreathable != null || ['Planet', 'Moon'].includes(o.Type))
+    console.log('OC', JSON.stringify({ n: o.ObjectContainer, t: o.Type, min: o.SurfaceMinTemp, max: o.SurfaceMaxTemp, br: o.AtmosphereBreathable, comp: o.AtmosphericComposition, ah: o.AtmosphereHeight, g: o.Gravitation, hab: o.Habitable, bio: o.Biomes, cls: o.Classification, oc: o.Oceans, jur: o.Jurisdiction, aff: o.Affiliation, lz: o.LandingZones, c: o.Comment, sub: o.Submitted }));
+}
+for (const q of ['pois/index.php?planet=Daymar', 'pois/index.php?planet=daymar', 'pois/index.php?itemid=1', 'pois/index.php?planet=%25', 'pois/index.php?planet=Pyro%25', 'pois/index.php?planet=Bloom']) {
+  const [st, j] = await get(SM + q);
+  console.log('### pois', q, st, Array.isArray(j) ? `n=${j.length}` : JSON.stringify(j).slice(0, 200));
+  if (Array.isArray(j) && j.length) { console.log('KEYS', Object.keys(j[0]).join(',')); console.log('P1', JSON.stringify(j[0]).slice(0, 2500)); const a = j.find((x) => x.Zone_Armistice === '1' || x.POI_Services); if (a) console.log('P2', JSON.stringify(a).slice(0, 2500)); }
+}
