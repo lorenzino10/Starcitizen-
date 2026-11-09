@@ -681,3 +681,19 @@ test('LI-18. compatibilità con il database IndexedDB attuale (v2, nessuno schem
   const src = readFileSync(new URL('../js/ui-atlas.js', import.meta.url), 'utf8');
   assert.match(src, /S\.mode = S\.modeChosen && MODES\[S\.mode\] \? S\.mode : 'possibili'/, 'stato salvato senza scelta esplicita (0.7.0/0.7.1) letto con il valore predefinito');
 });
+
+test('GL-1 grafica WebGL: orbite nel piano del sistema, aspetto illustrativo deterministico, riserva 2D', async () => {
+  const { orbitPoints, lookOf } = await import('../js/atlas/gl.js');
+  const pts = orbitPoints({ x: 0, y: 0, z: 0 }, { x: 3e10, y: 4e10, z: 1e6 }, 8);
+  assert.equal(pts.length, 9);
+  for (const p of pts) { assert.ok(Math.abs(Math.hypot(p.x, p.y) - 5e10) < 1); assert.equal(p.z, 1e6); }
+  assert.deepEqual(orbitPoints({ x: 1, y: 1, z: 0 }, { x: 1, y: 1, z: 5 }), [], 'raggio nullo: nessuna orbita inventata');
+  assert.deepEqual(lookOf('Daymar', 'moon', 'stanton', 295000), lookOf('Daymar', 'moon', 'stanton', 295000));
+  assert.equal(lookOf('Crusader', 'planet', 'stanton', 7.45e6).type, 1);
+  assert.equal(lookOf('Pyro V', 'planet', 'pyro', 7.8e6).type, 1);
+  const { readFileSync } = await import('node:fs');
+  const src = readFileSync(new URL('../js/atlas/render.js', import.meta.url), 'utf8');
+  assert.match(src, /if \(L\.ok\)/, 'senza WebGL resta il disegno 2D');
+  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  assert.match(html, /id="at-gl"/); assert.match(html, /illustrative/);
+});

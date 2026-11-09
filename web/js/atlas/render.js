@@ -2,6 +2,7 @@
 // anche dove WebGL manca). Prospettiva 3D con rotazione/zoom/pan, oppure vista 2D ortogonale dall'alto.
 // Disegna solo quando qualcosa cambia.
 import { camera, projector, cluster, placeLabels, pick, frameDistance, compressor, DEG } from './view.js';
+import { GLLayer, orbitPoints } from './gl.js';
 
 const STYLE = {
   star: { c: '#ffd36b', r: 9, shape: 'circle', p: 100 },
@@ -31,8 +32,18 @@ export const LINE_STYLE = {
 export const styleOf = (kind) => STYLE[kind] ?? STYLE.other;
 
 export class AtlasView {
-  constructor(canvas, { onPick = () => {}, onHover = () => {} } = {}) {
+  constructor(canvas, { onPick = () => {}, onHover = () => {}, gl = true } = {}) {
     this.cv = canvas; this.ctx = canvas.getContext('2d');
+    // strato WebGL sotto il canvas 2D (solo grafica); se manca resta il disegno 2D completo
+    this.glLayer = null; this.glOn = false;
+    if (gl && canvas.parentNode && globalThis.document) {
+      try {
+        const g = document.createElement('canvas'); g.className = 'at-gl'; g.setAttribute('aria-hidden', 'true');
+        canvas.parentNode.insertBefore(g, canvas);
+        const L = new GLLayer(g);
+        if (L.ok) { this.glLayer = L; this.glOn = true; canvas.classList.add('at-over'); } else g.remove();
+      } catch (e) { console.warn('WebGL non attivato:', e.message); }
+    }
     this.onPick = onPick; this.onHover = onHover;
     this.cam = camera(); this.scene = { items: [], lines: [], sphere: null, compress: null };
     this.clusters = []; this.plines = []; this.dirty = true; this.anim = null; this.hover = null;
@@ -44,6 +55,8 @@ export class AtlasView {
   }
 
   setScene(scene) { this.scene = { items: [], lines: [], sphere: null, compress: null, ...scene }; this.dirty = true; }
+  /** Grafica WebGL accesa/spenta (se disponibile). */
+  setGL(on) { if (!this.glLayer) return false; this.glOn = !!on; this.glLayer.cv.style.display = this.glOn ? '' : 'none'; this.cv.classList.toggle('at-over', this.glOn); this.dirty = true; return this.glOn; }
   setOrtho(on) { this.cam.ortho = on; if (on) this.cam.pitch = 89.9 * DEG; else if (this.cam.pitch > 80 * DEG) this.cam.pitch = 35 * DEG; this.dirty = true; }
 
   /** Inquadra un insieme di posizioni reali (con animazione). */
@@ -80,10 +93,10 @@ export class AtlasView {
 
   #draw(W, H, dpr) {
     const g = this.ctx; g.setTransform(dpr, 0, 0, dpr, 0, 0);
-    g.fillStyle = '#05090f'; g.fillRect(0, 0, W, H);
     const P = projector(this.cam, W, H);
     const V = (p) => P.project(this.vis(p));
     const sc = this.scene;
+    if (this.glOn) { g.clearRect(0, 0, W, H); this.#gl(P, W, H, dpr); } else { g.fillStyle = '#05090f'; g.fillRect(0, 0, W, H); }
     // globo del corpo (solo se il raggio e' noto)
     if (sc.sphere) this.#sphere(g, P, sc.sphere);
     // collegamenti
@@ -110,16 +123,26 @@ export class AtlasView {
       let back = false;
       if (sc.sphere && it.onSurface) { const n = sub(it.pos, sc.sphere.center); back = dot3(n, sub(P.eye, it.pos)) < 0; }
       const body = it.kind === 'star' || it.kind === 'planet' || it.kind === 'moon' ? 200 : 0; // i corpi celesti guidano sempre il gruppo
-      pts.push({ id: it.id, x: q.x, y: q.y, depth: q.depth, priority: (it.priority ?? st.p) + body + (it.selected ? 1000 : 0) + (it.badge ? 20 : 0) - (back ? 40 : 0), it, st, back });
+      // con la grafica 3D un corpo abbastanza grande e' gia' visibile: il marker diventa discreto
+      let big = false;
+      if (this.glOn && !sc.compress && it.radius && (it.kind === 'planet' || it.kind === 'moon')) {
+        const e = P.project({ x: it.pos.x + P.u.x * it.radius, y: it.pos.y + P.u.y * it.radius, z: it.pos.z + P.u.z * it.radius });
+        big = e.visible && Math.hypot(e.x - q.x, e.y - q.y) > 12;
+      }
+      pts.push({ big, id: it.id, x: q.x, y: q.y, depth: q.depth, priority: (it.priority ?? st.p) + body + (it.selected ? 1000 : 0) + (it.badge ? 20 : 0) - (back ? 40 : 0), it, st, back });
     }
     this.clusters = cluster(pts, sc.clusterRadius ?? 14);
     const draws = [...this.clusters].sort((a, b) => b.lead.depth - a.lead.depth);
     for (const c of draws) {
       const p = c.lead, st = p.st, it = p.it;
       g.globalAlpha = p.back ? 0.35 : 1;
-      if (c.members.length > 1) {
+      if (p.big) {
+        g.strokeStyle = it.selected ? '#ffffff' : 'rgba(207,232,255,0.75)'; g.lineWidth = 1.2;
+        g.beginPath(); g.arc(p.x, p.y, 4, 0, Math.PI * 2); g.stroke();
+        if (c.members.length > 1) { g.fillStyle = 'rgba(207,232,255,0.85)'; g.font = 'bold 10px Consolas, monospace'; g.fillText(`+${c.members.length - 1}`, p.x + 6, p.y + 14); }
+      } else if (c.members.length > 1) {
         const r = Math.min(16, 7 + Math.log2(c.members.length) * 2);
-        g.fillStyle = 'rgba(20,48,74,0.85)'; g.strokeStyle = st.c; g.lineWidth = 1.2;
+        g.fillStyle = this.glOn ? 'rgba(20,48,74,0.55)' : 'rgba(20,48,74,0.85)'; g.strokeStyle = st.c; g.lineWidth = 1.2;
         g.beginPath(); g.arc(p.x, p.y, r, 0, Math.PI * 2); g.fill(); g.stroke();
         g.fillStyle = '#cfe8ff'; g.font = 'bold 10px Consolas, monospace'; g.textAlign = 'center'; g.textBaseline = 'middle';
         g.fillText(String(c.members.length), p.x, p.y); g.textAlign = 'left'; g.textBaseline = 'alphabetic';
@@ -148,15 +171,35 @@ export class AtlasView {
     const c = P.project(s.center); if (!c.visible) return;
     const edge = P.project({ x: s.center.x + P.u.x * s.radius, y: s.center.y + P.u.y * s.radius, z: s.center.z + P.u.z * s.radius });
     const r = Math.hypot(edge.x - c.x, edge.y - c.y);
-    g.fillStyle = 'rgba(30,60,90,0.35)'; g.strokeStyle = '#2a4766'; g.lineWidth = 1;
-    g.beginPath(); g.arc(c.x, c.y, r, 0, Math.PI * 2); g.fill(); g.stroke();
+    if (!this.glOn) {
+      g.fillStyle = 'rgba(30,60,90,0.35)'; g.strokeStyle = '#2a4766'; g.lineWidth = 1;
+      g.beginPath(); g.arc(c.x, c.y, r, 0, Math.PI * 2); g.fill(); g.stroke();
+    }
     // reticolo lat/lon (solo emisfero visibile)
-    g.strokeStyle = 'rgba(63,208,255,0.18)';
+    g.strokeStyle = this.glOn ? 'rgba(160,230,255,0.13)' : 'rgba(63,208,255,0.18)';
     const pt = (lat, lon) => ({ x: s.center.x + s.radius * Math.cos(lat) * Math.cos(lon), y: s.center.y + s.radius * Math.cos(lat) * Math.sin(lon), z: s.center.z + s.radius * Math.sin(lat) });
     const front = (p) => dot3(sub(p, s.center), sub(P.eye, p)) >= 0;
     const poly = (list) => { let open = false; g.beginPath(); for (const p of list) { const q = P.project(p); if (!front(p) || !q.visible) { open = false; continue; } if (!open) { g.moveTo(q.x, q.y); open = true; } else g.lineTo(q.x, q.y); } g.stroke(); };
     for (let la = -60; la <= 60; la += 30) poly(Array.from({ length: 73 }, (_, i) => pt(la * DEG, i * 5 * DEG)));
     for (let lo = 0; lo < 360; lo += 30) poly(Array.from({ length: 37 }, (_, i) => pt((-90 + i * 5) * DEG, lo * DEG)));
+  }
+
+  // scena del livello WebGL: corpi con raggio reale, stella, orbite (posizioni visive)
+  #gl(P, W, H, dpr) {
+    const sc = this.scene; const comp = !!sc.compress;
+    const bodies = []; const orbits = [];
+    const starReal = sc.star?.pos ?? null;
+    for (const it of sc.items) {
+      if (!it.pos || (it.kind !== 'planet' && it.kind !== 'moon')) continue;
+      bodies.push({ pos: this.vis(it.pos), radius: comp ? null : it.radius ?? null, kind: it.kind, name: it.label, system: it.system, selected: it.selected, look: it.look });
+      const center = it.kind === 'planet' ? starReal : it.parentPos;
+      if (center) {
+        const pts = orbitPoints(center, it.pos).map((p) => this.vis(p));
+        orbits.push({ points: pts, color: it.kind === 'planet' ? [0.25, 0.75, 1.0] : [0.5, 0.7, 0.85], alpha: it.selected ? 0.5 : it.kind === 'planet' ? 0.3 : 0.14 });
+      }
+    }
+    const star = sc.star ? { pos: this.vis(sc.star.pos), radius: comp ? null : sc.star.radius ?? null } : null;
+    this.glLayer.render(P, { bodies, star, orbits }, W, H, dpr);
   }
 
   #bind() {

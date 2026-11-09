@@ -135,7 +135,7 @@ export async function initAtlas(app) {
     const discCtx = disc ? { geo, index, obsByPlace, currentPatch: currentPatch(), now: nowIso() } : null;
     const tags = routeTags();
     const items = places.map((p) => {
-      const it = { id: p.id, pos: p.pos, kind: p.kind, label: p.name, selected: p.id === S.selected, badge: badgeFor(p.id, f) };
+      const it = { id: p.id, pos: p.pos, kind: p.kind, label: p.name, selected: p.id === S.selected, badge: badgeFor(p.id, f), radius: p.radius ?? null, system: p.system, parentPos: p.kind === 'moon' ? geo.get(p.parentId)?.pos ?? null : null };
       if (discCtx && !BODY_KINDS.has(p.kind)) { const lv = discoveryScore(p.id, discCtx).level; it.ring = LEVELS[lv].color; }
       if (tags.has(p.id)) it.tag = tags.get(p.id);
       if (p.hidden) it.color = '#3b5266';
@@ -146,7 +146,8 @@ export async function initAtlas(app) {
     if (lvl && (lvl.kind === 'moon' || lvl.kind === 'planet') && lvl.radius) sphere = { center: lvl.pos, radius: lvl.radius };
     if (sphere) for (const it of items) { const sp = geo.surface(it.id); it.onSurface = sp.ok; }
     const compress = $('at-compress').checked ? compressor(lvl?.pos ?? geo.star(S.system)?.pos ?? { x: 0, y: 0, z: 0 }, lvl?.radius ? lvl.radius * 4 : 2e9) : null;
-    view.setScene({ items, lines: buildLines(f), sphere: compress ? null : sphere, compress, clusterRadius: 14 });
+    const star = geo.star(S.system);
+    view.setScene({ items, lines: buildLines(f), sphere: compress ? null : sphere, compress, clusterRadius: 14, star: star?.pos ? { pos: star.pos, radius: star.radius ?? null } : null });
     if (refit) view.frame(places.map((p) => p.pos), lvl?.pos ?? null);
     crumbs();
   }
@@ -801,6 +802,12 @@ export async function initAtlas(app) {
   function bindUi() {
     $('at-home').onclick = () => goSystem(S.system);
     $('at-2d').onchange = () => { view.setOrtho($('at-2d').checked); draw(); };
+    {
+      let pref = true; try { pref = localStorage.getItem('navcom.atlas.gl') !== '0'; } catch { /* */ }
+      const glBox = $('at-gl');
+      if (!view.glLayer) { glBox.checked = false; glBox.disabled = true; glBox.parentElement.title = 'WebGL non disponibile in questo browser: resta la mappa 2D completa'; }
+      else { glBox.checked = view.setGL(pref); glBox.onchange = () => { view.setGL(glBox.checked); try { localStorage.setItem('navcom.atlas.gl', glBox.checked ? '1' : '0'); } catch { /* */ } }; }
+    }
     for (const idb of ['at-compress', 'at-conn', 'at-disc', 'at-l-outpost', 'at-l-station', 'at-l-poi', 'at-l-asteroid', 'at-l-personal', 'at-l-hidden', 'at-l-cargo', 'at-l-terminal']) $(idb).onchange = () => { draw({ refit: idb === 'at-compress' }); if (idb.startsWith('at-l-')) renderTree(); };
     for (const idf of ['at-o-utente', 'at-o-storica', 'at-o-catalogo', 'at-f-company', 'at-f-rank', 'at-f-cat', 'at-f-scu', 'at-f-patch']) $(idf).onchange = () => { draw(); renderCard(); };
     $('at-f-alt').oninput = () => { $('at-f-alt-v').textContent = +$('at-f-alt').value >= 60 ? 'tutti' : $('at-f-alt').value; draw(); };

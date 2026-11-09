@@ -147,6 +147,8 @@ ol.stops ul { margin: 6px 0; padding-left: 18px; line-height: 1.7; }
 .at-right { grid-area: r; overflow: auto; padding: 10px 12px; }
 .at-map { grid-area: m; position: relative; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; min-height: 320px; }
 .at-map canvas { width: 100%; height: 100%; display: block; touch-action: none; }
+.at-map canvas.at-gl { position: absolute; inset: 0; pointer-events: none; }
+.at-map canvas.at-over { position: relative; z-index: 1; background: transparent; }
 .at-hover { position: absolute; left: 10px; top: 10px; pointer-events: none; background: rgba(5, 9, 15, .85); padding: 4px 8px; border-radius: 4px; font-size: .8rem; display: none; max-width: 60%; }
 .at-maplegend { position: absolute; right: 10px; bottom: 6px; margin: 0; font-size: .72rem; text-align: right; max-width: 70%; }
 .at-bottom { grid-area: b; resize: vertical; overflow: auto; min-height: 140px; max-height: 70vh; padding: 8px 12px; }
