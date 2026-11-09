@@ -2,7 +2,7 @@ name: Sonda fonti (temporanea)
 on:
   push:
     branches: [claude/destination-intel]
-    paths: [web/tools/probe_destinations.mjs, .github/workflows/probe.yml]
+    paths: [web/tools/fetch_destinations.mjs, web/js/dest/build.js, .github/workflows/probe.yml]
 permissions:
   contents: read
 jobs:
@@ -12,4 +12,6 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
-      - run: node web/tools/probe_destinations.mjs
+      - run: node web/tools/fetch_atlas.mjs
+      - run: node web/tools/fetch_destinations.mjs
+        env: { DEST_DUMP: '1' }
