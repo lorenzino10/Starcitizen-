@@ -18,8 +18,8 @@ import { initLogistics } from './ui-logistics.js';
 import { initAtlas } from './ui-atlas.js';
 import { initDestinations } from './ui-dest.js';
 
-const VERSION = '0.8.1-web';
-const CACHE_NAME = 'navcom-v0.8.1'; // deve coincidere con CACHE in sw.js
+const VERSION = '0.9.0-web';
+const CACHE_NAME = 'navcom-v0.9.0'; // deve coincidere con CACHE in sw.js
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const ICON = { [STATUS.VERIFIED]: '🟢', [STATUS.DATA]: '🔵', [STATUS.THEORETICAL]: '🟠' };

@@ -1,5 +1,11 @@
 # Registro delle modifiche
 
+## 0.9.0-web (2026-11-09): ATLANTE in WebGL
+- **Grafica 3D** nell'ATLANTE con WebGL scritto da zero (nessuna libreria, nessun CDN): cielo stellato, stella con corona, pianeti e lune come sfere illuminate dalla stella (lato notte, atmosfera, luci di ArcCorp), giganti gassosi a bande, orbite di pianeti e lune.
+- Le superfici sono **illustrative** (procedurali): non sono texture del gioco né dati. Posizioni e raggi sono quelli reali; con la scala compressa le sfere non vengono disegnate.
+- Marker ed etichette restano sopra, nel canvas 2D, e diventano discreti quando la sfera è abbastanza grande: selezione, gruppi, linee delle missioni e distanze invariati.
+- Interruttore **Grafica 3D** nella barra (ricordato); se il browser non ha WebGL resta la mappa 2D completa.
+
 ## 0.8.1-web (2026-11-09): correzioni DESTINATION INTELLIGENCE
 - Filtro dei negozi: il testo non si scrive più al contrario (il campo veniva ridisegnato a ogni tasto e il cursore tornava all'inizio).
 - Ricerca articoli anche in italiano: "fucile" trova i Rifle, "casco" gli Helmet, "caricatore" i Magazine e così via (i nomi UEX sono in inglese).

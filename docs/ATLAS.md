@@ -200,3 +200,7 @@ missione della luna, altra base della stessa luna, tratta interplanetaria e inte
 destinazione dinamica, nessuna promozione da regionale a certa, nessun collegamento fra
 contratti diversi, nessun duplicato nei riepiloghi, elenco anche senza linee, filtri,
 stack executive ed exploratory, contratti dell'utente, regressione, offline, IndexedDB.
+
+## Grafica WebGL (0.9.0)
+
+`web/js/atlas/gl.js` disegna sotto il canvas 2D: cielo, stella, sfere dei corpi con raggio noto (illuminate dalla direzione della stella) e orbite circolari nel piano XY del sistema alla quota del corpo. Tutte le proiezioni sono calcolate in JS in doppia precisione e passate alla GPU in pixel, quindi le distanze di sistema non perdono precisione. Le superfici sono procedurali e illustrative (colori scelti a mano per i corpi di Stanton, variazioni dal nome per gli altri): **non** rappresentano il terreno reale. Nyx non ha raggi: i suoi corpi restano bagliori. Marker, etichette, selezione e linee restano nel canvas 2D (`render.js`). Interruttore "Grafica 3D", preferenza in `localStorage` (`navcom.atlas.gl`).
