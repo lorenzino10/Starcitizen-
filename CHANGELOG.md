@@ -1,5 +1,10 @@
 # Registro delle modifiche
 
+## 0.8.1-web (2026-11-09): correzioni DESTINATION INTELLIGENCE
+- Filtro dei negozi: il testo non si scrive più al contrario (il campo veniva ridisegnato a ogni tasto e il cursore tornava all'inizio).
+- Ricerca articoli anche in italiano: "fucile" trova i Rifle, "casco" gli Helmet, "caricatore" i Magazine e così via (i nomi UEX sono in inglese).
+- Il luogo scelto nell'ATLANTE è già aperto quando passi a DESTINATION INTELLIGENCE (se nel frattempo non ne hai aperto un altro lì).
+
 ## 0.8.0-web (2026-11-09): DESTINATION INTELLIGENCE
 Nuova scheda **📚 DESTINATION INTELLIGENCE**, enciclopedia operativa delle destinazioni. Fonti, matrice campo → fonte, collaudo e lacune in [docs/DESTINATIONS.md](docs/DESTINATIONS.md).
 - **Ricerca universale** su sistemi, corpi, stazioni, città, avamposti, POI, luoghi UEX e punti del DATABASE PUNTI (anche senza XYZ), con abbreviazioni (NB, A18, LV…), numeri romani, omonimi segnalati e sistema · corpo · tipo sempre visibili.

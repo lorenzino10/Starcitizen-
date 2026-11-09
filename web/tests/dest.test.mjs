@@ -60,11 +60,12 @@ const UEX = {
     { id: 103, name: 'Admin - Rovina', type: 'commodity', star_system_name: 'Pyro', id_space_station: 2, date_modified: 1790000000 },
     { id: 104, name: 'Admin - Citta', type: 'commodity', star_system_name: 'Stanton', id_city: 1, date_modified: 1790000000 },
   ],
-  categories: [{ id: 1, type: 'item', section: 'Utility', name: 'Mining Modules' }, { id: 2, type: 'item', section: 'Armor', name: 'Helmets' }],
+  categories: [{ id: 1, type: 'item', section: 'Utility', name: 'Mining Modules' }, { id: 2, type: 'item', section: 'Armor', name: 'Helmets' }, { id: 3, type: 'item', section: 'Personal Weapons', name: 'Rifles' }],
   commodities: [{ id: 1, name: 'Oro', is_illegal: 0 }, { id: 2, name: 'Sostanza Vietata', is_illegal: 1 }],
   items_prices_all: [
     { id_item: 10, id_category: 1, id_terminal: 101, price_buy: 8000, price_sell: 0, item_name: 'Modulo Helix Sintetico', date_modified: 1790000000 },
     { id_item: 11, id_category: 2, id_terminal: 101, price_buy: 1200, item_name: 'Casco Prova', date_modified: 1700000000 },
+    { id_item: 12, id_category: 3, id_terminal: 103, price_buy: 5000, item_name: 'Sintetico P9 Rifle', date_modified: 1790000000 },
   ],
   commodities_prices_all: [
     { id_commodity: 1, id_terminal: 100, price_buy: 0, price_sell: 6000, scu_sell: 50, container_sizes: '1,2,4,8,16', date_modified: 1790000000 },
@@ -311,4 +312,12 @@ test('DI-16 annotazioni e collegamenti in chiavi separate; l\'interfaccia non sc
   const src = readFileSync(new URL('../js/ui-dest.js', import.meta.url), 'utf8');
   assert.match(src, /setMeta\('destNotes'/); assert.match(src, /setMeta\('destLinks'/); assert.match(src, /setMeta\('destSnapshot'/);
   assert.doesNotMatch(src, /\.put\(|\.putMany\(|\.delete\(|replaceAll\(/, 'nessuna scrittura sui punti');
+});
+
+test('DI-17 ricerca articoli in italiano: "fucile" trova i "Rifle" (nomi UEX in inglese)', () => {
+  const ix = world();
+  assert.deepEqual(ix.findItem('fucile').map((r) => r.item), ['Sintetico P9 Rifle']);
+  assert.deepEqual(ix.findItem('rifle').map((r) => r.item), ['Sintetico P9 Rifle']);
+  assert.equal(ix.findItem('fu').length, 0, 'sotto i 3 caratteri nessuna traduzione');
+  assert.deepEqual(ix.shopsOf(ix.card('ruin'), { q: 'fucil' }).map((r) => r.item), ['Sintetico P9 Rifle']);
 });

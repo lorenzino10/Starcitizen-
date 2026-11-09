@@ -76,6 +76,19 @@ export function searchKey(s) {
   return normName(s).split(' ').map((w) => (ROMAN[w] ? String(ROMAN[w]) : w)).join(' ');
 }
 
+// ricerca articoli in italiano: i nomi UEX sono in inglese, quindi "fucile" cerca anche "rifle"
+const IT_EN = [['fucil', ['rifle', 'carbine']], ['cecchin', ['sniper']], ['precision', ['sniper']], ['pistol', ['pistol']], ['mitragliat', ['lmg', 'machine gun', 'smg']], ['mitra', ['smg']], ['pompa', ['shotgun']], ['lanciaraz', ['launcher']], ['lancia', ['launcher']],
+  ['casc', ['helmet']], ['elmett', ['helmet']], ['armatur', ['armor', 'armour']], ['corazz', ['armor', 'core']], ['bust', ['core', 'torso']], ['gamb', ['legs']], ['bracc', ['arms']], ['zain', ['backpack']], ['tuta', ['undersuit', 'suit']],
+  ['caricator', ['magazine', 'mag']], ['munizion', ['ammo', 'magazine', 'battery']], ['granat', ['grenade']], ['coltell', ['knife']], ['medic', ['medpen', 'medgun', 'med']], ['curativ', ['medpen']],
+  ['scudo', ['shield']], ['scudi', ['shield']], ['cannon', ['cannon']], ['missil', ['missile']], ['raffredd', ['cooler']], ['generator', ['power plant']], ['motore quant', ['quantum drive']], ['torrett', ['turret']], ['mirin', ['scope', 'optic']], ['laser minerar', ['mining laser']], ['multitool', ['multi-tool', 'multitool']], ['trattore', ['tractor']]];
+function itemQueryKeys(q) {
+  const qk = searchKey(q); if (!qk) return [];
+  const keys = [qk]; const low = String(q).toLowerCase().trim();
+  if (low.length >= 3) for (const [it, en] of IT_EN) if (it.startsWith(low) || low.startsWith(it)) keys.push(...en.map(searchKey));
+  return [...new Set(keys)];
+}
+const itemMatches = (keys, name) => { if (!keys.length) return true; const n = searchKey(name); return keys.some((k) => n.includes(k)); };
+
 export class DestIndex {
   /**
    * @param geo   database geografico dell'atlante (Geo) - SENZA punti personali (li gestisce l'indice)
@@ -480,14 +493,14 @@ export class DestIndex {
   /** Articoli segnalati ai terminali di una destinazione. Catalogo, mai disponibilita' in tempo reale. */
   shopsOf(card, { q = '', cat = '', sort = 'nome' } = {}) {
     if (!this.market) return null;
-    const qk = searchKey(q);
+    const qk = itemQueryKeys(q);
     const out = [];
     for (const t of card.terminals) {
       for (const r of this.priceByTerminal.get(t.id) ?? []) {
         const it = this.market.items[r[0]]; if (!it) continue;
         const [ck, cl] = itemCategory(this.market.categories[it[1]], it[0]);
         if (cat && ck !== cat) continue;
-        if (qk && !searchKey(it[0]).includes(qk)) continue;
+        if (!itemMatches(qk, it[0])) continue;
         out.push({ item: it[0], itemId: r[0], uuid: it[2], cat: cl, catKey: ck, uexCat: this.market.categories[it[1]] ? `${this.market.categories[it[1]].section} › ${this.market.categories[it[1]].name}` : null, buy: r[2] || null, sell: r[3] || null, date: iso(r[4]), terminal: t.name, terminalId: t.id, version: t.gameVersion });
       }
     }
@@ -510,8 +523,9 @@ export class DestIndex {
   /** CERCA ARTICOLO: dove e' segnalata la vendita, con prezzo, negozio e destinazione. */
   findItem(q, { system = null, limit = 200 } = {}) {
     if (!this.market) return null;
-    const qk = searchKey(q); if (qk.length < 2) return [];
-    const items = Object.entries(this.market.items).filter(([, it]) => searchKey(it[0]).includes(qk));
+    if (searchKey(q).length < 2) return [];
+    const qk = itemQueryKeys(q);
+    const items = Object.entries(this.market.items).filter(([, it]) => itemMatches(qk, it[0]));
     const ids = new Set(items.map(([id]) => +id));
     const out = [];
     for (const r of this.market.itemPrices) {
