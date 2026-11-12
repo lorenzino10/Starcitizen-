@@ -10,6 +10,7 @@ import { LEVELS, observationsByPlace, placeStats, discoveryScore, rankDiscovery 
 import { stopsOf, moveStop, measure, planFromStack, manifestOf } from './atlas/plan.js';
 import { AtlasView, fmtLen } from './atlas/render.js';
 import { compressor } from './atlas/view.js';
+import { jumpLinks } from './missions/finder.js';
 import { holdChartSvg } from './logistics/manifest.js';
 import { RANKS, STATUS, normalizeContract, rankIndex, patchAge } from './logistics/model.js';
 import { normalizeObservation } from './logistics/intel.js';
@@ -95,7 +96,7 @@ export async function initAtlas(app) {
     const start = $('at-s-start')?.value ? geo.resolveName($('at-s-start').value)?.id ?? null : (l.pos ? geo.resolveName(l.pos)?.id ?? null : null);
     const dest = $('at-s-dest')?.value ? geo.resolveName($('at-s-dest').value)?.id ?? null : null;
     const nav = app.navOptions();
-    return { geo, capacity: num($('at-s-cap')?.value) ?? l.capacity, ship: l.ship, ranks: myRanks(), start, end: null, destination: dest, maxStops: num($('at-s-stops')?.value), drive: nav.drive, prep: nav.prep, hideIllegal: $('at-b-illegal')?.checked ?? true };
+    return { geo, links: jumpLinks(geo), capacity: num($('at-s-cap')?.value) ?? l.capacity, ship: l.ship, ranks: myRanks(), start, end: null, destination: dest, maxStops: num($('at-s-stops')?.value), drive: nav.drive, prep: nav.prep, hideIllegal: $('at-b-illegal')?.checked ?? true };
   };
 
   // ------------------------------------------------------------------ mappa
@@ -446,6 +447,8 @@ export async function initAtlas(app) {
         ${H?.moon && H.moon.id !== id ? `<p><b>Sulla stessa luna (${esc(H.moon.name)})</b></p>${otherBasesHtml(X.otherBases.luna, 'ob-luna')}` : ''}
         ${H?.planet && H.planet.id !== id ? `<p><b>Nella regione di ${esc(H.planet.name)}</b></p>${otherBasesHtml(X.otherBases.pianeta, 'ob-pianeta')}` : ''}`}</details>
       ${expSection('sistema', `ASSOCIATE SOLO ALL'INTERO SISTEMA ${esc(SYSTEM_LABEL[p.system]).toUpperCase()}`, X.system, { note: 'Non attribuite a questa base: nessuna indicazione di luna, pianeta o base nei dati.', hidden: hid('sistema') })}
+      <details class="at-sec" data-sec="compat"><summary>COMPATIBILI CON LE ${S.sel.size} MISSIONI SELEZIONATE</summary>
+        ${S.sel.size ? '<p class="hint">Missioni che partono, arrivano o sono offerte qui e si possono accumulare con la selezione: esito del motore di stacking (capacità, casse, precedenze, gradi). 🟢 certo · 🟡 ipotetico (va trovata nel MobiGlas) · ⚪ dati mancanti.</p><button class="mini" id="at-c-compat">Calcola</button><div id="at-c-compat-out"></div>' : '<p class="hint">Nessuna missione selezionata: spuntane una qui o nel Mission Finder della PLANCIA.</p>'}</details>
       <p class="hint">Le missioni dei modelli vengono offerte in un luogo e il gioco assegna il punto di ritiro e di consegna al momento: il luogo dell'offerta non è mai copiato nel ritiro. CERTO — POSSIBILE — REGIONALE — SCONOSCIUTO restano sempre distinti.</p>
     </div>`;
     bindCard(id);
@@ -535,6 +538,7 @@ export async function initAtlas(app) {
     $('at-c-conn').onclick = () => { $('at-conn').checked = !$('at-conn').checked; draw(); renderCard(); };
     $('at-c-explo') && ($('at-c-explo').onclick = () => runExplo(id));
     $('at-c-diag') && ($('at-c-diag').onclick = () => diagDialog(id));
+    $('at-c-compat') && ($('at-c-compat').onclick = () => runCompat(id));
     R.querySelectorAll('[data-jump]').forEach((b) => { b.onclick = () => { const d = R.querySelector(`details[data-sec="${b.dataset.jump}"]`); if (!d) return; d.open = true; S.open.add(b.dataset.jump); d.scrollIntoView({ behavior: 'smooth', block: 'start' }); }; });
     $('at-show-illegal') && ($('at-show-illegal').onclick = () => { $('at-b-illegal').checked = false; draw(); renderCard(); });
     R.querySelectorAll('input[name=at-mode]').forEach((x) => { x.onchange = () => { S.mode = x.value; S.modeChosen = true; saveUi(); draw(); renderCard(); }; });
@@ -543,6 +547,19 @@ export async function initAtlas(app) {
     R.querySelectorAll('[data-page]').forEach((b) => { b.onclick = () => { const k = b.dataset.page; if (k === 'dest') return; S.page[k] = (S.page[k] ?? (b.dataset.step ? 10 : MAX_LIST)) + (b.dataset.step ? 10 : MAX_LIST); renderCard(); }; });
     R.querySelectorAll('[data-force]').forEach((b) => { b.onclick = () => { S.force.add(b.dataset.force); draw(); renderCard(); }; });
     $('at-dest-go') && ($('at-dest-go').onclick = () => { const d = parseDest($('at-dest-q').value); S.dest = d ? { label: d.label } : null; S.page.dest = MAX_LIST; saveUi(); runDest(id); });
+  }
+  /** Missioni di questo luogo (uscita, entrata, offerta) accumulabili con la selezione. */
+  function runCompat(id) {
+    const out = $('at-c-compat-out'); out.innerHTML = '<p class="hint">Calcolo in corso…</p>';
+    setTimeout(() => {
+      const list = [...S.sel].map((x) => index.byId.get(x)).filter(Boolean);
+      const at = index.at.get(id);
+      const here = new Set(at ? [...at.out, ...at.in, ...(at.offer ?? [])].map((e) => e.v.id) : []);
+      const rows = suggestStack(list, index, stackCtx(), { limit: 200 }).filter((x) => here.has(x.v.id) && x.result.cls !== 'incompatibile').slice(0, 30);
+      out.innerHTML = rows.length ? rows.map((x) => `<div class="at-ms"><span class="at-cls">${CLASSES[x.result.cls].icon} ${CLASSES[x.result.cls].label}</span> ${ORIGIN[x.v.origin].icon} ${esc(x.v.title)} <span class="hint">${esc(x.v.company ?? '')} · ${fmtA(x.v.reward)} · ${x.types.map((t) => `${t.label}${t.sure ? '' : ' (possibile)'}`).join(', ')}</span> <button class="mini" data-add="${esc(x.v.id)}">Aggiungi</button></div>`).join('')
+        : '<p class="hint">Nessuna missione di questo luogo risulta accumulabile con la selezione secondo i dati.</p>';
+      out.querySelectorAll('[data-add]').forEach((b) => { b.onclick = () => { toggleSel(b.dataset.add, true); b.disabled = true; }; });
+    }, 20);
   }
   function toggleSel(id, on) { if (on) S.sel.add(id); else S.sel.delete(id); S.plan = null; saveUi(); renderSel(); draw(); }
 
@@ -690,7 +707,7 @@ export async function initAtlas(app) {
   function renderPlan() {
     const p = S.plan;
     if (!p) { $('at-b-plan').innerHTML = '<p class="hint">Nessun piano: valuta una selezione con POSSO ACCUMULARLE? e crea il piano, oppure apri un piano salvato.</p>'; return; }
-    const legOf = geoLegOf(geo, { drive: app.navOptions().drive, prep: app.navOptions().prep });
+    const legOf = geoLegOf(geo, { drive: app.navOptions().drive, prep: app.navOptions().prep, links: jumpLinks(geo) });
     const mes = measure(p.seq, legOf, p.start);
     const man = manifestOf(p);
     const stops = stopsOf(p.seq);
@@ -847,6 +864,13 @@ export async function initAtlas(app) {
   return {
     async refresh() { if (stale) { stale = false; await reloadUser(); fillFilters(); renderTree(); draw(); if (S.selected) renderCard(); renderSel(); } else draw(); },
     select, geo: () => geo, index: () => index,
+    /** per la PLANCIA: viste missione, contesto di stacking e selezione condivisa */
+    views: () => views, stackCtx: () => stackCtx(), meta: () => meta,
+    selection: () => [...S.sel].filter((id) => index?.byId.has(id)),
+    toggle: (id, on) => { if (!index?.byId.has(id)) return false; toggleSel(id, on); return true; },
+    clearSelection: () => { S.sel.clear(); S.plan = null; saveUi(); renderSel(); draw(); },
+    async reloadUser() { await reloadUser(); renderSel(); draw(); },
+    showPlan: (r) => { const c = stackCtx(); S.plan = planFromStack(r, { capacity: c.capacity, ship: c.ship, start: c.start ? { id: c.start, name: geo.get(c.start).name, system: geo.get(c.start).system } : null }); draw(); activateBottom('plan'); },
     /** selettore SISTEMA della barra in alto */
     system(sys) { if (geo && sys && sys !== S.system) goSystem(sys, { fromApp: true }); },
   };

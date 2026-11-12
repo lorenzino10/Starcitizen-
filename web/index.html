@@ -19,18 +19,21 @@
 </header>
 
 <nav class="tabs" role="tablist">
-  <button role="tab" data-tab="home" class="active">⌂ PLANCIA</button>
-  <button role="tab" data-tab="atlas">🌌 ATLANTE</button>
-  <button role="tab" data-tab="dest">📚 DESTINATION INTELLIGENCE</button>
-  <button role="tab" data-tab="plan">🛰 PIANIFICATORE</button>
-  <button role="tab" data-tab="db">🗂 DATABASE PUNTI</button>
-  <button role="tab" data-tab="reverse">⌖ RICERCA INVERSA QT</button>
-  <button role="tab" data-tab="route">🧭 ROTTA DA STAZIONE</button>
-  <button role="tab" data-tab="halo">☄ AARON HALO</button>
-  <button role="tab" data-tab="points">📍 PUNTI PERSONALI</button>
-  <button role="tab" data-tab="saved">💾 ROTTE SALVATE</button>
-  <button role="tab" data-tab="logistics">📦 LOGISTICS</button>
-  <button role="tab" data-tab="data">🗄 DATI E IMPOSTAZIONI</button>
+  <span class="tabgroup"><small>OPERAZIONI</small>
+    <button role="tab" data-tab="home" class="active">⌂ PLANCIA</button>
+    <button role="tab" data-tab="atlas">🌌 ATLANTE</button>
+    <button role="tab" data-tab="logistics">📦 LOGISTICS</button></span>
+  <span class="tabgroup"><small>NAVIGAZIONE</small>
+    <button role="tab" data-tab="plan">🛰 PIANIFICATORE</button>
+    <button role="tab" data-tab="reverse">⌖ RICERCA INVERSA</button>
+    <button role="tab" data-tab="route">🧭 DA STAZIONE</button>
+    <button role="tab" data-tab="halo">☄ AARON HALO</button></span>
+  <span class="tabgroup"><small>ARCHIVI</small>
+    <button role="tab" data-tab="dest">📚 DESTINAZIONI</button>
+    <button role="tab" data-tab="db">🗂 DATABASE PUNTI</button>
+    <button role="tab" data-tab="points">📍 PUNTI PERSONALI</button>
+    <button role="tab" data-tab="saved">💾 ROTTE SALVATE</button>
+    <button role="tab" data-tab="data">🗄 DATI</button></span>
 </nav>
 
 <main>
@@ -38,53 +41,53 @@
 
 <!-- PIANIFICATORE --------------------------------------------------------->
 <section id="tab-home" class="tab active">
-  <div id="hm-bar" class="hm-bar" aria-label="Stato NAVCOM"></div>
-  <div class="hm-search panel">
-    <div class="row"><input id="hm-q" type="search" placeholder="Cerca: città, stazione, pianeta, avamposto, negozio, servizio, articolo, minerale, tuo punto… (es. New Babbage, ARC-L1, Helix, ospedale)" autocomplete="off">
-      <select id="hm-q-sys"><option value="">tutti i sistemi</option><option value="stanton">Stanton</option><option value="pyro">Pyro</option><option value="nyx">Nyx</option></select></div>
-    <div id="hm-results" class="hm-results" hidden></div>
+  <div id="hm-bar" class="cb-strip" aria-label="Stato NAVCOM"></div>
+  <div id="cb-ship" class="panel cb-ship" hidden>
+    <div class="row wrap"><label style="flex:1 1 320px">Nave <input id="hm-ship-in" list="di-ships" placeholder="es. RSI Constellation Mk V Centaurus"></label></div>
+    <div id="hm-ship"></div>
+    <details><summary>Le tue note sulla nave</summary><textarea id="hm-ship-note" rows="2" placeholder="es. quantum drive sostituito, componenti montati…"></textarea>
+      <button id="hm-ship-note-save" class="small">Salva nota</button> <span id="hm-ship-note-msg" class="hint"></span></details>
   </div>
-  <div class="hm-grid">
-    <section class="panel hm-panel">
-      <h2>Posizione attuale</h2>
-      <div id="hm-pos"></div>
-      <div class="row wrap"><button id="hm-paste" class="primary">📋 INCOLLA /SHOWLOCATION</button><button id="hm-pos-save" class="small">salva nel DATABASE PUNTI</button><button id="hm-pos-clear" class="small" hidden>cancella posizione</button></div>
-      <details id="hm-pos-manual"><summary>Inserisci a mano</summary>
-        <textarea id="hm-pos-text" rows="2" placeholder="Coordinates: x:12345.6 y:-7890.1 z:42.0   oppure   12345.6 -7890.1 42.0"></textarea>
-        <div class="row wrap"><label>Sistema <select id="hm-pos-sys"></select></label>
-          <label>Unità dei 3 numeri <select id="hm-pos-unit"><option value="m">metri (come /showlocation)</option><option value="km">km</option></select></label>
-          <button id="hm-pos-set">IMPOSTA</button></div>
+  <div class="cb-main">
+    <div class="cb-map at-map">
+      <canvas id="cb-canvas" aria-label="Mappa del sistema"></canvas>
+      <div class="at-hover" id="cb-hover"></div>
+      <div class="cb-maptools">
+        <select id="cb-sys" title="Sistema mostrato"><option value="auto">sistema della posizione</option><option value="stanton">Stanton</option><option value="pyro">Pyro</option><option value="nyx">Nyx</option></select>
+        <label class="check"><input type="checkbox" id="cb-out">avamposti</label>
+        <label class="check"><input type="checkbox" id="cb-2d">2D</label>
+        <button class="small" id="cb-fit" title="Inquadra posizione, destinazione e missioni">⌖ inquadra</button>
+      </div>
+      <p class="at-maplegend cb-legend" id="cb-legend"></p>
+    </div>
+    <aside class="cb-side panel" id="cb-side">
+      <div class="hm-search">
+        <div class="row"><input id="hm-q" type="search" placeholder="Cerca luogo, servizio, negozio, articolo, minerale, tuo punto…" autocomplete="off">
+          <select id="hm-q-sys" style="flex:0 1 90px"><option value="">tutti</option><option value="stanton">Stanton</option><option value="pyro">Pyro</option><option value="nyx">Nyx</option></select></div>
+        <div id="hm-results" class="hm-results" hidden></div>
+      </div>
+      <div id="cb-ctx"></div>
+      <details id="hm-pos-box" class="cb-sec"><summary id="hm-pos-sum">POSIZIONE</summary>
+        <div id="hm-pos"></div>
+        <details id="hm-pos-manual"><summary class="hint">Inserisci a mano</summary>
+          <textarea id="hm-pos-text" rows="2" placeholder="Coordinates: x:12345.6 y:-7890.1 z:42.0   oppure   12345.6 -7890.1 42.0"></textarea>
+          <div class="row wrap"><label>Sistema <select id="hm-pos-sys"></select></label>
+            <label>Unità <select id="hm-pos-unit"><option value="m">metri (/showlocation)</option><option value="km">km</option></select></label>
+            <button id="hm-pos-set" class="small">IMPOSTA</button></div>
+        </details>
+        <div class="row wrap"><button id="hm-pos-save" class="small">salva nel DATABASE PUNTI</button><button id="hm-pos-clear" class="small" hidden>cancella posizione</button></div>
+        <div id="hm-pos-msg" class="hint"></div>
       </details>
-      <div id="hm-pos-msg" class="hint"></div>
-    </section>
-    <section class="panel hm-panel">
-      <div class="row"><h2>Mini mappa del sistema</h2><select id="hm-map-mode" style="flex:0 1 220px"><option value="local">dintorni della posizione</option><option value="system">intero sistema</option></select></div>
-      <canvas id="hm-map" class="hm-map" title="Apri la mappa completa (ATLANTE)"></canvas>
-      <p id="hm-map-note" class="hint"></p>
-    </section>
-    <section class="panel hm-panel">
-      <h2>Rotta attiva e destinazione</h2>
-      <div id="hm-route"></div>
-      <div class="row wrap"><button id="hm-go-plan" class="primary">🛰 APRI PIANIFICATORE</button><button id="hm-go-info">📚 INFORMAZIONI DESTINAZIONE</button><button id="hm-go-map">🌌 VISUALIZZA MAPPA</button><button id="hm-dest-clear" class="small" hidden>togli destinazione</button></div>
-    </section>
-    <section class="panel hm-panel">
-      <h2>Nave</h2>
-      <input id="hm-ship-in" list="di-ships" placeholder="es. RSI Constellation Mk V Centaurus, MISC Prospector">
-      <div id="hm-ship"></div>
-      <details><summary>Le tue note sulla nave</summary><textarea id="hm-ship-note" rows="2" placeholder="es. quantum drive sostituito, componenti montati, assicurazione…"></textarea>
-        <button id="hm-ship-note-save" class="small">Salva nota</button> <span id="hm-ship-note-msg" class="hint"></span></details>
-    </section>
-    <section class="panel hm-panel hm-wide">
-      <h2>Accesso rapido</h2>
-      <div id="hm-quick" class="hm-quick"></div>
-      <div id="hm-list-box"></div>
-    </section>
-    <section class="panel hm-panel hm-wide">
-      <h2>Attività recente</h2>
-      <div id="hm-activity"></div>
-      <p class="hint"><span id="hm-persist"></span> <button id="hm-export" class="small">Esporta stato plancia (JSON)</button></p>
-    </section>
+    </aside>
   </div>
+  <div class="cb-bottom panel" id="cb-bottom">
+    <div class="cb-tabs"><button data-cbt="missions" class="active">MISSIONI</button><button data-cbt="cargo">CARGO<span id="cb-cargo-n"></span></button><button data-cbt="activity">ATTIVITÀ</button>
+      <span id="ms-prov" class="cb-prov"></span></div>
+    <div id="cb-b-missions" class="cbb active"><div id="ms-warn"></div><div id="mf-form"></div><div id="mf-out"></div><div id="mf-cmp"></div></div>
+    <div id="cb-b-cargo" class="cbb"></div>
+    <div id="cb-b-activity" class="cbb"><div id="hm-activity"></div><p class="hint"><span id="hm-persist"></span> <button id="hm-export" class="small">Esporta stato plancia (JSON)</button></p></div>
+  </div>
+  <dialog id="cb-dlg" class="cb-dlg"></dialog>
 </section>
 
 <section id="tab-atlas" class="tab">

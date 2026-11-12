@@ -60,7 +60,7 @@ export function nameIndex(places) {
   };
 }
 
-const sysOf = (debugName) => {
+export const sysOf = (debugName) => {
   const m = /(?:^|_)(Stanton|Pyro|Nyx)(?:_|\d|$)/i.exec(debugName ?? '');
   return m ? m[1].toLowerCase() : null;
 };
@@ -68,7 +68,7 @@ const sysOf = (debugName) => {
 /** Titolo leggibile: i segnaposto ~mission(X) con un solo valore noto vengono sostituiti. */
 const PLACEHOLDER = /^<=.*=>$/;
 /** Datore della missione; i segnaposto non inizializzati dei file ("<= UNINITIALIZED =>") diventano null. */
-const giverOf = (c) => [c.MissionGiver, c.Faction?.Name].map((x) => (x == null ? null : String(x).trim())).find((x) => x && !PLACEHOLDER.test(x)) ?? null;
+export const giverOf = (c) => [c.MissionGiver, c.Faction?.Name].map((x) => (x == null ? null : String(x).trim())).find((x) => x && !PLACEHOLDER.test(x)) ?? null;
 
 export function cleanTitle(title, tokens = {}, fallback = 'Missione') {
   if (!title || /^<=.*=>$/.test(String(title).trim())) return fallback;
@@ -80,8 +80,8 @@ export function cleanTitle(title, tokens = {}, fallback = 'Missione') {
 
 // Ruolo dal nome del pool (PickupLocationBP, DropoffLocation2BP, Pickup1, DropOff1, DeliveryLocationBP);
 // numero dal token (Location = 1, Location1 = 2, Destination2 = 3; Pickup1 = 1).
-const role = (key) => (/^pick/i.test(key) ? 'pickup' : /^(drop|deliver)/i.test(key) ? 'dropoff' : null);
-const slotOf = (key, purpose) => {
+export const role = (key) => (/^pick/i.test(key) ? 'pickup' : /^(drop|deliver)/i.test(key) ? 'dropoff' : null);
+export const slotOf = (key, purpose) => {
   const t = /^(?:Location|Destination)(\d*)$/.exec(purpose ?? '');
   if (t) return (t[1] ? Number(t[1]) : 0) + 1;
   return Number(/(\d+)/.exec(purpose ?? key)?.[1] ?? 1);
