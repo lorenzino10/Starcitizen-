@@ -125,6 +125,8 @@ export async function initAtlas(app) {
     const best = es.some((e) => e.v.origin === 'utente') ? 'utente' : es.some((e) => e.v.origin === 'storica') ? 'storica' : es.some((e) => e.strength === 'fisso') ? 'catalogo' : null;
     return best ? { color: { utente: '#5dff9d', storica: '#3fd0ff', catalogo: '#ffb347' }[best] } : null;
   }
+  // colore della stella: solo resa grafica (Pyro e' una nana rossa instabile)
+  const STAR_TINT = { stanton: [1.0, 0.78, 0.42], pyro: [1.0, 0.42, 0.2], nyx: [0.85, 0.7, 1.0] };
   function draw({ refit = false } = {}) {
     if (!geo) return;
     const f = filters();
@@ -147,7 +149,7 @@ export async function initAtlas(app) {
     if (sphere) for (const it of items) { const sp = geo.surface(it.id); it.onSurface = sp.ok; }
     const compress = $('at-compress').checked ? compressor(lvl?.pos ?? geo.star(S.system)?.pos ?? { x: 0, y: 0, z: 0 }, lvl?.radius ? lvl.radius * 4 : 2e9) : null;
     const star = geo.star(S.system);
-    view.setScene({ items, lines: buildLines(f), sphere: compress ? null : sphere, compress, clusterRadius: 14, star: star?.pos ? { pos: star.pos, radius: star.radius ?? null } : null });
+    view.setScene({ items, lines: buildLines(f), sphere: compress ? null : sphere, compress, clusterRadius: 14, star: star?.pos ? { pos: star.pos, radius: star.radius ?? null, color: STAR_TINT[S.system] ?? null } : null });
     if (refit) view.frame(places.map((p) => p.pos), lvl?.pos ?? null);
     crumbs();
   }
@@ -225,7 +227,7 @@ export async function initAtlas(app) {
   /** Selezione di un luogo: pianeti e lune aprono la loro vista; le basi aprono la scheda. */
   function select(id, { fly = true } = {}) {
     const p = geo.get(id); if (!p) return;
-    if (p.system !== S.system) S.system = p.system;
+    if (p.system !== S.system) { S.system = p.system; app.onSystem?.(p.system); }
     S.selected = id; S.conn = null;
     app.onSelect?.(id);
     let refit = false;
@@ -242,7 +244,7 @@ export async function initAtlas(app) {
     renderCard();
   }
   const frameHint = (p) => { const b = geo.bodyOf(p.id); if (b?.radius && b.id !== p.id) return b.radius * 3.2; return p.kind === 'outpost' || p.kind === 'city' ? 1.5e5 : p.kind === 'station' ? 2e6 : 5e8; };
-  function goSystem(sys) { S.system = sys; S.level = null; S.selected = null; saveUi(); draw({ refit: true }); renderTree(); $('at-right').innerHTML = '<p class="hint">Seleziona un luogo sulla mappa, nella ricerca o nella gerarchia.</p>'; }
+  function goSystem(sys, { fromApp = false } = {}) { if (!fromApp) app.onSystem?.(sys); S.system = sys; S.level = null; S.selected = null; saveUi(); draw({ refit: true }); renderTree(); $('at-right').innerHTML = '<p class="hint">Seleziona un luogo sulla mappa, nella ricerca o nella gerarchia.</p>'; }
 
   function crumbs() {
     const sysLinks = SYSTEMS.map((s) => `<a data-sys="${s}" ${s === S.system ? 'style="font-weight:700"' : ''}>${SYSTEM_LABEL[s]}</a>`).join(' · ');
@@ -833,5 +835,7 @@ export async function initAtlas(app) {
   return {
     async refresh() { if (stale) { stale = false; await reloadUser(); fillFilters(); renderTree(); draw(); if (S.selected) renderCard(); renderSel(); } else draw(); },
     select, geo: () => geo, index: () => index,
+    /** selettore SISTEMA della barra in alto */
+    system(sys) { if (geo && sys && sys !== S.system) goSystem(sys, { fromApp: true }); },
   };
 }

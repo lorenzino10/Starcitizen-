@@ -198,7 +198,7 @@ export class AtlasView {
         orbits.push({ points: pts, color: it.kind === 'planet' ? [0.25, 0.75, 1.0] : [0.5, 0.7, 0.85], alpha: it.selected ? 0.5 : it.kind === 'planet' ? 0.3 : 0.14 });
       }
     }
-    const star = sc.star ? { pos: this.vis(sc.star.pos), radius: comp ? null : sc.star.radius ?? null } : null;
+    const star = sc.star ? { pos: this.vis(sc.star.pos), radius: comp ? null : sc.star.radius ?? null, color: sc.star.color ?? null } : null;
     this.glLayer.render(P, { bodies, star, orbits }, W, H, dpr);
   }
 

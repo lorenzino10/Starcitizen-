@@ -18,8 +18,8 @@ import { initLogistics } from './ui-logistics.js';
 import { initAtlas } from './ui-atlas.js';
 import { initDestinations } from './ui-dest.js';
 
-const VERSION = '0.9.0-web';
-const CACHE_NAME = 'navcom-v0.9.0'; // deve coincidere con CACHE in sw.js
+const VERSION = '0.9.1-web';
+const CACHE_NAME = 'navcom-v0.9.1'; // deve coincidere con CACHE in sw.js
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const ICON = { [STATUS.VERIFIED]: '🟢', [STATUS.DATA]: '🔵', [STATUS.THEORETICAL]: '🟠' };
@@ -579,6 +579,7 @@ function showTab(name) {
 async function switchSystem(sys) {
   system = settings.system = sys; saveSettings();
   $('system').value = sys;
+  atlas?.system?.(sys);
   lastRoute = lastHalo = lastReverse = null; $('v-out').innerHTML = ''; $('r-out').innerHTML = '<p class="hint">Scegli partenza e destinazione, poi premi CALCOLA ROTTA.</p>'; $('h-out').innerHTML = '';
   $('p-out').innerHTML = '<p class="hint">Inserisci P e premi CALCOLA PIANO.</p>';
   await ensureData(); refreshPoints();
@@ -636,7 +637,9 @@ async function main() {
         planTo: (pt) => planner.planToPoint(pt),
         openDestination: (id) => dest?.open(id),
         onSelect: (id) => dest?.follow(id),
+        onSystem: (sys) => { if (sys !== system) switchSystem(sys); },
       });
+      atlas?.system?.(system); // stesso sistema del selettore in alto
     } catch (e) { console.error(e); $('at-banner').innerHTML = `<p class="err">ATLANTE non avviato: ${esc(e.message)}</p>`; }
   } else $('at-banner').innerHTML = '<p class="err">ATLANTE non disponibile: serve l\'archivio della logistica.</p>';
   try {
