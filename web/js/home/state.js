@@ -48,6 +48,9 @@ export class HomeState {
   /** d {id, name, system, pos|null, kind} */
   setDestination(d) { this.s.destination = d ? { ...d, at: new Date().toISOString() } : null; return this.#saveState('destination'); }
   setPlan(p) { this.s.lastPlan = p; return this.#saveState('plan'); }
+  /** Preferenze del Command Bridge (filtri del Mission Finder, vista in basso): stessa chiave homeState. */
+  get bridge() { return this.s.bridge ?? {}; }
+  setBridge(patch) { this.s.bridge = { ...(this.s.bridge ?? {}), ...patch }; return this.#saveState('bridge'); }
 
   addRecent(e) { this.recent = pushRecent(this.recent, { ...e, at: new Date().toISOString() }); return this.#put(META_KEYS.recent, this.recent, 'recent'); }
   isFav(id) { return this.fav.some((f) => f.id === id); }

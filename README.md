@@ -12,7 +12,14 @@ comandi e non interagisce con l'anti-cheat. Le posizioni si inseriscono a mano.
 
 App: <https://lorenzino10.github.io/Starcitizen-/>
 
-**⌂ PLANCIA** (1.0.0, prima scheda): posizione da `/showlocation`, mini mappa reale, nave
+**⌂ COMMAND BRIDGE** (2.0.0, prima scheda): mappa centrale col motore dell'ATLANTE, pannello
+contestuale (prossimo salto, distanza, interruzione QT, CALCOLA ROTTA, PREPARA SPEDIZIONE) e
+barre MISSIONI / CARGO / ATTIVITÀ. **Mission Database 2.0**: 4.197 modelli di missione
+dalla Star Citizen Wiki API e da scunpacked, aggiornati ogni giorno da GitHub Actions, con versione,
+build, fonte e data sempre visibili. Sono modelli di catalogo, non offerte disponibili ora.
+Dettagli: [docs/MISSIONS.md](docs/MISSIONS.md).
+
+**⌂ PLANCIA** (1.0.0, ora dentro il Command Bridge): posizione da `/showlocation`, mini mappa reale, nave
 (configurazione di serie), rotta attiva dal pianificatore, ricerca universale (luoghi, punti
 personali, servizi, negozi, articoli, merci, minerali), accesso rapido e attività recente.
 Nessuna telemetria: mostra solo quello che inserisci e le date delle fonti. Struttura delle

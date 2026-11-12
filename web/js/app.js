@@ -20,8 +20,8 @@ import { initDestinations } from './ui-dest.js';
 import { initHome } from './ui-home.js';
 import { HomeState } from './home/state.js';
 
-const VERSION = '1.0.0-web';
-const CACHE_NAME = 'navcom-v1.0.0'; // deve coincidere con CACHE in sw.js
+const VERSION = '2.0.0-web';
+const CACHE_NAME = 'navcom-v2.0.0'; // deve coincidere con CACHE in sw.js
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const ICON = { [STATUS.VERIFIED]: '🟢', [STATUS.DATA]: '🔵', [STATUS.THEORETICAL]: '🟠' };
@@ -661,7 +661,7 @@ async function main() {
   try {
     home = await initHome({
       $, esc, VERSION, store, state: homeState, showTab, system: () => system, points: () => points,
-      pointsDb: () => pointsUi?.db ?? null, dest: () => dest, atlas: () => atlas,
+      pointsDb: () => pointsUi?.db ?? null, dest: () => dest, atlas: () => atlas, logistics: () => logistics,
       planTo: (pt) => planner.planToPoint(pt),
       openAtlas: (id) => { showTab('atlas'); atlas?.select(id); },
       openInDatabase: (draft) => pointsUi?.openDraft(draft),

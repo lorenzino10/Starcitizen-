@@ -1,5 +1,27 @@
 # Registro delle modifiche
 
+## 2.0.0-web (2026-11-12): COMMAND BRIDGE e MISSION DATABASE 2.0
+Dettagli, fonti valutate, confronto dei conteggi e limiti in [docs/MISSIONS.md](docs/MISSIONS.md).
+- **Command Bridge** (nuova home al posto della PLANCIA):
+  - Striscia in alto con nave, sistema, posizione, destinazione, stato della rotta e versione dei dati; scheda nave espandibile.
+  - Mappa centrale col motore dell'ATLANTE: corpi, stazioni, posizione, destinazione, tratta QT del pianificatore, missioni selezionate. La geometria reale è distinta da quella schematica, con legenda.
+  - Pannello contestuale: prossimo salto, distanza, interruzione QT, avvisi; pulsanti CALCOLA ROTTA, APRI DESTINAZIONE, PREPARA SPEDIZIONE. Senza destinazione mostra ricerca e suggerimenti.
+  - Barre MISSIONI / CARGO / ATTIVITÀ.
+  - Navigazione raggruppata in OPERAZIONI / NAVIGAZIONE / ARCHIVI: tutte le 12 schede restano.
+- **Mission Database 2.0**:
+  - Fonti: Star Citizen Wiki API come primaria (versione LIVE, gruppi di varianti), scunpacked come secondaria.
+  - Copertura: 4.197 modelli rilasciati di tutte le categorie, contro i 1.520 di solo trasporto di prima.
+  - Pipeline giornaliera in GitHub Actions con catalogo versionato, validazione, diff, storico e fallback allo snapshot precedente, sempre dichiarato.
+  - Nel browser: copia locale in IndexedDB e riga di provenienza sempre visibile (versione, build, fonte, data, numero di modelli).
+  - Classi CATALOGATA / POTENZIALMENTE DISPONIBILE / OSSERVATA NEL MOBIGLAS / OSSERVAZIONE STORICA / ACCETTATA / COMPLETATA / FALLITA. Nessun "disponibile ora".
+  - Ricerca missioni con DA / VERSO / TIPO / RICOMPENSA MINIMA / NAVE / CARICO / RISCHIO; tratte certe separate da quelle variabili; missioni interstellari attraverso la rete dei salti.
+  - Stacking dal Command Bridge: le tratte fra sistemi passano dai gateway, con distanze reali e tempo nel tunnel lasciato vuoto.
+  - Registrazione di un contratto visto nel MobiGlas partendo dal modello, con screenshot facoltativo e avvisi sulle incongruenze.
+  - ATLANTE: nuova sezione "Compatibili con le missioni selezionate" nella scheda della stazione.
+- **Correzioni**: le missioni interstellari assegnate a un solo sistema scendono da 32 a 2 (i due rimasti hanno pool davvero vuoti).
+- **Dati personali**: nessuna migrazione dello schema. Punti, rotte, piani cargo, missioni personali, annotazioni e preferenze restano intatti.
+- Test: 13 nuovi (MD-1..MD-12), 213 in totale (203 superati, 10 todo già presenti, 0 falliti).
+
 ## 1.0.0-web (2026-11-12): PLANCIA, mappe a livelli e ricerca universale
 Nuova home **⌂ PLANCIA** (Command Dashboard). Dettagli, fonti valutate e lacune in [docs/DASHBOARD.md](docs/DASHBOARD.md).
 - **Barra di stato**:

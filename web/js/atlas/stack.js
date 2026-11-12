@@ -7,6 +7,7 @@
 import { routeContracts } from '../logistics/optimizer.js';
 import { jumpTime } from '../core/qtdrive.js';
 import { plannable } from './missions.js';
+import { systemsPath } from '../missions/build.js';
 
 export const CLASSES = {
   eseguibile: { icon: '🟢', label: 'ESEGUIBILE', note: 'contratti già accettati, vincoli noti rispettati' },
@@ -25,7 +26,7 @@ export const SCENARIOS = {
 };
 
 /** Funzione tratta sul database geografico (luoghi canonici). */
-export function geoLegOf(geo, { drive = null, prep = null } = {}) {
+export function geoLegOf(geo, { drive = null, prep = null, links = null } = {}) {
   const cache = new Map();
   return (a, b) => {
     const k = `${a.id}>${b.id}`;
@@ -35,12 +36,32 @@ export function geoLegOf(geo, { drive = null, prep = null } = {}) {
     else {
       const pa = geo.get(a.id), pb = geo.get(b.id);
       if (!pa?.pos || !pb?.pos) r = { distance: null, time: null, interstellar: false, known: false, note: 'posizione non nota' };
-      else if (pa.system !== pb.system) r = { distance: null, time: null, interstellar: true, known: false, note: `tratta interstellare ${pa.system} → ${pb.system}: passa dal jump point, distanza non sommabile` };
+      else if (pa.system !== pb.system) r = (links && jumpLeg(geo, pa, pb, links)) || { distance: null, time: null, interstellar: true, known: false, note: `tratta interstellare ${pa.system} → ${pb.system}: passa dal jump point, distanza non sommabile` };
       else { const d = geo.distance(pa, pb); const t = drive ? jumpTime(d, drive) : null; r = { distance: d, time: t === null ? null : t + (prep ?? 0), interstellar: false, known: true, note: null }; }
     }
     cache.set(k, r);
     return r;
   };
+}
+
+/**
+ * Tratta fra sistemi sulla rete dei salti di NAVCOM (gateway "<Sistema> Gateway"): distanze reali
+ * fino al gateway di uscita e dal gateway di arrivo, sommate. Il tunnel del salto NON e' incluso
+ * (lunghezza e durata non sono nei dati), quindi il tempo resta non calcolabile.
+ * links = [{from, to}] (sistemi). null se manca un gateway o un collegamento.
+ */
+export function jumpLeg(geo, pa, pb, links) {
+  const path = systemsPath(pa.system, pb.system, links); if (!path || path.length < 2) return null;
+  const label = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+  const gw = (sys, toward) => geo.inSystem(sys).find((p) => p.kind === 'gateway' && p.pos && p.name.toLowerCase() === `${label(toward)} gateway`.toLowerCase()) ?? null;
+  let d = 0; let cur = pa; const via = [];
+  for (let i = 0; i < path.length - 1; i++) {
+    const exit = gw(path[i], path[i + 1]), entry = gw(path[i + 1], path[i]);
+    if (!exit || !entry) return null;
+    d += geo.distance(cur, exit); via.push(`${exit.name} (${label(path[i])})`); cur = entry;
+  }
+  d += geo.distance(cur, pb);
+  return { distance: d, time: null, interstellar: true, known: true, jumps: path.length - 1, via, note: `via ${via.join(' → ')}: ${path.length - 1} salt${path.length > 2 ? 'i' : 'o'}; distanze reali fino e dai gateway, tunnel del salto non incluso, tempo non calcolabile` };
 }
 
 const placeRef = (geo, id) => { const p = geo.get(id); return { id, name: p?.name ?? id, system: p?.system ?? null }; };
@@ -160,7 +181,7 @@ export function evaluateStack(views, ctx) {
   const base = { views, contracts, missing, assumed, reasons };
   if (reasons.length) return { ...base, cls: 'incompatibile' };
   if (missing.length) return { ...base, cls: 'verificare' };
-  const legOf = geoLegOf(ctx.geo, { drive: ctx.drive, prep: ctx.prep });
+  const legOf = geoLegOf(ctx.geo, { drive: ctx.drive, prep: ctx.prep, links: ctx.links ?? null });
   const r = routeContracts(contracts, { capacity: ctx.capacity, start: ctx.start ? placeRef(ctx.geo, ctx.start) : null, end: ctx.end ? placeRef(ctx.geo, ctx.end) : null, legOf, maxStops: ctx.maxStops ?? null, priority: ctx.priority ?? 'profitto' });
   if (!r.ok) return { ...base, cls: 'incompatibile', reasons: [r.reason] };
   const warn = [];
