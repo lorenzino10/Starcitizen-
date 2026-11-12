@@ -1,5 +1,37 @@
 # Registro delle modifiche
 
+## 1.0.0-web (2026-11-12): PLANCIA, mappe a livelli e ricerca universale
+Nuova home **⌂ PLANCIA** (Command Dashboard). Dettagli, fonti valutate e lacune in [docs/DASHBOARD.md](docs/DASHBOARD.md).
+- **Barra di stato**:
+  - Mostra versione, sistema, nave, posizione, destinazione, ora locale e la data di ciascuna fonte dati.
+  - Nessun indicatore di connessione o telemetria.
+- **Posizione attuale**:
+  - Si imposta con INCOLLA /SHOWLOCATION, rispettando il permesso degli appunti, oppure a mano.
+  - Mostra corpo e marker QT più vicini, ora della lettura e origine; senza dati, POSIZIONE NON IMPOSTATA.
+  - Pulsante per salvarla nel DATABASE PUNTI.
+- **Mini mappa** con posizioni reali, in due viste: dintorni o intero sistema. Mostra posizione, destinazione e ultima rotta; la quota Z non è rappresentata ed è dichiarato. Un clic apre l'ATLANTE.
+- **Nave**:
+  - Predefinita: RSI Constellation Mk V Centaurus; si può scegliere tra tutte quelle dei file di gioco.
+  - Mostra produttore, ruolo, cargo, serbatoi, autonomia e velocità QT, componenti di serie e dimensioni, più le tue note.
+  - Nessuno stato di carburante, scudi o danni.
+- **Rotta attiva e destinazione**:
+  - Il riepilogo arriva dal PIANIFICATORE senza ricalcoli: percorso QT, salti, uscite, residuo, stato di verifica.
+  - La distanza è in linea retta solo nello stesso sistema.
+  - APRI PIANIFICATORE usa la posizione come partenza se il sistema è lo stesso.
+- **Ricerca universale**: luoghi, punti personali, servizi, negozi, articoli, merci e minerali, ciascuno con il tipo indicato.
+- **Accesso rapido**:
+  - Città, stazioni, avamposti, negozi, ospedali, raffinerie, mining: solo luoghi documentati, con il motivo.
+  - Collegamenti a pianificatore, ricerca inversa, database, mappe, rotte salvate e preferiti.
+- **Attività recente**: destinazioni consultate, rotte salvate, punti modificati, preferiti e visite (solo quelle confermate da te).
+- **DESTINATION INTELLIGENCE**:
+  - Nuova sezione "Struttura e negozi" in vista **schematica** dichiarata: luoghi figli dalla starmap e negozi raggruppati per l'area scritta nel nome del terminale UEX.
+  - Scheda negozio con POSIZIONE INTERNA NON DOCUMENTATA e MOSTRA SULLA MAPPA, che porta al luogo che contiene il negozio.
+  - Nuovi pulsanti nella scheda: 🎯 Imposta destinazione, ☆ preferito, ✓ Segna come visitata.
+- **Navi**: aggiunti produttore, dimensioni, velocità QT e componenti di serie dai file di gioco.
+- **Dati personali**: lo stato della plancia sta in chiavi separate dello stesso archivio. Schema invariato, nessun punto toccato. Backup con "Esporta stato plancia (JSON)".
+- La PLANCIA è la scheda iniziale; l'ATLANTE resta a un clic.
+- Test: 16 nuovi test sintetici, 190 in totale.
+
 ## 0.9.2-web (2026-11-12): luoghi sovrapposti nell'ATLANTE
 - Clic su un gruppo di luoghi praticamente nello stesso punto (es. Megumi Refueling e un tuo punto personale P6 L5, a pochi metri): prima la mappa zoomava all'infinito senza aprire nulla, ora compare l'elenco per scegliere quale aprire.
 

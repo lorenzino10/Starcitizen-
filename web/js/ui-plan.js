@@ -190,6 +190,8 @@ export function initPlanner(app) {
       const res = await runPlanner({ systems, target: inputs.target, start: inputs.start, opts: inputs.opts });
       last = { inputs, res, sel: 0, view: '3D', ms: performance.now() - t0, compareWith, model: systems[inputs.target.system]?.model, systems, geo: null, geoSel: 0 };
       render();
+      // riepilogo per la PLANCIA: stesso risultato del pianificatore, nessun ricalcolo
+      try { if (res.plans?.length) app.onPlan?.({ at: new Date().toISOString(), ...planPayload(res.plans[0], inputs), path: res.plans[0].steps.map((s) => ({ kind: s.kind, system: s.system, from: s.from?.pos ? { name: s.from.name, pos: toArray(s.from.pos) } : null, to: s.to?.pos ? { name: s.to.name, pos: toArray(s.to.pos) } : null, drop: s.dropPoint ? toArray(s.dropPoint) : null })) }); } catch (e) { console.warn('riepilogo rotta non inviato', e); }
     } catch (e) {
       out.innerHTML = `<p class="err">${esc(e.message)}</p>`;
     } finally { $('p-go').disabled = false; }
@@ -564,8 +566,13 @@ export function initPlanner(app) {
     $('p-x').value = String(pt.x); $('p-y').value = String(pt.y); $('p-z').value = String(pt.z);
     $('p-paste').value = '';
     $('p-x').dataset.name = pt.name;
+    // partenza dalla posizione della PLANCIA solo se richiesta esplicitamente (stesso sistema)
+    if (pt.start && pt.start.system === pt.system && !$('p-keep-start').checked) {
+      const r = document.querySelector('input[name="p-start-src"][value="xyz"]'); r.checked = true; r.dispatchEvent(new Event('change'));
+      document.querySelector('input[name="p-sunit"][value="1"]').checked = true;
+      $('p-sx').value = String(pt.start.x); $('p-sy').value = String(pt.start.y); $('p-sz').value = String(pt.start.z); $('p-spaste').value = '';
+    } else if (!$('p-keep-start').checked && radioVal('p-start-src') !== 'none') {
     // la partenza precedente resta solo se l'hai chiesto esplicitamente
-    if (!$('p-keep-start').checked && radioVal('p-start-src') !== 'none') {
       const none = document.querySelector('input[name="p-start-src"][value="none"]');
       none.checked = true;
       none.dispatchEvent(new Event('change'));

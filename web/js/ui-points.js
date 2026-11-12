@@ -363,7 +363,9 @@ export async function initPointsDb(app) {
     setUnit(d.unit);
     $('db-x').value = d.x; $('db-y').value = d.y; $('db-z').value = d.z;
     draftSource = d.source ?? 'manuale';
-    $('db-form-title').textContent = 'Nuovo punto dalle coordinate del pianificatore';
+    if (d.name) $('db-name').value = d.name;
+    if (d.notes) $('db-notes').value = d.notes;
+    $('db-form-title').textContent = d.title ?? 'Nuovo punto dalle coordinate del pianificatore';
     $('db-form-msg').innerHTML = '<span class="hint">Dai un nome al punto, completa i campi e premi Salva.</span>';
     app.showTab('db');
     $('db-name').focus();

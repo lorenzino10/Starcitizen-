@@ -12,7 +12,14 @@ comandi e non interagisce con l'anti-cheat. Le posizioni si inseriscono a mano.
 
 App: <https://lorenzino10.github.io/Starcitizen-/>
 
-**🌌 ATLANTE** (0.7.0, prima scheda): mappa 3D di Stanton, Pyro e Nyx
+**⌂ PLANCIA** (1.0.0, prima scheda): posizione da `/showlocation`, mini mappa reale, nave
+(configurazione di serie), rotta attiva dal pianificatore, ricerca universale (luoghi, punti
+personali, servizi, negozi, articoli, merci, minerali), accesso rapido e attività recente.
+Nessuna telemetria: mostra solo quello che inserisci e le date delle fonti. Struttura delle
+località in vista schematica dichiarata (nessuna planimetria interna inventata). Dettagli:
+[docs/DASHBOARD.md](docs/DASHBOARD.md).
+
+**🌌 ATLANTE** (0.7.0): mappa 3D di Stanton, Pyro e Nyx
 (rotazione, zoom, pan, ricerca, vista 2D, globo dei corpi con raggio noto) con
 1.822 luoghi e 1.520 modelli di missione di trasporto presi dai file di gioco
 (scunpacked-data, patch 4.10.2). Per ogni luogo: missioni in uscita, in arrivo,
