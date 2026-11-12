@@ -1,5 +1,9 @@
 # Registro delle modifiche
 
+## 0.9.1-web (2026-11-12): ATLANTE e selettore SISTEMA allineati
+- Il selettore SISTEMA in alto ora cambia anche l'ATLANTE, e viceversa (link Stanton · Pyro · Nyx o ricerca di un luogo in un altro sistema). All'avvio l'atlante si apre sul sistema del selettore.
+- Colore della stella per sistema nella grafica 3D (solo resa: Pyro rossastra, Nyx violacea).
+
 ## 0.9.0-web (2026-11-09): ATLANTE in WebGL
 - **Grafica 3D** nell'ATLANTE con WebGL scritto da zero (nessuna libreria, nessun CDN): cielo stellato, stella con corona, pianeti e lune come sfere illuminate dalla stella (lato notte, atmosfera, luci di ArcCorp), giganti gassosi a bande, orbite di pianeti e lune.
 - Le superfici sono **illustrative** (procedurali): non sono texture del gioco né dati. Posizioni e raggi sono quelli reali; con la scala compressa le sfere non vengono disegnate.

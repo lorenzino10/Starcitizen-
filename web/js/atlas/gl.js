@@ -244,7 +244,7 @@ export class GLLayer {
         gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
         const a = quad(this.pStar);
         gl.uniform2f(this.pStar.loc.uCenter, c.x, c.y); gl.uniform1f(this.pStar.loc.uSize, size);
-        gl.uniform3f(this.pStar.loc.uA, 1.0, 0.72, 0.35); gl.uniform3f(this.pStar.loc.uSeed, 3.1, 7.7, 1.3);
+        gl.uniform3f(this.pStar.loc.uA, ...(scene.star.color ?? [1.0, 0.72, 0.35])); gl.uniform3f(this.pStar.loc.uSeed, 3.1, 7.7, 1.3);
         gl.uniform1f(this.pStar.loc.uCore, core / size); gl.uniform1f(this.pStar.loc.uT, t * 0.05);
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4); gl.disableVertexAttribArray(a);
       }
