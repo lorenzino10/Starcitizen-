@@ -257,6 +257,21 @@ export function buildMarket(raw, { fetchedAt = null } = {}) {
 }
 
 /** Navi per PREPARA SPEDIZIONE (file di gioco): carburante, quantum, stiva, ruolo. Nessun valore stimato. */
+function stockLoadout(loadout) {
+  const out = { quantumDrive: [], powerPlant: [], cooler: [], shield: [], fuelTankQt: [] };
+  const map = [['QuantumDrive', 'quantumDrive'], ['PowerPlant', 'powerPlant'], ['Cooler', 'cooler'], ['Shield', 'shield'], ['QuantumFuelTank', 'fuelTankQt']];
+  const walk = (n) => {
+    if (Array.isArray(n)) { n.forEach(walk); return; }
+    if (!n || typeof n !== 'object') return;
+    const t = String(n.Type ?? '');
+    const k = map.find(([pre]) => t.startsWith(`${pre}.`))?.[1];
+    if (k && n.Name && !PLACEHOLDER.test(n.Name)) out[k].push(`${n.Name}${n.Grade ? ` (grado ${n.Grade})` : ''}`);
+    for (const v of Object.values(n)) if (v && typeof v === 'object') walk(v);
+  };
+  walk(loadout ?? []);
+  return Object.fromEntries(Object.entries(out).map(([k, v]) => [k, [...new Set(v)]]));
+}
+
 export function buildExpeditionShips(ships, { patch = null } = {}) {
   const out = new Map();
   for (const s of ships ?? []) {
@@ -268,6 +283,11 @@ export function buildExpeditionShips(ships, { patch = null } = {}) {
       vehicle: !!s.IsVehicle && !s.IsSpaceship, crew: s.Crew ?? null, cargo: num(s.Cargo),
       fuelH: num(s.Propulsion?.FuelCapacity), fuelQt: num(s.QuantumTravel?.FuelCapacity), qtRange: num(s.QuantumTravel?.Range),
       mining: /mining/i.test(`${s.Role ?? ''} ${s.Career ?? ''}`), patch,
+      maker: s.Manufacturer?.Name ?? null, makerCode: s.Manufacturer?.Code ?? null,
+      dims: s.Length ? { l: num(s.Length), w: num(s.Width), h: num(s.Height) } : null,
+      qtSpeed: num(s.QuantumTravel?.Speed), qtSpool: num(s.QuantumTravel?.SpoolTime),
+      // componenti della configurazione DI SERIE dei file di gioco (la tua puo' essere diversa)
+      stock: stockLoadout(s.Loadout),
     });
   }
   return [...out.values()].sort((a, b) => a.name.localeCompare(b.name));

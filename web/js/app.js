@@ -17,9 +17,11 @@ import { initPointsDb } from './ui-points.js';
 import { initLogistics } from './ui-logistics.js';
 import { initAtlas } from './ui-atlas.js';
 import { initDestinations } from './ui-dest.js';
+import { initHome } from './ui-home.js';
+import { HomeState } from './home/state.js';
 
-const VERSION = '0.9.2-web';
-const CACHE_NAME = 'navcom-v0.9.2'; // deve coincidere con CACHE in sw.js
+const VERSION = '1.0.0-web';
+const CACHE_NAME = 'navcom-v1.0.0'; // deve coincidere con CACHE in sw.js
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const ICON = { [STATUS.VERIFIED]: '🟢', [STATUS.DATA]: '🔵', [STATUS.THEORETICAL]: '🟠' };
@@ -41,6 +43,8 @@ let planner = null;
 let atlas = null;
 let pointsUi = null;
 let dest = null;
+let home = null;
+let homeState = null;
 
 // ---------------------------------------------------------------- utilita'
 function parseNum(s) {
@@ -120,6 +124,7 @@ function refreshPoints() {
   fillSelect($('h-dest'), qt);
   renderPoints(); renderSaved(); renderData();
   planner?.refresh();
+  home?.refresh();
 }
 
 
@@ -574,6 +579,7 @@ function showTab(name) {
   window.dispatchEvent(new Event('resize'));
   if (name === 'atlas') atlas?.refresh();
   if (name === 'dest') dest?.show();
+  if (name === 'home') home?.show();
 }
 
 async function switchSystem(sys) {
@@ -614,6 +620,7 @@ async function main() {
     ensureSystemData, system: () => system, points: () => points,
     openInDatabase: (draft) => pointsUi?.openDraft(draft),
     openDestinationPoint: (pt) => dest?.openPoint(pt),
+    onPlan: (p) => homeState?.setPlan(p),
   });
   try {
     pointsUi = await initPointsDb({
@@ -622,6 +629,7 @@ async function main() {
       onChange: () => refreshPoints(),
     });
   } catch (e) { console.error(e); } // il resto di NAVCOM (e l'aggiornamento della cache) continua a funzionare
+  homeState = await new HomeState(() => pointsUi?.db ?? null).load();
   let logistics = null;
   try {
     logistics = await initLogistics({
@@ -647,8 +655,20 @@ async function main() {
       $, esc, showTab, pointsDb: () => pointsUi?.db ?? null, atlasGeo: () => atlas?.geo?.() ?? null,
       planTo: (pt) => planner.planToPoint(pt),
       openAtlas: (id) => { showTab('atlas'); atlas?.select(id); },
+      home: homeState, onOpen: (d) => homeState.addRecent(d),
     });
   } catch (e) { console.error(e); $('di-banner').innerHTML = `<p class="err">DESTINATION INTELLIGENCE non avviata: ${esc(e.message)}</p>`; }
+  try {
+    home = await initHome({
+      $, esc, VERSION, store, state: homeState, showTab, system: () => system, points: () => points,
+      pointsDb: () => pointsUi?.db ?? null, dest: () => dest, atlas: () => atlas,
+      planTo: (pt) => planner.planToPoint(pt),
+      openAtlas: (id) => { showTab('atlas'); atlas?.select(id); },
+      openInDatabase: (draft) => pointsUi?.openDraft(draft),
+    });
+  } catch (e) { console.error(e); $('hm-bar').innerHTML = `<p class="err">PLANCIA non avviata: ${esc(e.message)}</p>`; }
+  // la ricerca universale della PLANCIA usa l'archivio delle destinazioni: caricato subito, in background
+  dest?.ensure().then(() => home?.refresh()).catch((e) => console.warn(e));
   // cache offline (service worker) e precaricamento della libreria grafica locale
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
   ensurePlotly().then(cacheLoadedFiles);

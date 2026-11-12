@@ -19,7 +19,8 @@
 </header>
 
 <nav class="tabs" role="tablist">
-  <button role="tab" data-tab="atlas" class="active">🌌 ATLANTE</button>
+  <button role="tab" data-tab="home" class="active">⌂ PLANCIA</button>
+  <button role="tab" data-tab="atlas">🌌 ATLANTE</button>
   <button role="tab" data-tab="dest">📚 DESTINATION INTELLIGENCE</button>
   <button role="tab" data-tab="plan">🛰 PIANIFICATORE</button>
   <button role="tab" data-tab="db">🗂 DATABASE PUNTI</button>
@@ -36,7 +37,57 @@
 <div id="banner"></div>
 
 <!-- PIANIFICATORE --------------------------------------------------------->
-<section id="tab-atlas" class="tab active">
+<section id="tab-home" class="tab active">
+  <div id="hm-bar" class="hm-bar" aria-label="Stato NAVCOM"></div>
+  <div class="hm-search panel">
+    <div class="row"><input id="hm-q" type="search" placeholder="Cerca: città, stazione, pianeta, avamposto, negozio, servizio, articolo, minerale, tuo punto… (es. New Babbage, ARC-L1, Helix, ospedale)" autocomplete="off">
+      <select id="hm-q-sys"><option value="">tutti i sistemi</option><option value="stanton">Stanton</option><option value="pyro">Pyro</option><option value="nyx">Nyx</option></select></div>
+    <div id="hm-results" class="hm-results" hidden></div>
+  </div>
+  <div class="hm-grid">
+    <section class="panel hm-panel">
+      <h2>Posizione attuale</h2>
+      <div id="hm-pos"></div>
+      <div class="row wrap"><button id="hm-paste" class="primary">📋 INCOLLA /SHOWLOCATION</button><button id="hm-pos-save" class="small">salva nel DATABASE PUNTI</button><button id="hm-pos-clear" class="small" hidden>cancella posizione</button></div>
+      <details id="hm-pos-manual"><summary>Inserisci a mano</summary>
+        <textarea id="hm-pos-text" rows="2" placeholder="Coordinates: x:12345.6 y:-7890.1 z:42.0   oppure   12345.6 -7890.1 42.0"></textarea>
+        <div class="row wrap"><label>Sistema <select id="hm-pos-sys"></select></label>
+          <label>Unità dei 3 numeri <select id="hm-pos-unit"><option value="m">metri (come /showlocation)</option><option value="km">km</option></select></label>
+          <button id="hm-pos-set">IMPOSTA</button></div>
+      </details>
+      <div id="hm-pos-msg" class="hint"></div>
+    </section>
+    <section class="panel hm-panel">
+      <div class="row"><h2>Mini mappa del sistema</h2><select id="hm-map-mode" style="flex:0 1 220px"><option value="local">dintorni della posizione</option><option value="system">intero sistema</option></select></div>
+      <canvas id="hm-map" class="hm-map" title="Apri la mappa completa (ATLANTE)"></canvas>
+      <p id="hm-map-note" class="hint"></p>
+    </section>
+    <section class="panel hm-panel">
+      <h2>Rotta attiva e destinazione</h2>
+      <div id="hm-route"></div>
+      <div class="row wrap"><button id="hm-go-plan" class="primary">🛰 APRI PIANIFICATORE</button><button id="hm-go-info">📚 INFORMAZIONI DESTINAZIONE</button><button id="hm-go-map">🌌 VISUALIZZA MAPPA</button><button id="hm-dest-clear" class="small" hidden>togli destinazione</button></div>
+    </section>
+    <section class="panel hm-panel">
+      <h2>Nave</h2>
+      <input id="hm-ship-in" list="di-ships" placeholder="es. RSI Constellation Mk V Centaurus, MISC Prospector">
+      <div id="hm-ship"></div>
+      <details><summary>Le tue note sulla nave</summary><textarea id="hm-ship-note" rows="2" placeholder="es. quantum drive sostituito, componenti montati, assicurazione…"></textarea>
+        <button id="hm-ship-note-save" class="small">Salva nota</button> <span id="hm-ship-note-msg" class="hint"></span></details>
+    </section>
+    <section class="panel hm-panel hm-wide">
+      <h2>Accesso rapido</h2>
+      <div id="hm-quick" class="hm-quick"></div>
+      <div id="hm-list-box"></div>
+    </section>
+    <section class="panel hm-panel hm-wide">
+      <h2>Attività recente</h2>
+      <div id="hm-activity"></div>
+      <p class="hint"><span id="hm-persist"></span> <button id="hm-export" class="small">Esporta stato plancia (JSON)</button></p>
+    </section>
+  </div>
+</section>
+
+<section id="tab-atlas" class="tab">
   <div id="at-banner"></div>
   <div class="at-toolbar">
     <span class="at-crumbs" id="at-crumbs"></span>

@@ -119,11 +119,15 @@ export async function initDestinations(app) {
           <button id="di-route" ${canRoute ? '' : 'disabled'} title="${canRoute ? 'Apre il pianificatore con queste coordinate' : 'Nessuna coordinata XYZ di sistema: NAVCOM non la genera'}">🧭 CALCOLA ROTTA</button>
           ${c.place ? '<button id="di-atlas" class="small">🌌 Apri nell\'atlante</button>' : ''}
           ${c.personal && c.personal.id !== '__xyz' ? '<button id="di-db" class="small">🗂 Apri nel DATABASE PUNTI</button>' : ''}
+          ${app.home && c.id !== 'pt:__xyz' ? `<button id="di-setdest" class="small" title="Imposta come destinazione della PLANCIA">🎯 Imposta destinazione</button>
+          <button id="di-fav" class="small" title="Preferiti della PLANCIA">${app.home.isFav(c.id) ? '★ preferito' : '☆ preferito'}</button>
+          <button id="di-visit" class="small" title="Registra una visita solo se ci sei stato davvero">✓ Segna come visitata</button>` : ''}
         </div>
       </div>
       ${!canRoute ? `<p class="hint">CALCOLA ROTTA non disponibile: ${c.personal ? 'il punto non ha XYZ di sistema (le coordinate planetarie non vengono convertite)' : 'la destinazione non ha coordinate XYZ di sistema nei dati'}.</p>` : ''}
       ${c.candidates?.length ? `<div class="warn">Questo luogo UEX non è abbinato con certezza alla starmap del gioco (${esc(ix.uexLocs[c.linkKey]?.candidatesWhy ?? 'nessuna corrispondenza')}). Se lo riconosci, conferma: ${c.candidates.map((x) => `<button class="small di-link" data-to="${esc(x.id)}">è ${esc(x.name)} (${esc(x.systemLabel)}${x.body ? ` › ${esc(x.body)}` : ''})</button>`).join(' ')}</div>` : ''}
       ${tiles(c)}
+      ${app.home?.lastVisit(c.id) ? `<p class="hint">Ultima visita segnata da te: ${fmtDate(app.home.lastVisit(c.id).at)}</p>` : ''}
       ${c.description ? `<details class="di-sec"><summary>Descrizione del gioco</summary><p class="hint">${esc(c.description)}</p><p class="hint">Testo dei file di gioco: non è stato usato per ricavare servizi o condizioni.</p></details>` : ''}
       ${c.own ? `<details class="di-sec" open><summary>Il tuo punto</summary>${ftable(c.own)}</details>` : ''}
       <details class="di-sec" open><summary>2 · Ambiente e sopravvivenza</summary>
@@ -135,6 +139,7 @@ export async function initDestinations(app) {
       <details class="di-sec" open><summary>2 · Sicurezza e rischi</summary>${ftable(c.security)}
         <p class="warn">Nessun pericolo documentato non significa località sicura. Armistizio e livello di sicurezza sono campi indipendenti.</p></details>
       <details class="di-sec"><summary>3 · Hangar, atterraggi e servizi</summary>${servicesHtml(c)}</details>
+      ${structHtml(c)}
       <details class="di-sec" id="di-shops-sec"><summary>4 · Negozi e articoli (${ix.market ? ix.shopsOf(c).length : '…'})</summary><div id="di-shops"></div></details>
       <details class="di-sec" id="di-trade-sec"><summary>5 · Commercio: cosa compro e vendo qui (${ix.market ? ix.tradeOf(c).length : '…'})</summary><div id="di-trade"></div></details>
       <details class="di-sec"><summary>6 · Mining, esplorazione e risorse</summary>${miningHtml(c)}</details>
@@ -145,7 +150,51 @@ export async function initDestinations(app) {
         <textarea id="di-note" rows="3" placeholder="note personali su questa destinazione (restano nel browser, gli aggiornamenti non le toccano)">${esc(note?.text ?? '')}</textarea>
         <button id="di-note-save" class="small">Salva nota</button> <span class="hint" id="di-note-msg">${note ? `salvata il ${fmtDate(note.at)}` : ''}</span></details>`;
     bindCard(c);
+    app.onOpen?.(destOf(c));
     if (scroll) $('di-card').scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }
+
+  const destOf = (c) => ({ id: c.id, name: c.title, system: c.place?.system ?? c.desc.system ?? null, pos: c.xyz ? { x: c.xyz.x, y: c.xyz.y, z: c.xyz.z } : null, kind: c.desc.kindLabel });
+
+  /** Struttura della localita': SCHEMATICA, mai una planimetria. Aree = nomi dei terminali UEX. */
+  function structHtml(c) {
+    if (!c.place) return '';
+    const st = ix.structure(c.place.id); if (!st) return '';
+    const nTerm = st.areas.reduce((n, a) => n + a.terms.length, 0);
+    if (!st.children.length && !nTerm) return '';
+    const kids = st.children.filter((k) => !k.hidden);
+    return `<details class="di-sec" id="di-struct-sec"><summary>3b · Struttura e negozi <span class="di-schem">vista schematica</span> (${kids.length} luoghi interni · ${nTerm} terminali)</summary>
+      <p class="warn">${esc(st.mapNote)}</p>
+      ${kids.length ? `<h3>Luoghi collegati nella starmap del gioco</h3><div class="di-struct">${kids.map((k) => `<div style="padding-left:${(k.depth - 1) * 18}px"><button class="small di-go" data-id="${esc(k.id)}">${esc(k.name)}</button> <span class="hint">${esc(k.kindLabel)}${k.services.length ? ` · ${esc(k.services.slice(0, 6).join(', '))}` : ''}</span></div>`).join('')}</div>` : ''}
+      ${nTerm ? `<h3>Aree e negozi dichiarati nei nomi dei terminali (UEX)</h3>${st.areas.map((a) => `<div class="di-struct"><h4>${esc(a.area)}</h4>${a.terms.map((t) => `<span class="di-term"><button class="small di-shop" data-term="${esc(t.id)}">${esc(t.shop)}</button><span class="hint">${esc(t.typeLabel)}${t.items ? ` · ${t.items} articoli` : ''}${t.commodities ? ` · ${t.commodities} merci` : ''}</span></span>`).join('')}</div>`).join('')}
+        <p class="hint">L'ordine non rappresenta la disposizione reale. Piani, fermate della metropolitana e percorsi interni: NON DOCUMENTATI. Il pianificatore QT non si usa all'interno delle località.</p>` : ''}
+    </details>`;
+  }
+
+  /** Scheda negozio/terminale. Posizione interna mai inventata. */
+  function openShop(termId) {
+    const sh = ix?.shop(termId);
+    if (!sh) { $('di-card').innerHTML = `<p class="err">Negozio non trovato nei dati attuali (${esc(termId)}).</p>`; return; }
+    S.open = `shop:${termId}`;
+    const f = Object.entries(sh.flags ?? {}).filter(([, v]) => v).map(([k]) => k.replace(/^(has|is)_/, '').replace(/_/g, ' '));
+    $('di-card').innerHTML = `
+      <div class="di-head"><div><h2 class="di-title">${esc(sh.name)}</h2>
+        <div class="hint">${esc(sh.typeLabel ?? '')} · ${sh.place ? `${esc(sh.place.name)} · ${esc(sh.place.systemLabel)}` : 'luogo non abbinato alla starmap'}${sh.company ? ` · ${esc(sh.company)}` : ''}</div>
+        <div class="hint">Nome completo UEX: ${esc(sh.fullName)}</div></div>
+        <div class="di-actions">${sh.place ? `<button id="di-shop-place" class="small">📚 Scheda di ${esc(sh.place.name)}</button><button id="di-shop-map" class="small" title="L'atlante mostra il luogo che contiene il negozio, non il negozio">🌌 MOSTRA SULLA MAPPA</button>` : ''}</div></div>
+      <div class="hm-kv"><span>Area dichiarata</span><b>${sh.area ? `${esc(sh.area)} <span class="hint">(dal nome del terminale)</span>` : '<span class="di-nd">non indicata</span>'}</b>
+        <span>Posizione interna</span><b><span class="di-nd">POSIZIONE INTERNA NON DOCUMENTATA</span></b>
+        <span>Piano</span><b><span class="di-nd">NON DOCUMENTATO</span></b>
+        <span>Caratteristiche segnalate</span><b>${f.length ? esc(f.join(', ')) : '—'}${sh.maxContainer ? ` · casse fino a ${sh.maxContainer} SCU` : ''}</b>
+        <span>Fonte</span><b>UEX Corp (community)${sh.version ? ` · ${esc(sh.version)}` : ''}${sh.modified ? ` · ${fmtDate(sh.modified)}` : ''}</b></div>
+      <p class="hint">MOSTRA SULLA MAPPA porta al luogo (${esc(sh.place?.name ?? '—')}): nessuna fonte con licenza di riuso dà la posizione del negozio all'interno.</p>
+      ${sh.items.length ? `<h3>Articoli segnalati (${sh.items.length})</h3><p class="warn">Catalogo segnalato dalla community: non è disponibilità in tempo reale.</p>
+        <div class="tablewrap di-tw tall"><table class="di-t"><thead><tr><th>Articolo</th><th>Categoria</th><th>Compra</th><th>Vende</th><th>Data</th></tr></thead><tbody>${sh.items.map((r) => `<tr><td>${esc(r.item)}</td><td class="hint">${esc(r.cat)}</td><td>${fmtA(r.buy)}</td><td>${fmtA(r.sell)}</td><td class="hint">${fmtDate(r.date)}${ageDays(r.date) > 60 ? ' <span class="di-pill warn">vecchia</span>' : ''}</td></tr>`).join('')}</tbody></table></div>` : ''}
+      ${sh.commodities.length ? `<h3>Merci (${sh.commodities.length})</h3><div class="tablewrap di-tw tall"><table class="di-t"><thead><tr><th>Merce</th><th>Compri a</th><th>Vendi a</th><th>Data</th></tr></thead><tbody>${sh.commodities.map((r) => `<tr><td>${esc(r.commodity)}</td><td>${fmtA(r.buy)}</td><td>${fmtA(r.sell)}</td><td class="hint">${fmtDate(r.date)}</td></tr>`).join('')}</tbody></table></div>` : ''}
+      ${!sh.items.length && !sh.commodities.length ? '<p class="hint">Nessun prezzo segnalato per questo terminale.</p>' : ''}`;
+    $('di-shop-place') && ($('di-shop-place').onclick = () => open(sh.place.id));
+    $('di-shop-map') && ($('di-shop-map').onclick = () => app.openAtlas?.(sh.place.id));
+    $('di-card').scrollIntoView({ block: 'start', behavior: 'smooth' });
   }
 
   function servicesHtml(c) {
@@ -233,6 +282,10 @@ export async function initDestinations(app) {
     $('di-route') && ($('di-route').onclick = () => app.planTo?.({ name: c.title, system: c.place?.system ?? c.desc.system, x: c.xyz.x, y: c.xyz.y, z: c.xyz.z, unit: 'm' }));
     $('di-atlas') && ($('di-atlas').onclick = () => app.openAtlas?.(c.place.id));
     $('di-db') && ($('di-db').onclick = () => app.showTab('db'));
+    $('di-setdest') && ($('di-setdest').onclick = async () => { await app.home.setDestination(destOf(c)); $('di-setdest').textContent = '🎯 destinazione impostata'; });
+    $('di-fav') && ($('di-fav').onclick = async () => { await app.home.toggleFav(destOf(c)); $('di-fav').textContent = app.home.isFav(c.id) ? '★ preferito' : '☆ preferito'; });
+    $('di-visit') && ($('di-visit').onclick = async () => { if (!confirm(`Registrare che hai visitato "${c.title}" adesso?`)) return; await app.home.markVisited(destOf(c)); $('di-visit').textContent = '✓ visita registrata'; });
+    $('di-card').querySelectorAll('.di-shop').forEach((b) => { b.onclick = () => openShop(b.dataset.term); });
     $('di-card').querySelectorAll('.di-go').forEach((b) => { b.onclick = () => open(b.dataset.id); });
     $('di-card').querySelectorAll('.di-link').forEach((b) => { b.onclick = async () => {
       const to = ix.geo.get(b.dataset.to);
@@ -313,6 +366,10 @@ export async function initDestinations(app) {
   const ensure = () => (ready ??= load());
   return {
     ensure,
+    index: () => ix,
+    async openShop(termId) { follow = null; await ensure(); if (!ix) return; app.showTab('dest'); openShop(termId); },
+    async runItem(q) { await ensure(); if (!ix) return; app.showTab('dest'); $('di-item').value = q; runItem(); $('di-tool-out').scrollIntoView({ block: 'start', behavior: 'smooth' }); },
+    async runSell(q) { await ensure(); if (!ix) return; app.showTab('dest'); $('di-sell').value = q; runSell(); $('di-tool-out').scrollIntoView({ block: 'start', behavior: 'smooth' }); },
     follow(id) { follow = String(id).startsWith('personal:') ? `pt:${String(id).slice(9)}` : id; },
     async show() { await ensure(); if (!ix || !follow) return; const id = follow; follow = null; if (id !== S.open) open(id); },
     async open(id) { follow = null; await ensure(); if (!ix) return; app.showTab('dest'); if (id.startsWith('personal:')) id = `pt:${id.slice(9)}`; open(id); },

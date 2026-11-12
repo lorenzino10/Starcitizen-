@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { Geo } from '../js/atlas/geo.js';
 import { buildGameInfo, buildMining, buildEnvironment, buildUexPlaces, buildMarket, buildExpeditionShips, makeResolver, makeSuggester, smNameCandidates } from '../js/dest/build.js';
-import { DestIndex, ND, DV, searchKey, itemCategory } from '../js/dest/model.js';
+import { DestIndex, ND, DV, searchKey, itemCategory, terminalArea } from '../js/dest/model.js';
 
 const GM = 1e9;
 const place = (id, name, kind, system, parentId, pos, extra = {}) => ({ id, name, aliases: [], type: kind, kind, system, parentId, pos, frame: 'sistema (statico)', hidden: false, qtValid: true, radius: null, services: [], source: 'sintetico', patch: 'SYN', ...extra });
@@ -320,4 +320,80 @@ test('DI-17 ricerca articoli in italiano: "fucile" trova i "Rifle" (nomi UEX in 
   assert.deepEqual(ix.findItem('rifle').map((r) => r.item), ['Sintetico P9 Rifle']);
   assert.equal(ix.findItem('fu').length, 0, 'sotto i 3 caratteri nessuna traduzione');
   assert.deepEqual(ix.shopsOf(ix.card('ruin'), { q: 'fucil' }).map((r) => r.item), ['Sintetico P9 Rifle']);
+});
+
+// ---------------------------------------------------------------- 1.0.0: ricerca universale, struttura, negozi, elenchi
+test('DI-20 terminalArea: l\'area viene solo dal nome del terminale; senza area resta null', () => {
+  assert.deepEqual(terminalArea({ name: 'Kel-To - Aspire Grand - New Babbage', city: 'New Babbage' }), { shop: 'Kel-To', area: 'Aspire Grand' });
+  assert.deepEqual(terminalArea({ name: 'Negozio - Stazione', space_station: 'Stazione' }), { shop: 'Negozio', area: null });
+  assert.deepEqual(terminalArea({ name: 'Solo Nome' }), { shop: 'Solo Nome', area: null });
+});
+
+test('DI-21 ricerca universale: ogni risultato ha un tipo; luoghi, punti personali, servizi, negozi, articoli, merci, minerali', () => {
+  const ix = world({ personal: PERSONAL });
+  const types = (q, o) => ix.universal(q, o).groups.map((g) => g.type);
+  assert.deepEqual(types('Citta Uno'), ['place']);
+  assert.ok(types('Grotta').includes('personal'));
+  assert.ok(types('ospedale').includes('service'));
+  const svc = ix.universal('ospedale').groups.find((g) => g.type === 'service').rows[0];
+  assert.equal(svc.key, 'hospital'); assert.equal(svc.count, ix.listBy('hospital').length);
+  assert.ok(types('Negozio').includes('shop'));
+  const it = ix.universal('Helix').groups.find((g) => g.type === 'item');
+  assert.equal(it.rows[0].name, 'Modulo Helix Sintetico'); assert.equal(it.rows[0].shops, 1);
+  assert.ok(types('Oro').includes('commodity'));
+  const min = ix.universal('Quantainium').groups.find((g) => g.type === 'mineral');
+  assert.deepEqual(min.rows[0].places, ['pl'], 'minerale solo dove i file di gioco lo indicano');
+  assert.deepEqual(ix.universal('x').groups, [], 'sotto i 2 caratteri nessuna ricerca');
+  assert.deepEqual(ix.universal('zzzzqqq').groups, []);
+  // senza prezzi: nessun gruppo negozi/articoli inventato
+  assert.ok(!world({ withMarket: false }).universal('Helix').groups.some((g) => ['item', 'shop'].includes(g.type)));
+  // filtro di sistema
+  assert.ok(!ix.universal('Rovina', { system: 'stanton' }).groups.length);
+});
+
+test('DI-22 elenchi rapidi: solo luoghi con il dato documentato, con il motivo', () => {
+  const ix = world();
+  assert.deepEqual(ix.listBy('city').map((r) => r.id), ['city']);
+  const h = ix.listBy('hospital').map((r) => r.id).sort();
+  assert.ok(h.includes('sta') && h.includes('city'));
+  assert.ok(!h.includes('out'), 'un avamposto senza clinica documentata non è un ospedale');
+  assert.deepEqual(ix.listBy('refinery').map((r) => r.id), ['city']);
+  const shops = ix.listBy('shops'); assert.deepEqual(shops.map((r) => r.id), ['sta']); assert.match(shops[0].why, /UEX/);
+  assert.deepEqual(ix.listBy('mining').map((r) => r.id), ['pl']);
+  assert.deepEqual(ix.listBy('station', { system: 'pyro' }).map((r) => r.id), ['ruin']);
+  assert.deepEqual(ix.listBy('nessuno'), []);
+});
+
+test('DI-23 struttura: vista SCHEMATICA dichiarata, figli dalla starmap, negozi raggruppati per area; nessuna posizione interna', () => {
+  const ix = world();
+  const st = ix.structure('pl');
+  assert.match(st.mapNote, /SCHEMATICA/); assert.match(st.mapNote, /non sono documentati/);
+  assert.ok(st.children.some((c) => c.id === 'sta' && c.depth === 1));
+  assert.ok(st.children.some((c) => c.id === 'dup1' && c.depth === 2));
+  const s2 = ix.structure('sta');
+  const terms = s2.areas.flatMap((a) => a.terms);
+  assert.deepEqual(terms.map((t) => String(t.id)).sort(), ['101', '102']);
+  assert.ok(terms.every((t) => !('x' in t) && !('pos' in t)), 'nessuna coordinata interna');
+  assert.equal(ix.structure('inesistente'), null);
+});
+
+test('DI-24 scheda negozio: articoli con data, area dal nome, piano e posizione interna null (mai inventati)', () => {
+  const ix = world();
+  const sh = ix.shop(101);
+  assert.equal(sh.name, 'Negozio'); assert.equal(sh.floor, null); assert.equal(sh.interior, null);
+  assert.equal(sh.place.id, 'sta');
+  assert.deepEqual(sh.items.map((r) => r.item).sort(), ['Casco Prova', 'Modulo Helix Sintetico']);
+  assert.ok(sh.items.every((r) => r.date));
+  assert.equal(ix.shop(99999), null);
+});
+
+test('DI-25 prestazioni: ricerca universale con 3.355 punti personali sotto i 300 ms', () => {
+  const many = Array.from({ length: 3355 }, (_, i) => ({ id: `m${i}`, name: `Giacimento ${i} Quantainium`, system: 'Stanton', x: i, y: i, z: 0, unit: 'km', status: 'Da verificare', category: 'Mining', resource: 'Quantainium' }));
+  const ix = world({ personal: many });
+  ix.universal('Giacimento 12'); // riscaldamento
+  const t0 = performance.now();
+  for (const q of ['Giacimento 3354', 'Citta Uno', 'Helix', 'ospedale', 'Quantainium']) ix.universal(q);
+  const ms = (performance.now() - t0) / 5;
+  assert.ok(ms < 300, `media ${ms.toFixed(1)} ms`);
+  assert.equal(ix.universal('Giacimento 3354').groups.find((g) => g.type === 'personal').rows[0].name, 'Giacimento 3354 Quantainium');
 });

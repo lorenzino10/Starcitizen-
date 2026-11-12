@@ -89,6 +89,30 @@ function itemQueryKeys(q) {
 }
 const itemMatches = (keys, name) => { if (!keys.length) return true; const n = searchKey(name); return keys.some((k) => n.includes(k)); };
 
+
+// ------------------------------------------------------------ struttura, negozi, ricerca universale
+export const TERM_TYPE = { item: 'Negozio (articoli)', commodity: 'Terminale merci', commodity_raw: 'Terminale materiali grezzi', refinery: 'Raffineria', fuel: 'Rifornimento', vehicle_rent: 'Noleggio veicoli', vehicle_buy: 'Concessionario veicoli' };
+/**
+ * Area interna dal nome del terminale UEX ("Negozio - Area - Citta'"): e' l'unica indicazione di
+ * posizione interna disponibile. Nessuna planimetria: l'area e' un nome, non un punto sulla mappa.
+ */
+export function terminalArea(t) {
+  const parts = String(t.name ?? '').split(' - ').map((x) => x.trim()).filter(Boolean);
+  const where = [t.displayname, t.city, t.space_station, t.outpost].filter(Boolean).map((x) => x.toLowerCase());
+  const shop = parts[0] ?? t.name;
+  const mid = parts.slice(1).filter((x) => !where.includes(x.toLowerCase()) && x.toLowerCase() !== String(t.system ?? '').toLowerCase());
+  return { shop, area: mid.length ? mid.join(' · ') : null };
+}
+export const SERVICE_FILTERS = {
+  city: { label: 'Città', test: (p) => p.kind === 'city' },
+  station: { label: 'Stazioni', test: (p) => p.kind === 'station' || p.kind === 'gateway' },
+  outpost: { label: 'Avamposti', test: (p) => p.kind === 'outpost' },
+  hospital: { label: 'Ospedali e cliniche', svc: ['hospital', 'clinic', 'medical'] },
+  refinery: { label: 'Raffinerie', svc: ['refinery'] },
+  shops: { label: 'Negozi (articoli)', term: 'item' },
+  mining: { label: 'Mining (aree di spawn dai file di gioco)', mining: true },
+};
+
 export class DestIndex {
   /**
    * @param geo   database geografico dell'atlante (Geo) - SENZA punti personali (li gestisce l'indice)
@@ -251,6 +275,86 @@ export class DestIndex {
     const out = new Set(g.map((a) => AMENITY[a]?.k).filter(Boolean));
     for (const l of u) for (const [k, v] of Object.entries(l.flags)) if (v && k !== 'is_landable' && k !== 'has_quantum_marker') out.add(k.replace(/^(has|is)_/, ''));
     return [...out];
+  }
+
+
+  /** Elenco per accesso rapido (citta', ospedali, raffinerie...). Solo dati documentati. */
+  listBy(key, { system = null } = {}) {
+    const f = SERVICE_FILTERS[key]; if (!f) return [];
+    const out = [];
+    for (const p of this.geo.places) {
+      if (p.kind === 'personal' || p.hidden || (system && p.system !== system)) continue;
+      let ok = false, why = null;
+      if (f.test) ok = f.test(p);
+      else if (f.svc) { const s = this.serviceSummary(p.id); const hit = f.svc.filter((k) => s.includes(k)); ok = hit.length > 0; why = hit.join(', '); }
+      else if (f.term) { const n = (this.termByPlace.get(p.id) ?? []).filter((t) => t.type === f.term).length; ok = n > 0; why = n ? `${n} negozi segnalati (UEX)` : null; }
+      else if (f.mining) { const m = this.mining[p.id]; ok = !!m?.length; why = ok ? [...new Set(m.flatMap((x) => x.groups.map((g) => g.label)))].join(', ') : null; }
+      if (ok) out.push({ ...this.describe(p.id), why });
+    }
+    return out.sort((a, b) => a.systemLabel.localeCompare(b.systemLabel) || a.name.localeCompare(b.name));
+  }
+
+  /**
+   * Struttura di una localita': luoghi figli della starmap, terminali UEX raggruppati per area
+   * dichiarata nel nome. Vista SCHEMATICA: nessuna posizione interna, nessun percorso.
+   */
+  structure(id) {
+    const p = id && this.geo.get(id); if (!p) return null;
+    const kids = []; const stack = this.geo.children(id).map((c) => [c, 1]);
+    while (stack.length) { const [c, d] = stack.shift(); kids.push({ ...this.describe(c.id), depth: d, services: this.serviceSummary(c.id) }); if (d < 2) for (const k of this.geo.children(c.id)) stack.push([k, d + 1]); }
+    const areas = new Map();
+    for (const t of this.termByPlace.get(id) ?? []) {
+      const { shop, area } = terminalArea(t); const k = area ?? '— area non indicata —';
+      if (!areas.has(k)) areas.set(k, []);
+      areas.get(k).push({ id: t.id, shop, type: t.type, typeLabel: TERM_TYPE[t.type] ?? t.type ?? '?', items: (this.priceByTerminal?.get(t.id) ?? []).length, commodities: (this.commByTerminal?.get(t.id) ?? []).length, date: t.modified ?? null });
+    }
+    return { place: this.describe(id), children: kids, areas: [...areas.entries()].map(([area, terms]) => ({ area, terms: terms.sort((a, b) => a.typeLabel.localeCompare(b.typeLabel) || a.shop.localeCompare(b.shop)) })).sort((a, b) => (a.area.startsWith('—') ? 1 : 0) - (b.area.startsWith('—') ? 1 : 0) || a.area.localeCompare(b.area)),
+      mapNote: 'VISTA SCHEMATICA: nessuna fonte pubblica con licenza di riuso fornisce la planimetria interna. Aree e negozi vengono dai nomi dei terminali UEX; posizioni, piani, fermate e percorsi interni non sono documentati.' };
+  }
+
+  /** Scheda di un negozio/terminale UEX. */
+  shop(termId) {
+    const t = this.terminals[termId]; if (!t) return null;
+    const { shop, area } = terminalArea(t);
+    const items = (this.priceByTerminal?.get(t.id) ?? []).map((r) => { const it = this.market.items[r[0]]; const [ck, cl] = itemCategory(this.market.categories[it?.[1]], it?.[0]); return { item: it?.[0] ?? `#${r[0]}`, cat: cl, catKey: ck, buy: r[2] || null, sell: r[3] || null, date: iso(r[4]) }; }).sort((a, b) => a.cat.localeCompare(b.cat) || a.item.localeCompare(b.item));
+    const comm = (this.commByTerminal?.get(t.id) ?? []).map((r) => this.#commRow(r, t));
+    return { id: t.id, name: shop, fullName: t.name, typeLabel: TERM_TYPE[t.type] ?? t.type, area, floor: null, interior: null, place: t._place ? this.describe(t._place) : null, system: t.system, company: t.company ?? null, version: t.gameVersion ?? null, modified: typeof t.modified === 'number' ? iso(t.modified) : t.modified ?? null, flags: t.flags ?? {}, maxContainer: t.maxContainer ?? null, items, commodities: comm };
+  }
+
+  /**
+   * RICERCA UNIVERSALE: luoghi e punti personali, negozi, articoli, merci, minerali, servizi.
+   * Ogni risultato ha un tipo; nessuna posizione viene attribuita a cio' che non ne ha.
+   */
+  universal(text, { system = null, limit = 8 } = {}) {
+    const q = searchKey(text); if (!q || q.length < 2) return { q, groups: [] };
+    const groups = [];
+    const places = this.search(text, { system, limit: limit * 2 });
+    const personal = places.filter((r) => r.origin === 'db').slice(0, limit); const others = places.filter((r) => r.origin !== 'db').slice(0, limit);
+    if (others.length) groups.push({ type: 'place', label: 'Località', rows: others });
+    if (personal.length) groups.push({ type: 'personal', label: 'Punti personali (DATABASE PUNTI)', rows: personal });
+    const SVC_ALIAS = { ospedal: 'hospital', clinic: 'hospital', medic: 'hospital', hospital: 'hospital', raffiner: 'refinery', refiner: 'refinery', negoz: 'shops', shop: 'shops', minier: 'mining', mining: 'mining', avampost: 'outpost', outpost: 'outpost', stazion: 'station', station: 'station', citta: 'city', city: 'city' };
+    // parola singola: "ospedali" elenca gli ospedali, "Citta Uno" e' un nome di luogo
+    const svcKeys = new Set(q.includes(' ') ? [] : Object.entries(SVC_ALIAS).filter(([k]) => q.startsWith(k) || (q.length >= 4 && k.startsWith(q))).map(([, v]) => v));
+    const svc = Object.entries(SERVICE_FILTERS).filter(([k]) => svcKeys.has(k));
+    if (svc.length) groups.push({ type: 'service', label: 'Servizi', rows: svc.map(([k, f]) => ({ key: k, name: f.label, count: this.listBy(k, { system }).length })) });
+    if (this.market) {
+      const shops = Object.values(this.terminals).filter((t) => (!system || t.system === system) && searchKey(terminalArea(t).shop).includes(q)).slice(0, limit)
+        .map((t) => ({ id: t.id, name: terminalArea(t).shop, area: terminalArea(t).area, typeLabel: TERM_TYPE[t.type] ?? t.type, place: t._place ? this.describe(t._place) : null, systemLabel: SYSTEM_LABEL[t.system] ?? t.system }));
+      if (shops.length) groups.push({ type: 'shop', label: 'Negozi e terminali (UEX)', rows: shops });
+      const rows = this.findItem(text, { system }) ?? [];
+      const byItem = new Map(); for (const r of rows) { if (!byItem.has(r.item)) byItem.set(r.item, { name: r.item, cat: r.cat, shops: 0, places: new Set(), minBuy: null }); const b = byItem.get(r.item); b.shops++; if (r.place) b.places.add(r.place); if (r.buy && (b.minBuy === null || r.buy < b.minBuy)) b.minBuy = r.buy; }
+      const items = [...byItem.values()].sort((a, b) => b.shops - a.shops).slice(0, limit).map((b) => ({ ...b, places: b.places.size }));
+      if (items.length) groups.push({ type: 'item', label: 'Articoli (prezzi segnalati, non in tempo reale)', rows: items });
+      const comm = Object.values(this.market.commodities ?? {}).filter((c) => searchKey(c.name).includes(q)).slice(0, limit).map((c) => ({ name: c.name, illegal: !!c.illegal }));
+      if (comm.length) groups.push({ type: 'commodity', label: 'Merci', rows: comm });
+    }
+    const min = new Map();
+    for (const [pid, list] of Object.entries(this.mining)) {
+      const pl = this.geo.get(pid); if (!pl || (system && pl.system !== system)) continue;
+      for (const prov of list) for (const g of prov.groups) for (const m of g.materials) if (searchKey(m.name).includes(q)) { if (!min.has(m.name)) min.set(m.name, { name: m.name, places: new Set(), kinds: new Set() }); min.get(m.name).places.add(pid); min.get(m.name).kinds.add(g.label); }
+    }
+    if (min.size) groups.push({ type: 'mineral', label: 'Minerali e risorse (aree di spawn, non giacimenti confermati)', rows: [...min.values()].slice(0, limit).map((m) => ({ name: m.name, places: [...m.places], kinds: [...m.kinds] })) });
+    return { q, groups };
   }
 
   /** Scheda completa di una destinazione. */
