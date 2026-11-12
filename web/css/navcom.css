@@ -250,3 +250,7 @@ body.at-compact .at-toolbar .at-tools > :not(#at-compact) { display: none; }
 .di-exp ul { margin: 0; padding-left: 1.2em; line-height: 1.5; }
 .di-src { margin: 4px 0; padding-left: 1.1em; font-size: .82rem; line-height: 1.5; }
 #di-tool-out { margin-top: 12px; }
+
+/* 0.9.2: scelta fra luoghi sovrapposti */
+.at-stack { display: flex; flex-direction: column; gap: 6px; }
+.at-stack .at-go { text-align: left; }

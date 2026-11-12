@@ -220,8 +220,20 @@ export async function initAtlas(app) {
   function onPick(h) {
     if (!h) return;
     if (h.kind === 'place') select(h.id, { fly: false });
+    else if (h.kind === 'cluster') stackedChooser(h.cluster.members.map((m) => m.it));
     else if (h.kind === 'line' && h.line.conn) showConnection(h.line.conn);
     else if (h.kind === 'line' && h.id?.startsWith('ms:')) showMission(h.id.slice(3));
+  }
+
+  // luoghi praticamente nello stesso punto (es. una stazione e un tuo punto personale): lo zoom non
+  // li separa mai, quindi si sceglie da un elenco
+  function stackedChooser(items) {
+    const ps = items.filter((it) => it.pos); if (ps.length < 2) return;
+    const c = ps[0].pos; const spread = Math.max(...ps.map((it) => Math.hypot(it.pos.x - c.x, it.pos.y - c.y, it.pos.z - c.z)));
+    if (spread > 2000) return; // gruppo normale: basta avvicinarsi
+    $('at-right').innerHTML = `<h3>${ps.length} luoghi nello stesso punto</h3><p class="hint">Distano fra loro al massimo ${fmtLen(spread)}: lo zoom non li separa. Scegli quale aprire.</p>
+      <div class="at-stack">${ps.map((it) => { const p = geo.get(it.id); return `<button class="at-go" data-id="${esc(it.id)}">${esc(it.label ?? it.id)} <span class="hint">${esc(KIND_LABEL[p?.kind ?? it.kind] ?? it.kind)}</span></button>`; }).join('')}</div>`;
+    $('at-right').querySelectorAll('.at-go').forEach((a) => { a.onclick = () => select(a.dataset.id); });
   }
 
   /** Selezione di un luogo: pianeti e lune aprono la loro vista; le basi aprono la scheda. */

@@ -1,5 +1,8 @@
 # Registro delle modifiche
 
+## 0.9.2-web (2026-11-12): luoghi sovrapposti nell'ATLANTE
+- Clic su un gruppo di luoghi praticamente nello stesso punto (es. Megumi Refueling e un tuo punto personale P6 L5, a pochi metri): prima la mappa zoomava all'infinito senza aprire nulla, ora compare l'elenco per scegliere quale aprire.
+
 ## 0.9.1-web (2026-11-12): ATLANTE e selettore SISTEMA allineati
 - Il selettore SISTEMA in alto ora cambia anche l'ATLANTE, e viceversa (link Stanton · Pyro · Nyx o ricerca di un luogo in un altro sistema). All'avvio l'atlante si apre sul sistema del selettore.
 - Colore della stella per sistema nella grafica 3D (solo resa: Pyro rossastra, Nyx violacea).
