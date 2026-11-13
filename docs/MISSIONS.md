@@ -10,7 +10,7 @@ Numeri verificati il 2026-11-12 su LIVE 4.10.2-LIVE.12881860.
 | Copertura | 1.520 modelli, solo trasporto | 4.197 modelli rilasciati, tutte le categorie (l'atlante usa ancora il sottoinsieme di trasporto, 1.520) |
 | Versione LIVE | patch dedotta dal commit di scunpacked | `/game-versions/default` della Wiki, confrontata con scunpacked |
 | Varianti | nessun raggruppamento | gruppi della Wiki (1.505 modelli base); senza Wiki un criterio euristico dichiarato (1.489 gruppi, 1.333 identici a quelli della Wiki) |
-| Missioni interstellari | 51, di cui 32 con un solo sistema (sbagliato) | 79 nel sottoinsieme dell'atlante (103 in tutto il catalogo), solo 2 con un solo sistema (pool davvero vuoti) |
+| Missioni interstellari | 51, di cui 32 con un solo sistema (sbagliato) | 79 nel sottoinsieme dell'atlante della build locale del 2026-11-12, 77 nel log della pipeline pubblicata (dati scaricati in un altro momento; 103 in tutto il catalogo), solo 2 con un solo sistema (pool davvero vuoti) |
 | Ricompensa | numero o nulla | `fissa` 1.845 · `dinamica` 2.067 · `intervallo` 13 · `n.d.` 272 |
 | Aggiornamento | sovrascrittura | file versionato, validazione, diff, storico, fallback dichiarato |
 | Fonte mostrata | data dello snapshot | versione, build, fonte, data e numero di record, sempre visibili |

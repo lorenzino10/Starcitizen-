@@ -2,7 +2,7 @@
 
 La PLANCIA è la nuova home di NAVCOM. Riusa i moduli esistenti: non c'è un secondo database di punti, un pianificatore alternativo o un'altra copia dei dati.
 
-> **Dalla 2.0.0 la PLANCIA è diventata il COMMAND BRIDGE**: striscia compatta in alto, mappa centrale col motore dell'ATLANTE (al posto della mini mappa piana), pannello contestuale a destra e barre MISSIONI / CARGO / ATTIVITÀ in basso. Posizione, nave, destinazione, rotta attiva e stato salvato restano quelli descritti qui sotto, con le stesse chiavi. Dettagli del nuovo layout e del Mission Database: [MISSIONS.md](MISSIONS.md).
+> **Dalla 2.0.0 la PLANCIA è diventata il COMMAND BRIDGE**: striscia compatta in alto, mappa centrale col motore dell'ATLANTE (al posto della mini mappa piana), pannello contestuale a destra e barre MISSIONI / CARGO / ATTIVITÀ in basso. Posizione, nave, destinazione, rotta attiva e stato salvato restano quelli descritti qui sotto, con le stesse chiavi. Dettagli del nuovo layout e del Mission Database: [MISSIONS.md](MISSIONS.md). Dalla 2.1.0 il pulsante **📟 MISSIONI DA QUESTA LOCALITÀ** apre il [MISSION CONTROL](MISSION_CONTROL.md) sulla posizione salvata qui (chiave `homePosition`, che ora può contenere anche il luogo scelto).
 
 ## Cosa mostra e da dove viene
 
