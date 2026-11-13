@@ -33,7 +33,7 @@ export async function initHome(app) {
   const { $, esc, state } = app;
   const B = state.bridge;
   const S = {
-    list: null, listSys: 'current', ctx: { type: 'auto' }, focus: null, refit: true, mapSys: B.mapSys ?? 'auto', outposts: !!B.outposts,
+    list: null, listSys: 'current', ctx: { type: 'auto' }, focus: null, refit: true, mapSys: 'auto', outposts: !!B.outposts,
     tab: B.tab ?? 'missions', form: { from: '', to: '', cats: ['hauling', 'delivery'], minReward: '', maxScu: '', risk: 'any', legalOnly: false, collapse: true, unknownReward: true, ...(B.form ?? {}) },
     result: null, shown: PAGE, compare: [], open: null,
   };
@@ -70,21 +70,55 @@ export async function initHome(app) {
   const evalOne = (v) => findMissions([v], { ship: caps(), profile: { ranks: ranks() }, includeIncompatible: true }, { geo: geo(), links: links() }).rows[0] ?? null;
 
   // ---------------------------------------------------------------- striscia di stato
+  // Due sole domande in evidenza: DOVE SEI e DOVE VAI. Il sistema non e' un dato a parte: e' quello
+  // della posizione (il selettore in alto la segue). Se divergono lo diciamo e chiediamo quale vale.
+  const VIA = { ricerca: 'dalla ricerca della plancia', mappa: 'dalla mappa della plancia', destinazioni: 'da DESTINAZIONI', missione: 'da una missione' };
   function renderBar() {
-    const sys = app.system(); const pos = state.position; const d = state.destination; const p = planSummary(state.lastPlan);
+    const pos = state.position; const d = state.destination; const p = planSummary(state.lastPlan);
     const prov = provenance(M.res);
-    const routeTxt = p ? `${d && p.target !== d.name ? '<span class="warn">altra meta</span> · ' : ''}${p.qtLegs} QT · ${p.jumps} salti · ${esc(p.status ?? 'stato n.d.')}` : '<span class="hm-nd">nessuna</span>';
-    $('hm-bar').innerHTML = [
-      ['NAVCOM', `v${esc(app.VERSION)}`, ''],
-      ['Nave', `<button class="link" id="cb-ship-tog" title="Scheda tecnica (file di gioco)">${esc(state.ship ?? DEFAULT_SHIP)} ▾</button>`, ''],
-      ['Sistema', esc(SYS[sys] ?? sys), ''],
-      ['Posizione', pos ? `${pos.place ? `${esc(pos.place.name)} · ` : ''}${esc(SYS[pos.system] ?? pos.system)} · ${esc(SRC_LABEL[pos.source] ?? pos.source)} · ${fmtDT(pos.at)}` : `<span class="hm-nd">${NOT_SET}</span>`, '<button class="small" id="hm-paste" title="Incolla la riga di /showlocation">📋</button>'],
-      ['Destinazione', d ? `${esc(d.name)} <span class="hint">${esc(SYS[d.system] ?? d.system ?? '?')}</span>` : '<span class="hm-nd">nessuna</span>', ''],
-      ['Rotta', routeTxt, ''],
-      ['Dati missioni', prov.ok ? `${esc(prov.version)} ${esc(prov.channel ?? '')} · ${esc(String(prov.date).slice(0, 10))}${prov.stale ? ' <span class="warn">⚠</span>' : ''}` : `<span class="hm-nd">${M.res ? 'n.d.' : 'in caricamento'}</span>`, ''],
-    ].map(([l, v, x]) => `<div class="cb-chip"><span>${l}</span><b>${v}</b>${x}</div>`).join('');
+    const routeTxt = p ? `${d && p.target !== d.name ? '<span class="warn">porta a un\'altra meta</span> · ' : ''}${p.qtLegs} QT · ${p.jumps} salti` : '<span class="hm-nd">nessuna</span>';
+    const posTxt = pos
+      ? `${pos.place ? esc(pos.place.name) : 'punto XYZ'} <span class="cb-sys-tag">${esc(SYS[pos.system] ?? pos.system)}</span>`
+      : `<span class="warn">non impostata</span>`;
+    const destTxt = d
+      ? `<button class="link" id="cb-dest-go" title="Mostra la destinazione su mappa e pannello${d.via ? ` · impostata ${esc(VIA[d.via] ?? d.via)}` : ''} · ${fmtDT(d.at)}">${esc(d.name)} <span class="cb-sys-tag">${esc(SYS[d.system] ?? d.system ?? '?')}</span></button> <button class="small cb-x" id="cb-dest-x" title="Togli la destinazione">✕</button>`
+      : '<span class="hm-nd">nessuna · cercala a destra o clic su un luogo della mappa</span>';
+    $('hm-bar').innerHTML = `
+      <div class="cb-chip cb-where"><span>📍 Dove sei</span><b>${posTxt}</b>
+        <input id="cb-pos-q" list="cb-places" placeholder="${pos ? 'cambia…' : 'città, stazione, avamposto…'}" autocomplete="off" aria-label="Dove sei"><datalist id="cb-places"></datalist>
+        <button class="small" id="hm-paste" title="Incolla la riga di /showlocation">📋</button></div>
+      <div class="cb-chip cb-where"><span>🎯 Destinazione</span><b>${destTxt}</b></div>
+      <div class="cb-chip"><span>Nave</span><b><button class="link" id="cb-ship-tog" title="Scheda tecnica (file di gioco)">${esc(state.ship ?? DEFAULT_SHIP)} ▾</button></b></div>
+      <div class="cb-chip"><span>Rotta</span><b>${routeTxt}</b></div>
+      <div class="cb-chip cb-dim"><span>Dati</span><b>${prov.ok ? `${esc(prov.version)} · ${esc(String(prov.date).slice(0, 10))}${prov.stale ? ' <span class="warn">⚠</span>' : ''}` : `<span class="hm-nd">${M.res ? 'n.d.' : 'in caricamento'}</span>`}</b></div>`;
     $('cb-ship-tog').onclick = () => { $('cb-ship').hidden = !$('cb-ship').hidden; if (!$('cb-ship').hidden) renderShip(); };
     $('hm-paste').onclick = pastePosition;
+    const q = $('cb-pos-q'); const g = geo();
+    q.oninput = () => { const list = g ? g.search(q.value, { limit: 25 }) : []; $('cb-places').innerHTML = list.map((x) => `<option value="${esc(x.name)}">${esc(g.pathLabel(x.id))}</option>`).join(''); };
+    q.onchange = async () => { const x = g?.resolveName(q.value.trim()) ?? g?.search(q.value, { limit: 1 })[0]; if (x) await setPlace(x.id); };
+    if (d) {
+      $('cb-dest-go').onclick = () => { S.ctx = { type: 'auto' }; S.focus = null; S.mapSys = d.system && d.system !== mapSystem() ? d.system : S.mapSys; S.refit = true; renderMap(); renderCtx(); $('cb-side').scrollTop = 0; };
+      $('cb-dest-x').onclick = () => state.setDestination(null);
+    }
+    renderSync();
+  }
+  /** posizione = luogo scelto: XYZ del luogo nei dati, mai inventate */
+  async function setPlace(id) {
+    const p = geo()?.get(id); if (!p) return;
+    S.mapSys = 'auto';
+    await state.setPosition({ system: p.system, x: p.pos?.x ?? null, y: p.pos?.y ?? null, z: p.pos?.z ?? null, source: 'luogo', place: { id: p.id, name: p.name } });
+  }
+  /** Il selettore SISTEMA in alto (o l'ATLANTE) e' su un sistema diverso da dove sei: chiedi quale vale. */
+  function renderSync() {
+    const box = $('hm-sync'); const pos = state.position; const sys = app.system();
+    if (!pos || !pos.system || pos.system === sys) { box.hidden = true; box.innerHTML = ''; return; }
+    box.hidden = false;
+    box.innerHTML = `<b>⚠ In alto è selezionato ${esc(SYS[sys] ?? sys)}, ma la tua posizione è ${pos.place ? esc(pos.place.name) : 'un punto'} (${esc(SYS[pos.system] ?? pos.system)}).</b>
+      <span>Dove sei davvero?</span>
+      <button class="primary small" id="cb-sync-pick">Sono in ${esc(SYS[sys] ?? sys)}: scelgo dove</button>
+      <button class="small" id="cb-sync-back">Sono ancora a ${pos.place ? esc(pos.place.name) : esc(SYS[pos.system] ?? pos.system)}</button>`;
+    $('cb-sync-pick').onclick = () => { const q = $('cb-pos-q'); q.value = ''; q.placeholder = `luogo in ${SYS[sys] ?? sys}…`; q.focus(); S.mapSys = sys; S.refit = true; renderMap(); };
+    $('cb-sync-back').onclick = () => app.switchSystem?.(pos.system);
   }
 
   // ---------------------------------------------------------------- posizione
@@ -159,7 +193,12 @@ export async function initHome(app) {
     }
     const used = new Set(sc.lines.map((l) => l.style));
     const focusNote = S.focus && !sc.lines.some((l) => l.id === `ms:${S.focus}`) ? '<br><span class="warn">Missione evidenziata: nessuna linea disegnabile in questo sistema (pool troppo ampio, luoghi senza XYZ o in un altro sistema). Vedi l\'elenco a destra.</span>' : '';
-    $('cb-legend').innerHTML = `<b>${esc(SYS[sys] ?? sys)}</b> · posizioni reali dai file di gioco${state.position && state.position.system !== sys ? ' · la tua posizione è in un altro sistema' : ''}${LEGEND.filter(([k]) => used.has(k)).map(([k, t]) => `<br><span style="color:${LINE_STYLE[k].c}">━</span> ${esc(t)}`).join('')}${focusNote}`;
+    const here = state.position?.system ?? null;
+    $('cb-sys').options[0].textContent = here ? `dove sei (${SYS[here] ?? here})` : 'dove sei';
+    $('cb-sys').value = S.mapSys;
+    $('cb-home').hidden = !here || sys === here;
+    $('cb-home').textContent = here ? `↺ torna a ${SYS[here] ?? here}` : '↺ torna dove sei';
+    $('cb-legend').innerHTML = `<b>${esc(SYS[sys] ?? sys)}</b> · posizioni reali dai file di gioco${here && here !== sys ? ` · <span class="cb-alert">stai guardando ${esc(SYS[sys] ?? sys)}, ma sei in ${esc(SYS[here] ?? here)}</span>` : ''}${LEGEND.filter(([k]) => used.has(k)).map(([k, t]) => `<br><span style="color:${LINE_STYLE[k].c}">━</span> ${esc(t)}`).join('')}${focusNote}`;
   }
   function onHover(h) {
     const el = $('cb-hover');
@@ -204,7 +243,8 @@ export async function initHome(app) {
     if (!d.pos) warn.push('La destinazione non ha XYZ di sistema: niente calcolo QT (NAVCOM non genera coordinate).');
     if (leg && !leg.matches) warn.push(`L'ultima rotta calcolata porta a "${leg.target}", non a questa destinazione.`);
     if (!pos) warn.push('Posizione non impostata: distanza e partenza non note.');
-    box.innerHTML = `<div class="cb-head"><span class="hm-type">DESTINAZIONE</span><h3>${esc(d.name)}</h3><span class="hint">${esc(d.kind ?? '')} · ${esc(SYS[d.system] ?? d.system ?? '—')}${geo()?.get(d.id) ? ` · ${esc(geo().pathLabel(d.id))}` : ''}</span></div>
+    box.innerHTML = `<div class="cb-head"><span class="hm-type">DESTINAZIONE</span><h3>${esc(d.name)}</h3><span class="hint">${esc(d.kind ?? '')} · ${esc(SYS[d.system] ?? d.system ?? '—')}${geo()?.get(d.id) ? ` · ${esc(geo().pathLabel(d.id))}` : ''}</span>
+        <div class="hint">Impostata ${d.via ? esc(VIA[d.via] ?? d.via) + ' · ' : ''}${fmtDT(d.at)}${pos && d.system && pos.system !== d.system ? ` · <span class="cb-alert">⚠ in un altro sistema rispetto a dove sei (${esc(SYS[pos.system] ?? pos.system)})</span>` : ''}</div></div>
       <div class="hm-kv">
         <span>Distanza</span><b>${dist.d !== null ? `${fmtD(dist.d)} <span class="hint">${esc(dist.note)}</span>` : `<span class="hm-nd">${esc(dist.note)}</span>`}</b>
         <span>Salto</span><b>${jump ? (jump.gateway ? `${esc(jump.gateway.name)}${jump.distance !== null ? ` <span class="hint">${fmtD(jump.distance)} in linea retta</span>` : ''}<br><span class="hint">${esc(jump.note)}</span>` : `<span class="warn">${esc(jump.note)}</span>`) : '<span class="hint">stesso sistema: nessun salto</span>'}</b>
@@ -246,7 +286,7 @@ export async function initHome(app) {
       <span>Missioni nei dati</span><b>${mc ? `${mc.out} partono · ${mc.in} arrivano · ${mc.offer} offerte qui` : '<span class="hint">nessuna nel catalogo dell\'atlante</span>'}</b></div>
       <div class="cb-actions"><button class="primary" id="cb-p-dest">🎯 IMPOSTA DESTINAZIONE</button><button id="cb-p-from">Missioni DA qui</button><button id="cb-p-to">Missioni VERSO qui</button></div>
       <div class="row wrap"><button class="small" id="cb-p-di">📚 scheda</button><button class="small" id="cb-p-atlas">🌌 atlante (missioni compatibili)</button><button class="small" id="cb-back">← torna</button></div>`;
-    $('cb-p-dest').onclick = async () => { const dd = destFromId(id); if (dd) { S.ctx = { type: 'auto' }; await state.setDestination(dd); await state.addRecent(dd); } };
+    $('cb-p-dest').onclick = async () => { const dd = destFromId(id); if (dd) { S.ctx = { type: 'auto' }; await state.setDestination({ ...dd, via: 'mappa' }); await state.addRecent(dd); } };
     $('cb-p-from').onclick = () => { setForm({ from: p.name }); showTab('missions'); runFinder(); };
     $('cb-p-to').onclick = () => { setForm({ to: p.name }); showTab('missions'); runFinder(); };
     $('cb-p-di').onclick = () => app.dest()?.open(id);
@@ -311,7 +351,7 @@ export async function initHome(app) {
   async function act({ act: a, id, key, q }) {
     const dest = app.dest();
     if (a === 'open') { await state.addRecent(destFromId(id) ?? { id, name: id }); return dest?.open(id); }
-    if (a === 'dest') { const d = destFromId(id); if (d) { S.ctx = { type: 'auto' }; await state.setDestination(d); await state.addRecent(d); } return; }
+    if (a === 'dest') { const d = destFromId(id); if (d) { S.ctx = { type: 'auto' }; await state.setDestination({ ...d, via: 'ricerca' }); await state.addRecent(d); } return; }
     if (a === 'ctx') { if (geo()?.get(id)) { S.ctx = { type: 'place', id }; renderCtx(); return; } return dest?.open(id); }
     if (a === 'map') { const p = geo()?.get(id); if (p) { S.mapSys = p.system; $('cb-sys').value = p.system; S.ctx = { type: 'place', id }; renderMap(); renderCtx(); if (p.pos) view.frame([p.pos]); } return; }
     if (a === 'list') { S.list = key; S.ctx = { type: 'auto' }; if (state.destination) S.ctx = { type: 'auto' }; renderSuggestions($('cb-ctx')); return; }
@@ -469,8 +509,11 @@ export async function initHome(app) {
     const g = geo();
     if (role === 'offer') {
       const names = (v.offer ?? []).map((o) => (o.id ? g.get(o.id)?.name : o.name)).filter(Boolean);
-      return `<div class="cb-role"><b>${ROLE_LABEL.offer}</b> ${names.length ? `<span class="at-pill reg">${names.length > 1 ? `uno fra ${names.length}` : 'indicato'}</span> ${esc(names.slice(0, 8).join(', '))}${names.length > 8 ? ` … +${names.length - 8}` : ''}` : '<span class="hint">non indicato nei file</span>'}
-        <div class="hint">Il luogo dell'offerta non è il punto di ritiro.</div></div>`;
+      const open = S.open === 'offer' || names.length <= 3;
+      return `<div class="cb-role"><b>${ROLE_LABEL.offer}</b> ${!names.length ? '<span class="hint">non indicata nei file</span>'
+        : names.length === 1 ? esc(names[0]) : `<span class="hint">in ${names.length} località possibili</span>${open ? '' : ' <button class="link" data-pool="offer">VISUALIZZA POSSIBILITÀ</button>'}`}
+        ${open && names.length > 1 ? `<div class="cb-pool">${esc(names.join(', '))}</div>` : ''}
+        <div class="hint">Dove il mobiGlas propone il contratto: non è il punto di ritiro.</div></div>`;
     }
     const ops = v.ops.filter((o) => o.role === role);
     if (!ops.length) return `<div class="cb-role"><b>${ROLE_LABEL[role]}</b> <span class="hint">nessuno nei dati</span></div>`;
@@ -479,11 +522,13 @@ export async function initHome(app) {
     for (const o of ops) { const k = JSON.stringify([[...o.ids, ...(o.alt ?? [])].sort(), o.unresolved ?? []]); const e = groups.get(k); if (e) e.n++; else groups.set(k, { o, n: 1 }); }
     return [...groups.values()].map(({ o, n }) => {
       const cand = [...new Set([...o.ids, ...(o.alt ?? [])])].map((id) => g.get(id)?.name).filter(Boolean);
-      const lvl = o.fixed ? '<span class="at-pill sure">CERTO</span>' : cand.length ? `<span class="at-pill maybe">VARIABILE · uno fra ${cand.length}</span>` : '<span class="at-pill">SCONOSCIUTO</span>';
       const key = `${role}:${o.slot}`;
-      const list = S.open === key ? cand : cand.slice(0, 12);
-      return `<div class="cb-role"><b>${ROLE_LABEL[role]}${groups.size > 1 ? ` ${o.slot}` : ''}</b>${n > 1 ? ` <span class="hint">×${n} partite</span>` : ''} ${lvl}${o.src === 'testo' ? ' <span class="hint">(dal testo della missione: pool vuoto nei file)</span>' : ''}
-        <div>${esc(list.join(', '))}${cand.length > list.length ? ` <button class="link" data-pool="${key}">… tutti i ${cand.length}</button>` : ''}</div>
+      const many = !o.fixed && cand.length > 1;
+      const head = o.fixed || cand.length === 1 ? esc(cand.join(', ') || 'n.d.')
+        : cand.length ? `<span class="warn">variabile</span> — ${cand.length} località possibili${S.open === key ? '' : ` <button class="link" data-pool="${key}">VISUALIZZA POSSIBILITÀ</button>`}`
+          : '<span class="warn">DA CONFERMARE NEL MOBIGLAS</span> <span class="hint">luogo non nei file</span>';
+      return `<div class="cb-role"><b>${ROLE_LABEL[role]}${groups.size > 1 ? ` ${o.slot}` : ''}</b>${n > 1 ? ` <span class="hint">×${n} partite</span>` : ''} ${head}${o.src === 'testo' ? ' <span class="hint">(dal testo della missione: pool vuoto nei file)</span>' : ''}
+        ${many && S.open === key ? `<div class="cb-pool">${esc(cand.join(', '))}</div>` : ''}
         ${o.ambiguous?.length ? `<div class="hint">Nomi ambigui (più luoghi con lo stesso nome, tenuti tutti): ${esc(o.ambiguous.join(', '))}</div>` : ''}
         ${o.unresolved?.length ? `<div class="hint">Non riconosciuti nella starmap: ${esc(o.unresolved.slice(0, 6).join(', '))}${o.unresolved.length > 6 ? '…' : ''}</div>` : ''}</div>`;
     }).join('');
@@ -511,8 +556,8 @@ export async function initHome(app) {
         <span>Carico</span><b>${(v.orders ?? []).map((o) => `${esc(o.cargo ?? 'merce n.d.')} ${o.scuMax ? `${o.scuMin && o.scuMin !== o.scuMax ? `${o.scuMin}–` : ''}${o.scuMax} SCU` : '<span class="hint">quantità non nei dati</span>'}${o.containerMax ? `, casse ≤${o.containerMax}` : ''}`).join('<br>') || (cargo.scu ? `${cargo.scu} SCU` : '<span class="hint">non nei dati</span>')}${fx?.fit === 'cassa' ? `<br><span class="err">casse più grandi della nave (${k.maxBox} SCU)</span>` : ''}</b>
         <span>Termini</span><b>${v.timeLimit ? `limite ${Math.round(v.timeLimit)} min · ` : ''}${v.risk?.combat ? `combattimento${v.risk.enemies ? ` (${v.risk.enemies} nemici)` : ''} · ` : ''}${v.risk?.level !== null && v.risk?.level !== undefined ? `rischio ${v.risk.level} · ` : ''}${v.illegal ? '<span class="err">illegale</span>' : 'legale'}${v.shareable ? ' · condivisibile' : ''}${v.onceOnly ? ' · una volta sola' : ''}</b>
         <span>Requisiti</span><b>${v.rank ? `grado ${esc(v.rank)}` : 'nessun grado indicato'}${v.repReq?.faction ? ` · reputazione ${esc(v.repReq.faction)} ${esc(v.repReq.min ?? '')}` : ''}${v.prereq ? ` · ${v.prereq} prerequisiti` : ''}</b>
-        <span>Fonte</span><b class="hint">${esc(v.source ?? '')} · ${esc(v.patch ?? 'patch n.d.')}${v.variants > 1 ? ` · ${v.variants} varianti (${esc(v.groupHow === 'wiki' ? 'gruppi della Wiki' : 'raggruppamento euristico')})` : ''}${v.uuid ? ` · ${esc(v.uuid.slice(0, 8))}…` : ''}</b>
       </div>
+      <details class="cb-sec"><summary>DATI TECNICI</summary><p class="hint">${esc(v.source ?? '')} · ${esc(v.patch ?? 'patch n.d.')}${v.variants > 1 ? ` · ${v.variants} varianti (${esc(v.groupHow === 'wiki' ? 'gruppi della Wiki' : 'raggruppamento euristico')})` : ''}${v.uuid ? ` · ${esc(v.uuid)}` : ''}</p></details>
       <div class="cb-actions">
         <button class="primary" id="md-sel" ${inAtlas ? '' : 'disabled title="nel piano cargo entrano solo trasporti e consegne"'}>${sel.has(v.id) ? '✓ NEL PIANO CARGO' : '＋ PIANO CARGO'}</button>
         <button id="md-route" ${firstPick?.pos ? '' : 'disabled title="ritiro non unico o senza XYZ: rotta non calcolabile"'}>🛰 ROTTA AL RITIRO</button>
@@ -665,7 +710,7 @@ export async function initHome(app) {
 
   // ---------------------------------------------------------------- avvio
   $('hm-pos-sys').innerHTML = Object.entries(SYS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
-  $('hm-pos-sys').value = app.system();
+  $('hm-pos-sys').value = state.position?.system ?? app.system();
   $('hm-pos-set').onclick = () => setPositionFromText($('hm-pos-text').value);
   $('hm-pos-clear').onclick = async () => { if (confirm('Cancellare la posizione impostata? (I punti salvati non vengono toccati.)')) await state.setPosition(null); };
   $('hm-pos-save').onclick = () => { const p = state.position; if (!p) return; app.openInDatabase?.({ name: `Posizione ${fmtDT(p.at)}`, system: p.system, x: p.x, y: p.y, z: p.z, unit: 'm', notes: `da ${SRC_LABEL[p.source] ?? p.source}` }); };
@@ -675,7 +720,8 @@ export async function initHome(app) {
   $('hm-q').onkeydown = (e) => { if (e.key === 'Escape') { $('hm-q').value = ''; renderSearch(); } if (e.key === 'Enter') $('hm-results').querySelector('[data-act]')?.click(); };
   $('hm-export').onclick = exportState;
   $('cb-sys').value = S.mapSys; $('cb-out').checked = S.outposts;
-  $('cb-sys').onchange = () => { S.mapSys = $('cb-sys').value; S.refit = true; state.setBridge({ mapSys: S.mapSys }); renderMap(); };
+  $('cb-sys').onchange = () => { S.mapSys = $('cb-sys').value; S.refit = true; renderMap(); };
+  $('cb-home').onclick = () => { S.mapSys = 'auto'; S.refit = true; renderMap(); };
   $('cb-out').onchange = () => { S.outposts = $('cb-out').checked; state.setBridge({ outposts: S.outposts }); renderMap(); };
   $('cb-fit').onclick = () => { S.refit = true; renderMap(); };
   $('cb-2d').onchange = () => { view.setOrtho($('cb-2d').checked); S.refit = true; renderMap(); };

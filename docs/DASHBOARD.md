@@ -95,3 +95,12 @@ Backup: **Esporta stato plancia (JSON)** nella PLANCIA. I punti continuano a esp
 - Area del negozio presente solo quando UEX la mette nel nome del terminale.
 - Posizione: solo manuale. Nel testo di `/showlocation` manca il sistema.
 - Mini mappa: proiezione XY, senza quota.
+
+## 3.0.1: dove sei, dove vai
+- La barra mostra **DOVE SEI** (luogo + sistema, campo "cambia…" e 📋 per /showlocation) e **DESTINAZIONE**
+  (provenienza, ora, ✕). Il sistema non è un dato separato: è quello della posizione.
+- Il selettore SISTEMA in alto segue la posizione (anche all'avvio). Se lo cambi a mano, o lo cambia l'ATLANTE,
+  compare un avviso con due scelte; NAVCOM non sposta mai la posizione da solo.
+- La mappa parte da "dove sei"; guardare un altro sistema è solo una vista ("↺ torna a …").
+- Limite: con una posizione XYZ incollata da /showlocation il sistema resta quello scelto nel campo Sistema
+  (non è nel testo del gioco): controllalo.

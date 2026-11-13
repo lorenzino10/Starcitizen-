@@ -21,8 +21,8 @@ import { initHome } from './ui-home.js';
 import { initControl } from './ui-control.js';
 import { HomeState } from './home/state.js';
 
-const VERSION = '3.0.0-web';
-const CACHE_NAME = 'navcom-v3.0.0'; // deve coincidere con CACHE in sw.js
+const VERSION = '3.0.1-web';
+const CACHE_NAME = 'navcom-v3.0.1'; // deve coincidere con CACHE in sw.js
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const ICON = { [STATUS.VERIFIED]: '🟢', [STATUS.DATA]: '🔵', [STATUS.THEORETICAL]: '🟠' };
@@ -633,6 +633,8 @@ async function main() {
     });
   } catch (e) { console.error(e); } // il resto di NAVCOM (e l'aggiornamento della cache) continua a funzionare
   homeState = await new HomeState(() => pointsUi?.db ?? null).load();
+  // DOVE SEI comanda: quando imposti la posizione, PIANIFICATORE e ATLANTE passano al suo sistema.
+  homeState.onChange((what) => { const ps = homeState.position?.system; if (what === 'position' && ps && ps !== system) switchSystem(ps); });
   let logistics = null;
   try {
     logistics = await initLogistics({
@@ -665,7 +667,7 @@ async function main() {
   } catch (e) { console.error(e); $('di-banner').innerHTML = `<p class="err">DESTINATION INTELLIGENCE non avviata: ${esc(e.message)}</p>`; }
   try {
     home = await initHome({
-      $, esc, VERSION, store, state: homeState, showTab, system: () => system, points: () => points,
+      $, esc, VERSION, store, state: homeState, showTab, switchSystem, system: () => system, points: () => points,
       pointsDb: () => pointsUi?.db ?? null, dest: () => dest, atlas: () => atlas, logistics: () => logistics,
       planTo: (pt) => planner.planToPoint(pt),
       openAtlas: (id) => { showTab('atlas'); atlas?.select(id); },
@@ -685,7 +687,9 @@ async function main() {
   // cache offline (service worker) e precaricamento della libreria grafica locale
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
   ensurePlotly().then(cacheLoadedFiles);
-  await ensureData();
-  refreshPoints();
+  // all'avvio il sistema di lavoro e' quello della tua posizione (se l'hai impostata)
+  const ps = homeState?.position?.system;
+  if (ps && ps !== system && ['stanton', 'pyro', 'nyx'].includes(ps)) await switchSystem(ps);
+  else { await ensureData(); refreshPoints(); }
 }
 main();

@@ -1,5 +1,19 @@
 # Registro delle modifiche
 
+## 3.0.1-web (2026-11-13): PLANCIA coerente
+Correzioni dopo la prova di Lorenzo: sistema, posizione e destinazione si contraddicevano.
+- **DOVE SEI** e **DESTINAZIONE** in evidenza nella barra della PLANCIA; il luogo si cambia direttamente lì
+  (stessa ricerca di MISSION CONTROL, XYZ del luogo nei dati). Tolti i chip "NAVCOM" e "Sistema".
+- **Un solo sistema di lavoro**: impostando la posizione, il selettore SISTEMA in alto (PIANIFICATORE e ATLANTE)
+  passa al suo sistema; all'avvio vale il sistema della posizione. Se in alto o nell'ATLANTE scegli un altro
+  sistema, la plancia lo segnala e chiede: "sono in X: scelgo dove" oppure "sono ancora a Y".
+- **Mappa**: si apre sempre su "dove sei" (la scelta manuale non viene più ricordata fra le sessioni), con
+  "↺ torna a …" quando guardi un altro sistema.
+- **Destinazione**: mostra da dove è stata impostata (ricerca, mappa, DESTINAZIONI) e quando, avvisa se è in un
+  altro sistema; clic sul nome la mostra su mappa e pannello, ✕ la toglie.
+- **Scheda missione** della plancia più leggibile: pool riassunti ("variabile — N località possibili",
+  VISUALIZZA POSSIBILITÀ), offerta in N località, fonte e UUID in DATI TECNICI.
+
 ## 3.0.0-web (2026-11-13): MISSION CONTROL ripensato
 Dettagli in [docs/MISSION_CONTROL.md](docs/MISSION_CONTROL.md). Stesso motore, stesso database, stessi dati personali.
 - **Interfaccia in sei passi**: dove sono → tipo di missione → quali posso cercare → quali mi interessano →
