@@ -12,7 +12,7 @@
 <body>
 <header class="topbar">
   <div class="brand"><span class="logo">◎</span> STAR CITIZEN <b>NAVCOM</b> <small id="version"></small></div>
-  <label class="sys">SISTEMA
+  <label class="sys" title="Sistema dei dati QT, del PIANIFICATORE e dell'ATLANTE. Segue la tua posizione (PLANCIA → DOVE SEI).">SISTEMA
     <select id="system"><option value="stanton">Stanton</option><option value="pyro">Pyro</option><option value="nyx">Nyx</option></select>
   </label>
   <div id="datastatus" class="datastatus">—</div>
@@ -43,6 +43,7 @@
 <!-- PIANIFICATORE --------------------------------------------------------->
 <section id="tab-home" class="tab active">
   <div id="hm-bar" class="cb-strip" aria-label="Stato NAVCOM"></div>
+  <div id="hm-sync" class="cb-sync" hidden></div>
   <div id="cb-ship" class="panel cb-ship" hidden>
     <div class="row wrap"><label style="flex:1 1 320px">Nave <input id="hm-ship-in" list="di-ships" placeholder="es. RSI Constellation Mk V Centaurus"></label></div>
     <div id="hm-ship"></div>
@@ -54,7 +55,8 @@
       <canvas id="cb-canvas" aria-label="Mappa del sistema"></canvas>
       <div class="at-hover" id="cb-hover"></div>
       <div class="cb-maptools">
-        <select id="cb-sys" title="Sistema mostrato"><option value="auto">sistema della posizione</option><option value="stanton">Stanton</option><option value="pyro">Pyro</option><option value="nyx">Nyx</option></select>
+        <select id="cb-sys" title="Sistema mostrato sulla mappa (solo la vista: non cambia dove sei)"><option value="auto">dove sei</option><option value="stanton">Stanton</option><option value="pyro">Pyro</option><option value="nyx">Nyx</option></select>
+        <button class="small" id="cb-home" hidden title="Torna al sistema in cui sei">↺ torna dove sei</button>
         <label class="check"><input type="checkbox" id="cb-out">avamposti</label>
         <label class="check"><input type="checkbox" id="cb-2d">2D</label>
         <button class="small" id="cb-fit" title="Inquadra posizione, destinazione e missioni">⌖ inquadra</button>

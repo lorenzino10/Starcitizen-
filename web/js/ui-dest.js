@@ -282,7 +282,7 @@ export async function initDestinations(app) {
     $('di-route') && ($('di-route').onclick = () => app.planTo?.({ name: c.title, system: c.place?.system ?? c.desc.system, x: c.xyz.x, y: c.xyz.y, z: c.xyz.z, unit: 'm' }));
     $('di-atlas') && ($('di-atlas').onclick = () => app.openAtlas?.(c.place.id));
     $('di-db') && ($('di-db').onclick = () => app.showTab('db'));
-    $('di-setdest') && ($('di-setdest').onclick = async () => { await app.home.setDestination(destOf(c)); $('di-setdest').textContent = '🎯 destinazione impostata'; });
+    $('di-setdest') && ($('di-setdest').onclick = async () => { await app.home.setDestination({ ...destOf(c), via: 'destinazioni' }); $('di-setdest').textContent = '🎯 destinazione impostata'; });
     $('di-fav') && ($('di-fav').onclick = async () => { await app.home.toggleFav(destOf(c)); $('di-fav').textContent = app.home.isFav(c.id) ? '★ preferito' : '☆ preferito'; });
     $('di-visit') && ($('di-visit').onclick = async () => { if (!confirm(`Registrare che hai visitato "${c.title}" adesso?`)) return; await app.home.markVisited(destOf(c)); $('di-visit').textContent = '✓ visita registrata'; });
     $('di-card').querySelectorAll('.di-shop').forEach((b) => { b.onclick = () => openShop(b.dataset.term); });
