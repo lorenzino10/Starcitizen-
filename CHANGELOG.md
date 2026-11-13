@@ -1,5 +1,21 @@
 # Registro delle modifiche
 
+## 3.0.0-web (2026-11-13): MISSION CONTROL ripensato
+Dettagli in [docs/MISSION_CONTROL.md](docs/MISSION_CONTROL.md). Stesso motore, stesso database, stessi dati personali.
+- **Interfaccia in sei passi**: dove sono → tipo di missione → quali posso cercare → quali mi interessano →
+  raggruppamento → percorso. Dettagli solo su richiesta.
+- **Barra superiore** con località, regione, sistema, nave, missioni trovate, filtri avanzati, profilo e modalità.
+  La posizione resta separata dal sistema dell'ATLANTE.
+- **Sei categorie** (TRASPORTI, CONSEGNE, BOUNTY HUNTING, MERCENARY, INVESTIGAZIONI, ALTRE) e filtri di viaggio per i
+  trasporti; le destinazioni dinamiche restano "da confermare".
+- **Schede** POSSIBILI QUI / CATALOGO / VISTE / ACCETTATE / COMPLETATE / EVENTI al posto di "OFFERTE".
+- **Righe compatte** con varianti raggruppate ed espandibili; pool riassunti ("ritiro variabile (17)").
+- **Dettaglio laterale ridimensionabile**: VISUALIZZA POSSIBILITÀ per i pool, DATI TECNICI richiudibili.
+- **LA MIA SPEDIZIONE** sempre visibile e **RAGGRUPPA E PIANIFICA** con risposta in sette punti.
+- **Modalità SEMPLICE** (predefinita, ricordata) e **AVANZATA** con tutti i filtri e i dati della 2.1.
+- Correzione: MASSIMO GUADAGNO non penalizza più le ricompense dinamiche.
+- Test: 8 nuovi (MC-20..MC-26, MC-R2 sui dati reali), 237 in totale (227 superati, 10 todo, 0 falliti).
+
 ## 2.1.0-web (2026-11-13): MOBIGLAS MISSION CONTROL
 Dettagli, fonti e campi reali/parziali/inconoscibili in [docs/MISSION_CONTROL.md](docs/MISSION_CONTROL.md).
 - **Nuova scheda 📟 MISSION CONTROL**: posizione dalla PLANCIA o scelta a mano (luogo, corpo, sistema, punto XYZ),

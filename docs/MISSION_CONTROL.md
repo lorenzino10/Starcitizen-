@@ -1,10 +1,48 @@
-# 📟 MISSION CONTROL (2.1.0)
+# 📟 MISSION CONTROL (3.0.0)
 
-Scheda che lavora come il Contract Manager del mobiGlas, partendo dalla posizione della PLANCIA.
+Scheda che lavora come il Contract Manager del mobiGlas, partendo dalla tua posizione.
 NAVCOM **non è collegato al gioco**: le offerte vere le vedi nel mobiGlas e, se vuoi, le registri tu.
 Il catalogo dice quali missioni *esistono* nei dati del gioco e dove *possono* essere offerte, mai che lo sono adesso.
 
-## Struttura
+## 3.0: l'interfaccia segue le domande del pilota
+1. **Dove sono?** Barra superiore: località (dalla PLANCIA, cambiabile lì), regione e sistema, nave attiva, numero di
+   missioni trovate, FILTRI AVANZATI, PROFILO, modalità SEMPLICE / AVANZATA. La posizione è indipendente dal sistema
+   mostrato dall'ATLANTE: se l'ATLANTE è su Pyro e tu sei a New Babbage, la ricerca resta su microTech e lo dice.
+2. **Che tipo di missione?** Sei categorie: TRASPORTI, CONSEGNE, BOUNTY HUNTING, MERCENARY, INVESTIGAZIONI, ALTRE.
+   Nei trasporti: Locali, Interplanetari, Interstellari, Multidestinazione, **Destinazione da confermare** (pool che
+   ammettono più classi: mai messi in una classe certa), Tutti.
+3. **Quali posso cercare?** Schede **POSSIBILI QUI** (offerta nella tua regione secondo i dati e nessun requisito
+   registrato in contrasto), **CATALOGO** (tutti i modelli dei file), VISTE NEL MOBIGLAS, ACCETTATE, COMPLETATE, EVENTI.
+   La vecchia scheda "OFFERTE" non esiste più: non erano offerte. La vista 2.1 resta in AVANZATA come
+   "MODELLI DELLA REGIONE" (ed è quella usata da "missioni verso qui").
+4. **Quali mi interessano?** Una riga per titolo: titolo originale, ricompensa, tipo, origine → destinazione,
+   SCU, stato. Le varianti stanno sotto il titolo ("▸ 181 varianti"). Un pool diventa "ritiro variabile (17)";
+   una consegna non determinata "DA CONFERMARE NEL MOBIGLAS". Il dettaglio si apre solo al clic, in un pannello
+   laterale ridimensionabile: le 17 località si vedono con VISUALIZZA POSSIBILITÀ; identificativi, varianti, nome
+   interno, offerta e fonti stanno in DATI TECNICI (chiusi in SEMPLICE, aperti in AVANZATA).
+5. **Posso raggrupparle?** Casella di selezione su ogni riga → barra **LA MIA SPEDIZIONE** sempre visibile: numero,
+   ricompensa nota (le dinamiche contate a parte), SCU noti contro la capacità della nave, viaggi minimi,
+   incompatibilità delle casse, ritiri e consegne noti. Nessun calcolo finché non premi **RAGGRUPPA E PIANIFICA**.
+6. **Qual è il percorso migliore?** Il piano (stesso motore di stacking) risponde in ordine: prima tappa, merci da
+   ritirare, missioni che condividono il viaggio, consegne, viaggi, aUEC, missioni non combinate e perché (con
+   "inserisci i dati letti nel mobiGlas"), missioni pianificabili solo in parte.
+
+**SEMPLICE** (predefinita e ricordata) mostra solo posizione, categoria, tipo di viaggio, ricompensa minima, ricerca per
+titolo e ordinamento (ricompensa, compatibilità con la posizione, distanza, capacità cargo, titolo). **AVANZATA** espone
+tutto quello che c'era nella 2.1: raggio, relazione DA/VERSO, legalità, ritiro e consegna in, categorie fini,
+varianti separate, casse, non accessibili, criterio del piano, dati tecnici nelle righe. In SEMPLICE un filtro avanzato
+rimasto attivo viene dichiarato in alto con "azzera".
+
+### Cosa dicono i dati reali (4.10.2-LIVE.12881860)
+- New Babbage, TRASPORTI, POSSIBILI QUI: 17 titoli (307 varianti). Nessuno è pianificabile da solo: o i luoghi sono
+  pool, o i file non dicono la quantità per singola consegna. RAGGRUPPA E PIANIFICA lo spiega missione per missione;
+  l'itinerario arriva dopo aver registrato i dati letti nel mobiGlas.
+- Ruin Station (Pyro): 25 modelli di trasporto del catalogo hanno ritiro e consegna fissi; con tre di questi
+  il piano dà un itinerario completo (Ruin Station → Canard View, 350 SCU divisi in due viaggi da 240 e 110).
+- Correzione: in MASSIMO GUADAGNO le ricompense dinamiche non penalizzano più le combinazioni (prima, con tutte le
+  ricompense dinamiche, il piano sceglieva una sola missione).
+
+## Struttura (2.1, ancora valida in AVANZATA)
 - **Sinistra**: posizione (luogo, corpo, sistema o punto XYZ con il luogo più vicino come suggerimento), raggio di ricerca
   (*solo questo luogo* / *corpo celeste* / *intero sistema*), relazione (*DA qui*, *VERSO qui*, *da o verso*),
   PLAYER PROFILE, filtri (testo esatto o parziale anche sul nome interno, legalità, ritiro, destinazione,
@@ -88,5 +126,7 @@ Geografia: 1.185 modelli hanno solo il luogo d'offerta (NON NOTA); i trasporti l
 i trasporti usano pool che ammettono più classi.
 
 ## Test
-`web/tests/mc.test.mjs`: MC-1..MC-19 con dati **sintetici dichiarati** (nomi di luoghi reali per leggibilità,
-coordinate, contratti e gradi inventati), più MC-R sui dati reali, saltato se il catalogo locale non c'è.
+`web/tests/mc.test.mjs`: MC-1..MC-26 con dati **sintetici dichiarati** (nomi di luoghi reali per leggibilità,
+coordinate, contratti e gradi inventati), più MC-R e MC-R2 (scenari A–C) sui dati reali, saltati in CI perché il
+catalogo si scarica dopo i test. Scenari D ed E (ATLANTE su Pyro con posizione a New Babbage; selezione, profilo e
+modalità dopo il riavvio) verificati nel browser sul catalogo reale.
