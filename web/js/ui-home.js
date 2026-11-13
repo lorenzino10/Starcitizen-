@@ -23,7 +23,7 @@ const fmtKm = (m) => `${(m / 1000).toLocaleString('it-IT', { maximumFractionDigi
 const fmtT = (s) => (s === null || s === undefined ? '—' : s < 90 ? `${Math.round(s)} s` : `${Math.floor(s / 60)} min ${Math.round(s % 60)} s`);
 const fmtA = (n) => (n === null || n === undefined ? 'n.d.' : `${Math.round(n).toLocaleString('it-IT')} aUEC`);
 const num = (v) => (v === '' || v === null || v === undefined || !Number.isFinite(+v) ? null : +v);
-const SRC_LABEL = { manuale: 'inserita a mano', '/showlocation': 'da /showlocation', salvata: 'da un punto salvato' };
+const SRC_LABEL = { manuale: 'inserita a mano', '/showlocation': 'da /showlocation', salvata: 'da un punto salvato', luogo: 'luogo scelto da te' };
 const QUICK = [['city', '🏙 Città'], ['station', '🛰 Stazioni'], ['outpost', '🏕 Avamposti'], ['shops', '🛒 Negozi'], ['hospital', '✚ Ospedali'], ['refinery', '⚗ Raffinerie'], ['mining', '⛏ Mining'], ['fav', '☆ Preferiti']];
 const RISK = [['any', 'qualsiasi'], ['nocombat', 'senza combattimento'], ['1', 'rischio fino a 1'], ['2', 'rischio fino a 2'], ['3', 'rischio fino a 3']];
 const ROLE_LABEL = { offer: 'OFFERTA', pickup: 'RITIRO', dropoff: 'CONSEGNA', transit: 'TRANSITO' };
@@ -78,7 +78,7 @@ export async function initHome(app) {
       ['NAVCOM', `v${esc(app.VERSION)}`, ''],
       ['Nave', `<button class="link" id="cb-ship-tog" title="Scheda tecnica (file di gioco)">${esc(state.ship ?? DEFAULT_SHIP)} ▾</button>`, ''],
       ['Sistema', esc(SYS[sys] ?? sys), ''],
-      ['Posizione', pos ? `${esc(SYS[pos.system] ?? pos.system)} · ${esc(SRC_LABEL[pos.source] ?? pos.source)} · ${fmtDT(pos.at)}` : `<span class="hm-nd">${NOT_SET}</span>`, '<button class="small" id="hm-paste" title="Incolla la riga di /showlocation">📋</button>'],
+      ['Posizione', pos ? `${pos.place ? `${esc(pos.place.name)} · ` : ''}${esc(SYS[pos.system] ?? pos.system)} · ${esc(SRC_LABEL[pos.source] ?? pos.source)} · ${fmtDT(pos.at)}` : `<span class="hm-nd">${NOT_SET}</span>`, '<button class="small" id="hm-paste" title="Incolla la riga di /showlocation">📋</button>'],
       ['Destinazione', d ? `${esc(d.name)} <span class="hint">${esc(SYS[d.system] ?? d.system ?? '?')}</span>` : '<span class="hm-nd">nessuna</span>', ''],
       ['Rotta', routeTxt, ''],
       ['Dati missioni', prov.ok ? `${esc(prov.version)} ${esc(prov.channel ?? '')} · ${esc(String(prov.date).slice(0, 10))}${prov.stale ? ' <span class="warn">⚠</span>' : ''}` : `<span class="hm-nd">${M.res ? 'n.d.' : 'in caricamento'}</span>`, ''],
@@ -97,7 +97,8 @@ export async function initHome(app) {
   }
   function renderPosition() {
     const pos = state.position; const c = posContext(pos);
-    $('hm-pos').innerHTML = pos ? `<div class="hm-kv">
+    $('hm-pos').innerHTML = pos ? `<div class="hm-kv">${pos.place ? `
+        <span>Luogo</span><b>${esc(pos.place.name)} <span class="hint">scelto da te: XYZ = posizione del luogo nei dati</span></b>` : ''}
         <span>XYZ</span><b class="mono">${['x', 'y', 'z'].map((k) => fmtKm(pos[k])).join(' · ')}</b>
         <span>Corpo vicino</span><b>${c.body ? `${esc(c.body.name)} <span class="hint">${c.body.d < 0 ? `sotto la superficie secondo il raggio noto (${fmtD(-c.body.d)}): coordinate da ricontrollare` : `${fmtD(c.body.d)} ${c.body.fromSurface ? 'dalla superficie' : 'dal centro'}`}</span>` : '<span class="hm-nd">n.d.</span>'}</b>
         <span>Marker QT</span><b>${c.mk ? `${esc(c.mk.name)} <span class="hint">${fmtD(c.mk.d)}</span>` : `<span class="hm-nd">${c.markersLoaded ? 'nessuno' : 'posizioni QT non caricate'}</span>`}</b></div>`
@@ -679,6 +680,8 @@ export async function initHome(app) {
   $('cb-fit').onclick = () => { S.refit = true; renderMap(); };
   $('cb-2d').onchange = () => { view.setOrtho($('cb-2d').checked); S.refit = true; renderMap(); };
   document.querySelectorAll('[data-cbt]').forEach((b) => { b.onclick = () => showTab(b.dataset.cbt); });
+  $('cb-mc-here').onclick = () => app.control?.()?.open({ relation: 'da' });
+  $('cb-mc-to').onclick = () => { const d = state.destination; if (d?.id && geo()?.get(d.id)) app.control?.()?.open({ placeId: d.id, relation: 'verso', scope: 'luogo' }); else alert('Imposta prima una destinazione che sia un luogo della mappa.'); };
   $('hm-persist').innerHTML = state.persistent ? 'Stato della plancia nell\'archivio del browser (chiavi separate dal DATABASE PUNTI).' : '<span class="warn">Archivio del browser non disponibile: posizione, nave e destinazione restano solo per questa sessione.</span>';
   state.onChange((what) => {
     if (what === 'bridge') return;
@@ -698,5 +701,9 @@ export async function initHome(app) {
     show() { renderBar(); renderMap(); renderCargoBadge(); if (S.result) renderResults(); },
     /** dal resto dell'app: cerca missioni da/verso un luogo */
     findMissions(patch) { setForm(patch); showTab('missions'); runFinder(); },
+    /** Mission Database 2.0 caricato una sola volta, condiviso con MISSION CONTROL */
+    missionDb: () => loadMissions().then(() => ({ res: M.res, views: M.views ?? [], ships: M.ships })),
+    /** dal MISSION CONTROL: mostra la missione sulla mappa della plancia */
+    openMission: (id) => { if (viewById(id)) openMission(id); },
   };
 }

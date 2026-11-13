@@ -206,7 +206,8 @@ export async function initLogistics(app) {
   $('cb-json').onclick = async () => download(`navcom-logistica-${day()}.json`, JSON.stringify(exportLogistics({ contracts, observations, settings: S, version: VERSION, plans: await db.plans(), attachments: await db.attachments() }), null, 1), 'application/json');
   $('lg-backup').onclick = async () => {
     const points = app.pointsDb ? await app.pointsDb().all().catch(() => []) : [];
-    download(`navcom-backup-completo-${day()}.json`, JSON.stringify(exportFull({ points, contracts, observations, settings: S, version: VERSION, plans: await db.plans(), attachments: await db.attachments() })), 'application/json');
+    const missionControl = { records: (await db.getMeta('mcRecords').catch(() => null)) ?? [], profile: (await db.getMeta('playerProfile').catch(() => null)) ?? null };
+    download(`navcom-backup-completo-${day()}.json`, JSON.stringify(exportFull({ points, contracts, observations, settings: S, version: VERSION, plans: await db.plans(), attachments: await db.attachments(), missionControl })), 'application/json');
   };
   $('lg-restore').onchange = async () => {
     const f = $('lg-restore').files?.[0]; $('lg-restore').value = '';
@@ -218,10 +219,20 @@ export async function initLogistics(app) {
       const mp = mergeById(await db.plans(), r.plans), ma = mergeById(await db.attachments(), r.attachments, (x) => x.at ?? '');
       await db.putPlans(mp.list); await db.putAttachments(ma.list);
       let pts = '';
+      if (r.missionControl) {
+        // unione senza perdita: registrazioni per ID (vince la piu' recente); il profilo locale resta se gia' compilato
+        const mr = mergeById((await db.getMeta('mcRecords').catch(() => null)) ?? [], r.missionControl.records);
+        await db.setMeta('mcRecords', mr.list);
+        const localProfile = await db.getMeta('playerProfile').catch(() => null);
+        const takeProfile = r.missionControl.profile && !localProfile?.updatedAt;
+        if (takeProfile) await db.setMeta('playerProfile', r.missionControl.profile);
+        await app.missionControlReload?.();
+        pts += ` · MISSION CONTROL: registrazioni +${mr.added} / aggiornate ${mr.updated}; profilo ${takeProfile ? 'ripristinato' : r.missionControl.profile ? 'locale mantenuto (già compilato)' : 'assente nel backup'}`;
+      }
       if (r.points && app.pointsDb) {
         const pdb = app.pointsDb(); const have = new Set((await pdb.all()).map((p) => p.id));
         const add = r.points.filter((p) => p.id && !have.has(p.id));
-        await pdb.putMany(add); pts = ` · DATABASE PUNTI: ${add.length} punti aggiunti, esistenti invariati`;
+        await pdb.putMany(add); pts += ` · DATABASE PUNTI: ${add.length} punti aggiunti, esistenti invariati`;
       }
       $('lg-arch-msg').innerHTML = `<span class="ok">Ripristino per unione: contratti +${mc.added} / aggiornati ${mc.updated}; osservazioni +${mo.added}; piani cargo +${mp.added}; screenshot +${ma.added}${pts}. Nulla è stato cancellato.</span>${r.errors.length ? `<br><span class="err">${esc(r.errors.join(' · '))}</span>` : ''}`;
       await refreshAll();

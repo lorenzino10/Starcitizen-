@@ -36,6 +36,10 @@ export function dbViews(cat) {
       description: m.description ?? null, systems: m.systems ?? (m.system ? [m.system] : []), interstellar: !!m.interstellar, transit: m.transit ?? null,
       rewardInfo: m.rewardInfo ?? (m.reward ? { kind: 'fissa', min: m.reward, max: m.reward } : { kind: 'nd' }),
       risk: m.risk ?? null, repReq: m.repReq ?? null, prereq: m.prereq ?? 0, duration: m.duration ?? null, onceOnly: !!m.onceOnly, shareable: !!m.shareable,
+      titleStatus: m.titleStatus ?? null, titleRaw: m.titleRaw ?? null, titleFrom: m.titleFrom ?? null, titleKey: m.titleKey ?? null, debug: m.debug ?? null,
+      rankRep: m.rankRep ?? null, rankMax: m.rankMax ?? null, rankMaxRep: m.rankMaxRep ?? null, repScope: m.repScope ?? null, prereqs: m.prereqs ?? [], scope: m.scope ?? null,
+      cooldown: m.cooldown ?? null, inPrison: !!m.inPrison, failCriminal: !!m.failCriminal,
+      objectives: (m.objectives ?? []).map((p) => ({ role: 'objective', slot: p.slot, token: p.token, ids: p.ids.map((x) => cat.places[x]), alt: (p.alt ?? []).map((x) => cat.places[x]), unresolved: (p.unresolved ?? []).map((x) => cat.names[x]), size: p.size })),
     });
   });
 }

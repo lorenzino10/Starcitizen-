@@ -5,13 +5,13 @@ import { normalizeObservation } from './intel.js';
 export const FORMAT = 'navcom-logistics';
 export const FULL_FORMAT = 'navcom-backup-completo';
 
-export function exportLogistics({ contracts, observations, settings = null, version = '', plans = [], attachments = [] }) {
-  return { format: FORMAT, version: 2, app: version, exportedAt: new Date().toISOString(), contracts, observations, settings, plans, attachments };
+export function exportLogistics({ contracts, observations, settings = null, version = '', plans = [], attachments = [], missionControl = null }) {
+  return { format: FORMAT, version: 2, app: version, exportedAt: new Date().toISOString(), contracts, observations, settings, plans, attachments, ...(missionControl ? { missionControl } : {}) };
 }
 
 /** Backup completo NAVCOM: DATABASE PUNTI + logistica, in un solo file. */
-export function exportFull({ points, contracts, observations, settings = null, version = '', plans = [], attachments = [] }) {
-  return { format: FULL_FORMAT, version: 2, app: version, exportedAt: new Date().toISOString(), points, logistics: exportLogistics({ contracts, observations, settings, version, plans, attachments }) };
+export function exportFull({ points, contracts, observations, settings = null, version = '', plans = [], attachments = [], missionControl = null }) {
+  return { format: FULL_FORMAT, version: 2, app: version, exportedAt: new Date().toISOString(), points, logistics: exportLogistics({ contracts, observations, settings, version, plans, attachments, missionControl }) };
 }
 
 /**
@@ -35,7 +35,14 @@ export function parseBackup(text) {
   }
   const plans = (lg.plans ?? []).filter((p) => p && p.id && Array.isArray(p.seq) && Array.isArray(p.contracts));
   const attachments = (lg.attachments ?? []).filter((a) => a && a.id && typeof a.dataUrl === 'string' && a.dataUrl.startsWith('data:image/'));
-  return { contracts, observations, plans, attachments, points: j.format === FULL_FORMAT ? (j.points ?? []) : null, settings: lg.settings ?? null, errors };
+  // MISSION CONTROL (2.1): registro delle offerte viste/accettate e PLAYER PROFILE; assenti nei backup precedenti
+  const mcIn = lg.missionControl ?? null;
+  const missionControl = mcIn ? {
+    records: (mcIn.records ?? []).filter((r) => r && r.id && r.ref?.title && ['visibile', 'accettata', 'completata', 'fallita'].includes(r.status)),
+    profile: mcIn.profile && typeof mcIn.profile === 'object' ? mcIn.profile : null,
+  } : null;
+  if (mcIn && missionControl.records.length < (mcIn.records ?? []).length) errors.push(`MISSION CONTROL: ${(mcIn.records ?? []).length - missionControl.records.length} registrazioni non valide ignorate`);
+  return { contracts, observations, plans, attachments, missionControl, points: j.format === FULL_FORMAT ? (j.points ?? []) : null, settings: lg.settings ?? null, errors };
 }
 
 /** Unione senza perdita: per ID vince il record aggiornato piu' di recente; nulla viene cancellato. */

@@ -98,7 +98,7 @@ try {
   const links = gatewayLinks(bySysPts).filter((l) => l.usable).map((l) => ({ from: l.from, to: l.to }));
   const db = buildMissionDb(contracts, places, { geo: new Geo(places), links, patch, fetchedAt, wiki });
   const cat = atlasSubset(db);
-  for (const m of cat.missions) delete m.description;
+  for (const m of cat.missions) { delete m.description; delete m.objectives; delete m.prereqs; } // l'atlante non li usa: file piu' leggero
   const prev = await previousMissions();
   const check = validateCatalog(db, prev?.cat ?? null);
   const warnings = [...check.warnings];

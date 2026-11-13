@@ -32,7 +32,7 @@ export const CATEGORY_LABEL = {
 export const ATLAS_CATEGORIES = new Set(['hauling', 'delivery']);
 
 const uniq = (a) => [...new Set(a.filter((x) => x !== null && x !== undefined && x !== ''))];
-const PLACEHOLDER = /^<=.*=>$|~mission\(|\[[A-Za-z|0-9]+\]/;
+const PLACEHOLDER = /^<=.*=>$|~mission\(|\[[A-Za-z][^\]]*\]/; // parametri del gioco: [TargetName], [Contractor|DataHeistTitle_VE]
 const systemKey = (s) => { const k = String(s ?? '').toLowerCase().replace(/ system$/, '').trim(); return SYSTEMS.includes(k) ? k : null; };
 
 /** "4.10.2-LIVE.12881860" -> {version:'4.10.2', channel:'LIVE', build:'12881860'} */
@@ -84,6 +84,36 @@ export function cleanDescription(text, max = 280) {
   const t = String(text ?? '').replace(/<\/?EM\d*>/g, '').replace(/\s+/g, ' ').trim();
   if (!t || /^\[[^\]]*\]$/.test(t)) return null;
   return t.length > max ? `${t.slice(0, max - 1)}…` : t;
+}
+
+/**
+ * Titolo come lo riportano le fonti, mai tradotto ne' inventato.
+ *  verificato: testo letterale (Wiki o file), senza parametri
+ *  dinamico:   contiene parametri riempiti dal gioco alla generazione ([TargetName], [Location]...)
+ *  risolto:    parametri sostituiti con l'unico valore presente nei file (titolo mobiGlas non verificato)
+ *  assente:    nessun titolo nelle fonti: si mostra il nome interno (titolo mobiGlas non verificato)
+ * @returns {{title, status, raw, from}}
+ */
+export function missionTitle(c, w, tokens = {}, fallback = 'Missione (titolo assente nei file)') {
+  const lit = [[c?.DisplayTitle, 'file'], [w?.title, 'Wiki'], [c?.Title, 'file']].find(([x]) => x && !/^<=.*=>$/.test(String(x).trim()) && !PLACEHOLDER.test(x));
+  if (lit) return { title: String(lit[0]), status: 'verificato', raw: null, from: lit[1] };
+  // titolo con parametri: si preferisce la forma della Wiki ("[TargetName]"), altrimenti quella dei file
+  const raw = w?.title && !/^<=.*=>$/.test(w.title) ? { t: w.title, from: 'Wiki' } : c?.Title && !/^<=.*=>$/.test(String(c.Title).trim()) ? { t: String(c.Title).replace(/~mission\(([^)]+)\)/g, '[$1]'), from: 'file' } : null;
+  if (!raw) return { title: fallback, status: 'assente', raw: null, from: null };
+  if (/^\[[^\]]+\]$/.test(raw.t.trim())) return { title: raw.t, status: 'dinamico', raw: raw.t, from: raw.from };
+  const solved = cleanTitle(c?.Title ?? raw.t, tokens, raw.t);
+  if (c?.Title && !/\[[^\]]+\]/.test(solved) && solved !== raw.t) return { title: solved, status: 'risolto', raw: raw.t, from: 'file' };
+  return { title: raw.t, status: 'dinamico', raw: raw.t, from: raw.from };
+}
+
+/** Prerequisiti dai file: gruppi "N fra queste missioni o tag" con i titoli come nei file. */
+export function prereqGroups(list) {
+  return (list ?? []).map((p) => ({
+    need: Number.isFinite(p.RequiredCount) ? p.RequiredCount : null,
+    missions: (p.RequiredMissions ?? []).map((r) => ({ uuid: r.UUID ?? null, title: r.Title && !/^<=.*=>$/.test(r.Title) ? r.Title : null, debug: r.DebugName ?? null })),
+    tags: (p.RequiredTags ?? []).map((t) => t.Name).filter(Boolean),
+    excluded: (p.ExcludedTags ?? []).map((t) => t.Name).filter(Boolean),
+  })).filter((g) => g.missions.length || g.tags.length);
 }
 
 export function variantGroups(grouped) {
@@ -144,8 +174,8 @@ export function buildMissionDb(contracts, geoPlaces, { geo = null, links = [], p
     const ctxSystems = uniq([...offerSystems, ...wikiSystems, ...reqSystems]);
     const ctxSys = !interstellarDeclared && ctxSystems.length === 1 ? ctxSystems[0] : (!interstellarDeclared ? sysOf(c.DebugName) : null);
 
-    const pools = [];
-    const addPool = (r, slot, token, locNames, src) => {
+    const pools = [], objectives = [];
+    const addPool = (r, slot, token, locNames, src, into = pools) => {
       const pool = { role: r, slot, token, src, ids: [], alt: [], ambiguous: [], unresolved: [], anonymous: 0, size: 0 };
       const seen = new Set();
       for (const raw of locNames) {
@@ -156,14 +186,17 @@ export function buildMissionDb(contracts, geoPlaces, { geo = null, links = [], p
         const res = resolve(n, ctxSys);
         if (res.id) { pool.ids.push(pi(res.id)); continue; }
         if (res.how === 'ambiguo') { pool.ambiguous.push(ni(n)); for (const id of res.candidates) pool.alt.push(pi(id)); } else pool.unresolved.push(ni(n));
+        if (into !== pools) continue; // i luoghi degli obiettivi non entrano nella coda di normalizzazione dei trasporti
         const q = queue.get(n) ?? { name: n, how: res.how, count: 0, candidates: res.candidates };
         q.count++; queue.set(n, q);
       }
       pool.ids = [...new Set(pool.ids)]; pool.alt = [...new Set(pool.alt)];
-      pools.push(pool);
+      into.push(pool);
     };
     for (const [purpose, v] of Object.entries(c.LocationPools ?? {})) {
-      const r = poolRole(purpose); if (!r) continue;
+      const r = poolRole(purpose);
+      // pool senza ruolo cargo: luoghi operativi dell'obiettivo (bounty, mercenari, indagini...), mai ritiri
+      if (!r) { const names = (v.ResolvedLocations ?? []).map((l) => l.Name).filter((n) => n && n !== 'undefined'); if (names.length) addPool('objective', objectives.length + 1, purpose, names, 'pool', objectives); continue; }
       addPool(r, slotOf(purpose, v.Purpose), v.Purpose ?? null, (v.ResolvedLocations ?? []).map((l) => l.Name), 'pool');
     }
     // pool vuoti nei file: i nomi del testo della missione (token "Location|Address", "Destination|Address")
@@ -192,26 +225,31 @@ export function buildMissionDb(contracts, geoPlaces, { geo = null, links = [], p
     const fixedMax = c.FixedReward?.Max > 0 ? c.FixedReward.Max : null;
     const rewardInfo = fixed !== null ? { kind: fixedMax && fixedMax !== fixed ? 'intervallo' : 'fissa', min: fixed, max: fixedMax ?? fixed, currency: c.FixedReward?.Currency ?? 'UEC' }
       : c.CalculatedReward ? { kind: 'dinamica', min: null, max: null, currency: 'UEC' } : { kind: 'nd', min: null, max: null, currency: null };
-    const title = [c.DisplayTitle, w?.title].find((t) => t && !PLACEHOLDER.test(t)) ?? cleanTitle(c.Title, tokens, `${type ?? 'Missione'} · ${giverOf(c) ?? 'datore non indicato'} (titolo assente nei file)`);
+    const t = missionTitle(c, w, tokens, `${type ?? 'Missione'} · ${giverOf(c) ?? 'datore non indicato'} (titolo assente nei file)`);
+    const title = t.title;
     const grp = groups.get(c.UUID);
     const maxBoxTok = /(\d+)\s*SCU/i.exec((tokens.MissionMaxSCUSize ?? [])[0] ?? '');
     const rep = c.ReputationPrerequisite;
     missions.push({
       id: `scu:${c.UUID}`, uuid: c.UUID, group: grp?.group ?? null, variants: grp?.count ?? null,
-      source: 'scunpacked', category, type, title, company: giverOf(c), faction: c.Faction?.Name && !/^<=/.test(c.Faction.Name) ? c.Faction.Name : null,
+      source: 'scunpacked', category, type, title, titleStatus: t.status, titleRaw: t.raw, titleFrom: t.from, titleKey: c.TitleKey ?? null, company: giverOf(c), faction: c.Faction?.Name && !/^<=/.test(c.Faction.Name) ? c.Faction.Name : null,
       description: cleanDescription(w?.description),
       rank: c.MinStanding?.Name ?? w?.min_standing_name ?? null, rankIndex: Number.isInteger(c.RankIndex) ? c.RankIndex : (Number.isInteger(w?.rank_index) ? w.rank_index : null),
-      repReq: rep ? { faction: rep.Faction ?? null, scope: rep.Scope ?? null, min: rep.MinStanding?.Name ?? null, max: rep.MaxStanding?.Name ?? null } : null,
+      rankRep: Number.isFinite(c.MinStanding?.MinReputation) ? c.MinStanding.MinReputation : null, rankMax: c.MaxStanding?.Name ?? null, rankMaxRep: Number.isFinite(c.MaxStanding?.MinReputation) ? c.MaxStanding.MinReputation : null, repScope: c.ReputationScope ?? null,
+      repReq: rep ? { faction: rep.Faction ?? null, scope: rep.Scope ?? null, min: rep.MinStanding?.Name ?? null, minRep: Number.isFinite(rep.MinStanding?.MinReputation) ? rep.MinStanding.MinReputation : null, max: rep.MaxStanding?.Name ?? null, maxRep: Number.isFinite(rep.MaxStanding?.MinReputation) ? rep.MaxStanding.MinReputation : null } : null,
       prereq: (c.Prerequisites ?? []).reduce((n, p) => n + (p.RequiredMissions?.length ?? 0) + (p.RequiredTags?.length ?? 0), 0),
+      prereqs: prereqGroups(c.Prerequisites),
+      cooldown: c.Cooldown?.PersonalSeconds > 0 ? c.Cooldown.PersonalSeconds : null, inPrison: !!c.AvailableInPrison, failCriminal: !!c.FailIfBecameCriminal,
+      objectives,
       reward: fixed, rewardInfo, scope: w?.reward_scope ?? null,
       system: systems.length === 1 ? systems[0] : null, systems, interstellar: !!interstellar, transit,
       route: routeTok, offer: [...new Set(offer)], offerUnknown: offerUnknown.length, pools, orders,
       maxBox: maxBoxTok ? Number(maxBoxTok[1]) : null,
       timeLimit: c.Deadline?.CompletionTime > 0 ? c.Deadline.CompletionTime : null,
       duration: c.TimeToComplete > 0 ? c.TimeToComplete : (w?.time_to_complete_minutes ?? null),
-      risk: { combat: (c.Combat?.length ?? 0) > 0 || !!w?.has_combat, enemies: w?.enemy_count_max ?? null, level: riskLevel(c.Difficulty), crime: w ? [w.min_crime_stat ?? null, w.max_crime_stat ?? null] : null },
+      risk: { combat: (c.Combat?.length ?? 0) > 0 || !!w?.has_combat, enemies: w?.enemy_count_max ?? null, level: riskLevel(c.Difficulty), crime: c.CrimeStat ? [c.CrimeStat.Min ?? null, c.CrimeStat.Max ?? null] : w ? [w.min_crime_stat ?? null, w.max_crime_stat ?? null] : null },
       illegal: !!c.Illegal, shareable: !!c.Shareable, onceOnly: !!c.OnceOnly,
-      debug: c.DebugName ?? null, patch, titleKey: String(c.Title ?? '').replace(/~mission\([^)]*\)/g, '*'),
+      debug: c.DebugName ?? null, patch, _hk: String(c.Title ?? '').replace(/~mission\([^)]*\)/g, '*'),
     });
   }
   // senza la Wiki: varianti raggruppate con una chiave dichiarata (tipo, datore, titolo del modello, sistemi)
@@ -220,10 +258,14 @@ export function buildMissionDb(contracts, geoPlaces, { geo = null, links = [], p
   const loose = missions.filter((m) => !m.group);
   if (loose.length) {
     const by = new Map();
-    for (const m of loose) { const k = `h:${[m.type, m.company, m.titleKey, m.systems.join('+'), m.category].join('|')}`; m.group = k; by.set(k, (by.get(k) ?? 0) + 1); }
+    for (const m of loose) { const k = `h:${[m.type, m.company, m._hk, m.systems.join('+'), m.category].join('|')}`; m.group = k; by.set(k, (by.get(k) ?? 0) + 1); }
     for (const m of loose) { m.variants = by.get(m.group); m.groupHow = 'euristica'; }
   }
-  for (const m of missions) delete m.titleKey;
+  for (const m of missions) delete m._hk;
+  // titoli dei prerequisiti: nei file spesso mancano; si prendono dal modello richiesto (stesso uuid), se ha un titolo letterale
+  const titleOf = new Map();
+  for (const c of contracts) { if (!c?.UUID) continue; const t = missionTitle(c, wikiBy.get(c.UUID), c.MissionTokens ?? {}); if (t.status === 'verificato') titleOf.set(c.UUID, t.title); }
+  for (const m of missions) for (const g of m.prereqs) for (const r of g.missions) if (!r.title && titleOf.has(r.uuid)) { r.title = titleOf.get(r.uuid); r.titleFrom = 'modello richiesto'; }
   missions.sort((a, b) => a.id.localeCompare(b.id));
   return { meta: catalogMeta(missions, { patch, fetchedAt, excluded, wiki, read: contracts.length }), places, names, missions, queue: [...queue.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name)) };
 }

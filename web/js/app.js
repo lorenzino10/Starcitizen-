@@ -18,10 +18,11 @@ import { initLogistics } from './ui-logistics.js';
 import { initAtlas } from './ui-atlas.js';
 import { initDestinations } from './ui-dest.js';
 import { initHome } from './ui-home.js';
+import { initControl } from './ui-control.js';
 import { HomeState } from './home/state.js';
 
-const VERSION = '2.0.0-web';
-const CACHE_NAME = 'navcom-v2.0.0'; // deve coincidere con CACHE in sw.js
+const VERSION = '2.1.0-web';
+const CACHE_NAME = 'navcom-v2.1.0'; // deve coincidere con CACHE in sw.js
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const ICON = { [STATUS.VERIFIED]: '🟢', [STATUS.DATA]: '🔵', [STATUS.THEORETICAL]: '🟠' };
@@ -45,6 +46,7 @@ let pointsUi = null;
 let dest = null;
 let home = null;
 let homeState = null;
+let control = null;
 
 // ---------------------------------------------------------------- utilita'
 function parseNum(s) {
@@ -580,6 +582,7 @@ function showTab(name) {
   if (name === 'atlas') atlas?.refresh();
   if (name === 'dest') dest?.show();
   if (name === 'home') home?.show();
+  if (name === 'control') control?.show();
 }
 
 async function switchSystem(sys) {
@@ -635,6 +638,7 @@ async function main() {
     logistics = await initLogistics({
       $, esc, store, VERSION, ensureSystemData, navOptions: () => navOptions(settings),
       pointsDb: () => pointsUi?.db ?? null,
+      missionControlReload: () => control?.reload?.(),
     });
   } catch (e) { console.error(e); $('lg-banner').innerHTML = `<p class="err">LOGISTICS non avviata: ${esc(e.message)}</p>`; }
   if (logistics) {
@@ -646,6 +650,7 @@ async function main() {
         openDestination: (id) => dest?.open(id),
         onSelect: (id) => dest?.follow(id),
         onSystem: (sys) => { if (sys !== system) switchSystem(sys); },
+        missionsAt: (id, relation) => control?.open({ placeId: id, relation, scope: 'luogo' }),
       });
       atlas?.system?.(system); // stesso sistema del selettore in alto
     } catch (e) { console.error(e); $('at-banner').innerHTML = `<p class="err">ATLANTE non avviato: ${esc(e.message)}</p>`; }
@@ -665,8 +670,16 @@ async function main() {
       planTo: (pt) => planner.planToPoint(pt),
       openAtlas: (id) => { showTab('atlas'); atlas?.select(id); },
       openInDatabase: (draft) => pointsUi?.openDraft(draft),
+      control: () => control,
     });
   } catch (e) { console.error(e); $('hm-bar').innerHTML = `<p class="err">PLANCIA non avviata: ${esc(e.message)}</p>`; }
+  try {
+    control = await initControl({
+      $, esc, state: homeState, showTab, system: () => system, atlas: () => atlas, logistics: () => logistics, home: () => home,
+      missionDb: () => home?.missionDb?.() ?? Promise.resolve(null),
+      planTo: (pt) => planner.planToPoint(pt),
+    });
+  } catch (e) { console.error(e); $('mc-prov').innerHTML = `<p class="err">MISSION CONTROL non avviato: ${esc(e.message)}</p>`; }
   // la ricerca universale della PLANCIA usa l'archivio delle destinazioni: caricato subito, in background
   dest?.ensure().then(() => home?.refresh()).catch((e) => console.warn(e));
   // cache offline (service worker) e precaricamento della libreria grafica locale

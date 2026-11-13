@@ -1,5 +1,29 @@
 # Registro delle modifiche
 
+## 2.1.0-web (2026-11-13): MOBIGLAS MISSION CONTROL
+Dettagli, fonti e campi reali/parziali/inconoscibili in [docs/MISSION_CONTROL.md](docs/MISSION_CONTROL.md).
+- **Nuova scheda 📟 MISSION CONTROL**: posizione dalla PLANCIA o scelta a mano (luogo, corpo, sistema, punto XYZ),
+  raggio *luogo / corpo / sistema*, relazione DA / VERSO, categorie stile mobiGlas calcolate da NAVCOM, schede
+  OFFERTE / VISTE / ACCETTATE / STORICO / PRIORITY-EVENTI, dettaglio a destra, selezione e piano in basso.
+- **Regione**: offerta "a New Babbage" distinta da "nella regione microTech"; il luogo d'offerta non diventa mai il ritiro.
+- **Disponibilità**: CATALOGATA / COMPATIBILE CON LA REGIONE / POTENZIALMENTE ACCESSIBILE / NON ACCESSIBILE;
+  VISIBILE, ACCETTATA, COMPLETATA, FALLITA solo per le tue registrazioni. Nessun "disponibile adesso".
+- **Titoli**: stato verificato / risolto / dinamico / assente, nome interno separato, mai tradotti.
+- **Mission Database**: requisiti completi dai file (grado minimo e massimo con reputazione, prerequisiti con i titoli
+  delle missioni richieste, CrimeStat, cooldown) e luoghi degli obiettivi per bounty, mercenari e indagini.
+- **PLAYER PROFILE** locale (fazioni, gradi, certificazioni, completate, CrimeStat): i gradi non registrati non sono presunti.
+- **RAGGRUPPA MISSIONI** per partenza, ritiro, destinazione, destinazioni vicine, sistema, direzione interstellare;
+  ottimizzazione MASSIMO GUADAGNO / MINIMO TEMPO / MIGLIORE EFFICIENZA col motore di stacking esistente;
+  bounty e mercenari restano attività separate; ogni valore del riepilogo dichiara la sua origine.
+- **Navigazione**: CALCOLA ROTTA (fra sistemi via gateway), MOSTRA SULLA MAPPA, AGGIUNGI AL PIANO; pulsanti
+  MISSIONI DA QUESTA LOCALITÀ nella PLANCIA e Missioni da/verso qui nell'ATLANTE.
+- **Registro**: offerte viste nel mobiGlas registrate dal modello, con contratto LOGISTICA se compili gli SCU.
+  ACCETTATA aggiorna solo NAVCOM. OCR degli screenshot non implementato.
+- **Dati personali**: nuove chiavi meta `mcRecords` e `playerProfile`, nessuna modifica dello schema; incluse nel
+  BACKUP COMPLETO (ripristino per unione, il profilo locale già compilato non viene sovrascritto).
+- **Correzione**: un grado massimo con grado minimo iniziale (reputazione 0) ora viene controllato.
+- Test: 20 nuovi (MC-1..MC-19, MC-R sui dati reali), 229 in totale (219 superati, 10 todo già presenti, 0 falliti).
+
 ## 2.0.0-web (2026-11-12): COMMAND BRIDGE e MISSION DATABASE 2.0
 Dettagli, fonti valutate, confronto dei conteggi e limiti in [docs/MISSIONS.md](docs/MISSIONS.md).
 - **Command Bridge** (nuova home al posto della PLANCIA):

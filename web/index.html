@@ -21,6 +21,7 @@
 <nav class="tabs" role="tablist">
   <span class="tabgroup"><small>OPERAZIONI</small>
     <button role="tab" data-tab="home" class="active">⌂ PLANCIA</button>
+    <button role="tab" data-tab="control">📟 MISSION CONTROL</button>
     <button role="tab" data-tab="atlas">🌌 ATLANTE</button>
     <button role="tab" data-tab="logistics">📦 LOGISTICS</button></span>
   <span class="tabgroup"><small>NAVIGAZIONE</small>
@@ -61,6 +62,8 @@
       <p class="at-maplegend cb-legend" id="cb-legend"></p>
     </div>
     <aside class="cb-side panel" id="cb-side">
+      <div class="row wrap cb-mc"><button id="cb-mc-here" class="primary" title="Apre MISSION CONTROL sulla località della posizione attuale">📟 MISSIONI DA QUESTA LOCALITÀ</button>
+        <button id="cb-mc-to" class="small" title="Contratti con consegna o obiettivo nella destinazione">verso la destinazione</button></div>
       <div class="hm-search">
         <div class="row"><input id="hm-q" type="search" placeholder="Cerca luogo, servizio, negozio, articolo, minerale, tuo punto…" autocomplete="off">
           <select id="hm-q-sys" style="flex:0 1 90px"><option value="">tutti</option><option value="stanton">Stanton</option><option value="pyro">Pyro</option><option value="nyx">Nyx</option></select></div>
@@ -88,6 +91,23 @@
     <div id="cb-b-activity" class="cbb"><div id="hm-activity"></div><p class="hint"><span id="hm-persist"></span> <button id="hm-export" class="small">Esporta stato plancia (JSON)</button></p></div>
   </div>
   <dialog id="cb-dlg" class="cb-dlg"></dialog>
+</section>
+
+<!-- MISSION CONTROL --------------------------------------------------------->
+<section id="tab-control" class="tab">
+  <div id="mc-prov" class="mc-prov"></div>
+  <div class="mc-grid">
+    <aside class="panel mc-left" aria-label="Posizione, profilo e filtri">
+      <h3>POSIZIONE</h3><div id="mc-pos"></div>
+      <h3>PLAYER PROFILE</h3><div id="mc-prof"></div>
+      <details open><summary><b>FILTRI</b></summary><div id="mc-filters" class="mc-filters"></div></details>
+      <h3>CATEGORIE</h3><div id="mc-cats" class="mc-cats"></div>
+    </aside>
+    <main class="panel mc-center" aria-label="Contratti"><div id="mc-tabs" class="mc-tabs cb-tabs"></div><div id="mc-list"></div></main>
+    <aside class="panel mc-right" id="mc-detail" aria-label="Dettaglio contratto"></aside>
+  </div>
+  <section class="panel mc-bottom" id="mc-plan" aria-label="Missioni selezionate"></section>
+  <dialog id="mc-dlg" class="cb-dlg"></dialog>
 </section>
 
 <section id="tab-atlas" class="tab">
