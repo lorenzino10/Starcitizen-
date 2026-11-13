@@ -64,6 +64,8 @@ const CONTRACTS = [
   C('heavy', { order: { Name: 'Titanio', MinScu: 300, MaxScu: 480, MaxContainerSize: 32 } }),
   C('prereq', { extra: { Prerequisites: [{ RequiredCount: 1, RequiredMissions: [{ UUID: 'loc', Title: 'SYN loc', DebugName: 'SYN_Stanton_loc' }] }] } }),
   C('crime', { extra: { CrimeStat: { Min: 1, Max: 5 } } }),
+  // due varianti dello stesso titolo (stesso tipo, datore e sistema): raggruppate dalla chiave euristica
+  C('va', { title: 'SYN variante' }), C('vb', { title: 'SYN variante', pools: { PickupLocationBP: P('Location', ['New Babbage']), DropoffLocationBP: P('Destination', ['Base Calliope']) } }),
 ];
 const PATCH = '9.9.0-LIVE.1000';
 const DB = buildMissionDb(CONTRACTS, PLACES, { geo, links: LINKS, patch: PATCH, fetchedAt: '2026-11-13T00:00:00Z', wiki: null });
@@ -332,4 +334,125 @@ test('MC-19 backup completo: registro e profilo inclusi; backup precedenti senza
   // unione: la registrazione locale piu' recente non viene sovrascritta
   const newer = { ...rec, status: 'completata', updatedAt: '2999-01-01T00:00:00Z' };
   assert.equal(mergeById([newer], b.missionControl.records).list[0].status, 'completata');
+});
+
+// ================================================================ MISSION CONTROL 3.0 (vista semplice)
+test('MC-20 schede: CATALOGO contiene tutto, POSSIBILI QUI solo offerte nella regione senza requisiti in contrasto', () => {
+  const member = { ...MC.EMPTY_PROFILE(), standings: [{ faction: 'Compagnia Sintetica', scope: 'Hauling', standing: 'Member' }] };
+  const pos = list({ tab: 'possibili', region: NB, scope: 'corpo' }, { profile: member });
+  const cat = list({ tab: 'catalogo', region: NB, scope: 'corpo' }, { profile: member });
+  assert.ok(!ids(pos).includes('inbound'), 'offerta a Lorville: non possibile a New Babbage');
+  assert.ok(ids(cat).includes('inbound'), 'ma presente nel catalogo');
+  assert.ok(!ids(pos).includes('senior'), 'grado registrato insufficiente: fuori da POSSIBILI QUI');
+  assert.ok(ids(cat).includes('senior'));
+  assert.ok(ids(pos).includes('ranked') && ids(pos).includes('bounty'));
+  assert.equal(pos.counts.tabs.possibili, pos.total);
+  assert.ok(cat.counts.tabs.catalogo >= cat.total);
+  assert.ok(pos.rows.every((r) => r.possible && ['accessibile', 'regione'].includes(r.av.state)), 'nessuno stato "disponibile"');
+  // senza posizione POSSIBILI QUI e' vuota (non si indovina la regione)
+  assert.equal(list({ tab: 'possibili' }).total, 0);
+  // conteggi per titolo: va e vb sono lo stesso titolo
+  assert.ok(cat.counts.titles.tabs.catalogo < cat.counts.tabs.catalogo);
+});
+
+test('MC-21 sei categorie e filtri di viaggio: dinamiche mai in una classe certa', () => {
+  assert.deepEqual(Object.keys(MC.BIG_CATS), ['trasporti', 'consegne', 'bounty', 'merc', 'invest', 'altre']);
+  const all = new Set(Object.values(MC.BIG_CATS).flatMap((b) => b.cats));
+  for (const k of Object.keys(MC.MC_CATS)) if (!['event', 'illegal'].includes(k)) assert.ok(all.has(k), `${k} in una grande categoria`);
+  assert.deepEqual([...MC.catsFor('trasporti', 'tr_star')], ['tr_star']);
+  assert.equal(MC.catsFor(null), null);
+  const r = list({ tab: 'catalogo', cats: MC.catsFor('trasporti', 'tr_local') });
+  assert.ok(ids(r).includes('loc')); assert.ok(!ids(r).includes('dynpool'), 'pool locale/interplanetario: non in Locali');
+  assert.ok(ids(list({ tab: 'catalogo', cats: MC.catsFor('trasporti', 'tr_open') })).includes('dynpool'));
+  const bc = MC.bigCounts(list({ tab: 'catalogo' }).counts.cats);
+  assert.equal(bc.trips.tutti, bc.big.trasporti);
+  assert.equal(bc.big.bounty, 2);
+});
+
+test('MC-22 riga: origine e destinazione leggibili, pool riassunti, destinazione dinamica da confermare', () => {
+  const o = MC.opSummary(V('loc'), geo);
+  assert.equal(o.pickup.kind, 'fisso'); assert.equal(o.pickup.text, 'New Babbage'); assert.equal(o.dropoff.text, 'Port Tressler'); assert.equal(o.cargo.scu, 80);
+  const d = MC.opSummary(V('dynpool'), geo);
+  assert.equal(d.dropoff.kind, 'variabile'); assert.equal(d.dropoff.n, 2); assert.equal(d.dropoff.text, null, 'nessun elenco nel riepilogo');
+  assert.deepEqual(d.dropoff.names.sort(), ['Lorville', 'Port Tressler'], 'i nomi restano disponibili per VISUALIZZA POSSIBILITÀ');
+  const b = MC.opSummary(V('bounty'), geo);
+  assert.equal(b.pickup.kind, 'nessuno'); assert.equal(b.objective.text, 'Base Calliope');
+  assert.equal(MC.opSummary(V('multipick'), geo).pickup.text, 'New Babbage + Port Tressler');
+});
+
+test('MC-23 varianti raggruppate: un titolo, le varianti espandibili', () => {
+  const r = list({ tab: 'catalogo', collapse: true, showAll: true });
+  const grp = V('va').group; assert.ok(grp); assert.equal(V('vb').group, grp);
+  const g = r.rows.find((x) => x.v.group === grp);
+  assert.equal(g.found, 2); assert.equal(g.members.length, 2);
+  assert.equal(r.rows.filter((x) => x.v.group === grp).length, 1);
+  assert.notDeepEqual(MC.opSummary(g.members[0].v, geo).dropoff.text, MC.opSummary(g.members[1].v, geo).dropoff.text, 'le varianti restano distinguibili');
+});
+
+test('MC-24 LA MIA SPEDIZIONE: totali senza stacking, dinamiche e quantità ignote contate a parte', () => {
+  const e = MC.expedition(['loc', 'heavy', 'bigbox', 'bounty'].map(V), CENT);
+  assert.equal(e.n, 4); assert.equal(e.reward, 40000 * 3 + 30000);
+  assert.equal(e.scu, 80 + 480 + 64); assert.equal(e.capacity, 240); assert.equal(e.trips, 3);
+  assert.equal(e.incompat.length, 1); assert.equal(e.incompat[0].v.uuid, 'bigbox');
+  assert.deepEqual(e.pickups, { known: 3, total: 3 });
+  const dyn = MC.expedition([V('dynpool')], CENT);
+  assert.deepEqual(dyn.dropoffs, { known: 0, total: 1 });
+  assert.equal(MC.expedition([{ ...V('loc'), rewardInfo: { kind: 'dinamica', max: null }, reward: null }], CENT).dynamic, 1);
+});
+
+test('MC-25 RAGGRUPPA E PIANIFICA: prima tappa, ritiri, viaggio condiviso, consegne, viaggi, guadagno, non combinabili', () => {
+  const sel = ['loc', 'moon', 'star', 'bounty', 'dynpool'].map(V);
+  const ctx = { geo, links: LINKS, capacity: CENT.scu, ship: CENT, ranks: {}, start: 'nb' };
+  const plan = MC.planSelection(sel, ctx, 'guadagno');
+  const r = MC.planReport(plan, MC.groupSelection(sel, geo, { links: LINKS }), geo);
+  assert.equal(r.ok, true);
+  assert.ok(r.first.place);
+  assert.ok(r.pickups.length && r.deliveries.length);
+  assert.ok(r.pickups.flatMap((p) => p.items).every((i) => i.mission), 'ogni merce col titolo della sua missione');
+  assert.ok(r.shared.length);
+  assert.equal(r.reward.value, 40000 + 55000 + 120000);
+  const nc = Object.fromEntries(r.notCombinable.map((x) => [x.title, x]));
+  assert.ok(nc['SYN dynpool'].cargo); assert.match(nc['SYN dynpool'].why, /uno fra 2 luoghi/); assert.ok(!nc['SYN dynpool'].why.startsWith('SYN dynpool:'), 'titolo non ripetuto');
+  assert.equal(nc['SYN bounty'].cargo, false);
+  assert.deepEqual(r.partial, ['SYN dynpool'], 'pianificabile solo in parte');
+  // nessuna combinazione: spiegazione al posto dell'itinerario
+  const none = MC.planReport(MC.planSelection([V('dynpool')], ctx), null, geo);
+  assert.equal(none.ok, false); assert.equal(none.first, null); assert.equal(none.notCombinable.length, 1);
+});
+
+test('MC-26 posizione e ATLANTE: la regione viene dalla posizione, non dal sistema mostrato sulla mappa', () => {
+  // la regione dipende solo dal luogo: lo stesso risultato qualunque sistema sia aperto altrove
+  const a = list({ tab: 'possibili', region: MC.regionOf(geo, 'nb'), scope: 'corpo' });
+  const pyroOpen = { ...ctxList(), atlasSystem: 'pyro' };
+  const b = MC.controlList(VIEWS, { tab: 'possibili', region: MC.regionOf(geo, 'nb'), scope: 'corpo', relation: 'da' }, pyroOpen);
+  assert.deepEqual(ids(a), ids(b));
+  assert.equal(MC.regionOf(geo, 'nb').system, 'stanton');
+  assert.ok(ids(a).every((u) => V(u).ops.every((o) => o.role !== 'pickup' || o.ids.every((i) => geo.get(i).system === 'stanton'))));
+});
+
+const REAL = CAT && existsSync(CAT) && existsSync(new URL('atlas/geo.json', W));
+test('MC-R2 dati reali, scenari A–C: New Babbage, trasporti, pool da 17 luoghi, itinerario a Ruin Station', { skip: REAL ? false : 'catalogo locale assente (generato in CI)' }, () => {
+  const rg = new Geo(JSON.parse(readFileSync(new URL('atlas/geo.json', W))).places);
+  const views = dbViews(JSON.parse(readFileSync(CAT)));
+  const ctx = { geo: rg, links: jumpLinks(rg), profile: MC.EMPTY_PROFILE(), L: MC.ladders(views), ship: CENT };
+  const nb = MC.regionOf(rg, rg.resolveName('New Babbage').id);
+  // A: TRASPORTI a New Babbage, titoli originali, stato chiaro
+  const a = MC.controlList(views, { tab: 'possibili', region: nb, scope: 'corpo', relation: 'da', cats: MC.catsFor('trasporti'), collapse: true }, ctx);
+  assert.ok(a.rows.length > 0 && a.rows.length < a.total, 'varianti raggruppate');
+  assert.ok(a.rows.every((r) => r.rel.offer && ['accessibile', 'regione'].includes(r.av.state)));
+  // C: un pool di ritiro da 17 luoghi esiste ed e' riassunto
+  const c = views.map((v) => MC.opSummary(v, rg).pickup).find((p) => p.kind === 'variabile' && p.n === 17);
+  assert.ok(c, 'pool da 17 località nel catalogo'); assert.equal(c.text, null);
+  // B: a New Babbage nessun trasporto del catalogo e' pianificabile da solo (pool o quantita' per consegna mancanti):
+  // il report lo spiega; a Ruin Station (Pyro) esistono modelli con luoghi fissi e l'itinerario si calcola
+  const pc = { geo: rg, links: ctx.links, capacity: 240, ship: CENT, ranks: {}, start: nb.place.id };
+  const three = a.rows.slice(0, 3).map((r) => r.v);
+  const rb = MC.planReport(MC.planSelection(three, pc), MC.groupSelection(three, rg), rg);
+  assert.equal(rb.ok, false); assert.equal(rb.notCombinable.length, 3); assert.ok(rb.notCombinable.every((x) => x.why));
+  const ruin = MC.regionOf(rg, rg.resolveName('Ruin Station').id);
+  const rr = MC.controlList(views, { tab: 'catalogo', region: ruin, cats: MC.catsFor('trasporti'), text: 'Direct', collapse: false }, ctx).rows.map((r) => r.v)
+    .filter((v) => MC.opSummary(v, rg).pickup.kind === 'fisso' && MC.opSummary(v, rg).dropoff.kind === 'fisso' && v.systems?.includes('pyro'));
+  const rp = MC.planReport(MC.planSelection(rr.slice(0, 3), { ...pc, start: ruin.place.id }), MC.groupSelection(rr.slice(0, 3), rg), rg);
+  assert.equal(rp.ok, true, 'itinerario calcolato con missioni reali a luoghi fissi');
+  assert.ok(rp.first && rp.pickups.length && rp.deliveries.length);
 });

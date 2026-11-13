@@ -94,19 +94,19 @@
 </section>
 
 <!-- MISSION CONTROL --------------------------------------------------------->
-<section id="tab-control" class="tab">
-  <div id="mc-prov" class="mc-prov"></div>
-  <div class="mc-grid">
-    <aside class="panel mc-left" aria-label="Posizione, profilo e filtri">
-      <h3>POSIZIONE</h3><div id="mc-pos"></div>
-      <h3>PLAYER PROFILE</h3><div id="mc-prof"></div>
-      <details open><summary><b>FILTRI</b></summary><div id="mc-filters" class="mc-filters"></div></details>
-      <h3>CATEGORIE</h3><div id="mc-cats" class="mc-cats"></div>
-    </aside>
-    <main class="panel mc-center" aria-label="Contratti"><div id="mc-tabs" class="mc-tabs cb-tabs"></div><div id="mc-list"></div></main>
-    <aside class="panel mc-right" id="mc-detail" aria-label="Dettaglio contratto"></aside>
+<section id="tab-control" class="tab mc3" data-ui="semplice">
+  <header id="mc-top" class="mc3-top" aria-label="Posizione, nave e modalità"></header>
+  <div id="mc-adv" class="panel mc3-adv" hidden aria-label="Filtri avanzati"></div>
+  <nav id="mc-cats" class="mc3-cats" aria-label="Tipo di missione"></nav>
+  <div id="mc-trip"></div>
+  <div class="mc3-bar"><div id="mc-tabs" class="mc3-tabs" role="tablist"></div><div id="mc-quick" class="mc3-quick"></div></div>
+  <div id="mc-body" class="mc3-body">
+    <main id="mc-list" class="mc3-list" aria-label="Missioni"></main>
+    <div id="mc-split" class="mc3-split" hidden role="separator" aria-orientation="vertical" tabindex="0" title="Trascina per ridimensionare"></div>
+    <aside id="mc-detail" class="panel mc3-detail" hidden aria-label="Dettaglio della missione"></aside>
   </div>
-  <section class="panel mc-bottom" id="mc-plan" aria-label="Missioni selezionate"></section>
+  <section id="mc-plan" class="mc3-plan" aria-label="La mia spedizione"></section>
+  <p id="mc-prov" class="mc3-prov"></p>
   <dialog id="mc-dlg" class="cb-dlg"></dialog>
 </section>
 

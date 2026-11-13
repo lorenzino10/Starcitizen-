@@ -309,11 +309,14 @@ export function availability(v, { region = null, scope = 'corpo', geo, profile =
 
 // ---------------------------------------------------------------- elenco
 export const TABS = {
-  offerte: { label: 'OFFERTE', note: 'modelli del catalogo filtrati per regione e profilo' },
+  possibili: { label: 'POSSIBILI QUI', note: 'offerte nella tua regione secondo i dati, requisiti registrati non in contrasto: da cercare nel mobiGlas' },
+  catalogo: { label: 'CATALOGO', note: 'tutti i modelli presenti nei file di gioco, ovunque siano offerti' },
   visibili: { label: 'VISTE NEL MOBIGLAS', note: 'registrate da te' },
-  accettate: { label: 'ACCETTATE', note: 'confermate da te' },
-  storico: { label: 'STORICO', note: 'completate e fallite' },
-  eventi: { label: 'PRIORITY / EVENTI', note: 'Priority e RSI Discovery Event' },
+  accettate: { label: 'ACCETTATE', note: 'confermate da te (solo in NAVCOM)' },
+  storico: { label: 'COMPLETATE', note: 'storico: completate e fallite' },
+  eventi: { label: 'EVENTI', note: 'Priority e RSI Discovery Event' },
+  // 2.1: elenco filtrato per regione senza distinguere offerta e catalogo (resta per compatibilita')
+  offerte: { label: 'MODELLI DELLA REGIONE', note: 'modelli del catalogo legati alla regione (offerta, ritiro o obiettivo)', legacy: true },
 };
 const tabOfRecord = (r) => (r.status === 'visibile' ? 'visibili' : r.status === 'accettata' ? 'accettate' : 'storico');
 
@@ -355,7 +358,10 @@ export function shipFit(v, ship) {
 export function controlList(views, q, ctx) {
   const { geo } = ctx;
   const text = String(q.text ?? '').trim().toLowerCase();
-  const rows = []; const counts = { cats: {}, tabs: { offerte: 0, visibili: 0, accettate: 0, storico: 0, eventi: 0 } }; const excluded = {};
+  const tab = q.tab ?? 'possibili';
+  const rows = []; const counts = { cats: {}, tabs: { possibili: 0, catalogo: 0, offerte: 0, visibili: 0, accettate: 0, storico: 0, eventi: 0 }, titles: { cats: {}, tabs: {} } }; const excluded = {};
+  // conteggi per titolo (varianti dello stesso gruppo contate una volta), come le righe con le varianti raggruppate
+  const tset = (o, k, id) => { (o[k] ??= new Set()).add(id); };
   const ex = (k) => { excluded[k] = (excluded[k] ?? 0) + 1; };
   const recs = ctx.records ?? new Map();
   const add = (v, rec) => {
@@ -363,15 +369,20 @@ export function controlList(views, q, ctx) {
     const cat = cached(v, 'cat', () => mcCategory(v, geo, gc));
     const av = availability(v, { region: q.region, scope: q.scope, geo, profile: ctx.profile, L: ctx.L, record: rec });
     const rel = av.rel ?? (q.region ? regionRelation(v, q.region, geo, q.scope) : null);
-    const tab = rec ? tabOfRecord(rec) : cat === 'event' ? 'eventi' : 'offerte';
-    // filtro regione: "da qui" = offerta o ritiro/obiettivo nella regione; "verso qui" = consegna/obiettivo nella regione
-    if (!rec && q.region && !q.showAll) {
+    // regione: "da qui" = offerta o ritiro/obiettivo nella regione; "verso qui" = consegna/obiettivo nella regione
+    let inRegion = true;
+    if (q.region) {
       const da = !!(rel?.offer || rel?.pickup || (rel?.objective && !v.ops?.length));
       const verso = !!(rel?.dropoff || rel?.objective);
-      if (q.relation === 'da' && !da) { ex('fuori regione'); return; }
-      if (q.relation === 'verso' && !verso) { ex('non diretta nella regione'); return; }
-      if (q.relation === 'tutte' && !da && !verso) { ex('fuori regione'); return; }
+      inRegion = q.relation === 'verso' ? verso : q.relation === 'tutte' ? da || verso : da;
     }
+    // POSSIBILI QUI: l'offerta cade nella regione (il mobiGlas propone i contratti per luogo) e nessun requisito registrato la esclude
+    const possible = !!q.region && inRegion && !!rel?.offer && (av.state === 'accessibile' || av.state === 'regione');
+    let tabs;
+    if (rec) tabs = [tabOfRecord(rec)];
+    else if (cat === 'event') tabs = !q.region || q.showAll || inRegion ? ['eventi'] : [];
+    else tabs = ['catalogo', ...(possible ? ['possibili'] : []), ...(!q.region || q.showAll || inRegion ? ['offerte'] : [])];
+    if (!rec && !tabs.includes(tab) && ['possibili', 'offerte', 'eventi'].includes(tab)) ex(!inRegion ? (q.relation === 'verso' ? 'non diretta nella regione' : 'fuori regione') : av.state === 'non_accessibile' ? 'non accessibile' : 'offerta non nella regione');
     if (q.legal === 'verificate' && v.illegal) { ex('illegale'); return; }
     if (q.legal === 'non_verificate' && !v.illegal) { ex('legale'); return; }
     if (q.from && !['certo', 'possibile'].includes(roleIn(v, 'pickup', q.from, geo))) { ex('ritiro'); return; }
@@ -381,12 +392,14 @@ export function controlList(views, q, ctx) {
     const fit = shipFit(v, ctx.ship);
     if (q.fitOnly && fit.fit === 'cassa') { ex('incompatibile con la nave'); return; }
     if (!q.showAll && !rec && av.state === 'non_accessibile' && q.hideBlocked) { ex('non accessibile'); return; }
-    // conteggi prima dei filtri di scheda e categoria
-    counts.tabs[tab]++;
-    if (tab === (q.tab ?? 'offerte')) { counts.cats[cat] = (counts.cats[cat] ?? 0) + 1; if (v.illegal) counts.cats.illegal = (counts.cats.illegal ?? 0) + 1; }
-    if (tab !== (q.tab ?? 'offerte')) return;
+    // conteggi prima dei filtri di categoria
+    const gk = !rec && v.group ? `g:${v.group}` : `${v.id}|${rec?.id ?? ''}`;
+    for (const t of tabs) { counts.tabs[t]++; tset(counts.titles.tabs, t, gk); }
+    if (!tabs.includes(tab)) return;
+    counts.cats[cat] = (counts.cats[cat] ?? 0) + 1; if (v.illegal) counts.cats.illegal = (counts.cats.illegal ?? 0) + 1;
+    tset(counts.titles.cats, cat, gk);
     if (q.cats?.size && !q.cats.has(cat) && !(q.cats.has('illegal') && v.illegal)) { ex('categoria'); return; }
-    rows.push({ v, rec, gc, cat, av, rel, fit, dist: q.sort === 'distanza' && q.region ? distanceFrom(v, q.region.place, geo, ctx.links) : undefined });
+    rows.push({ v, rec, gc, cat, av, rel, fit, possible, dist: q.sort === 'distanza' && q.region ? distanceFrom(v, q.region.place, geo, ctx.links) : undefined });
   };
   for (const v of views) {
     const list = recs.get(v.id) ?? [];
@@ -397,16 +410,24 @@ export function controlList(views, q, ctx) {
   const rew = (r) => r.rec?.reward ?? r.v.rewardInfo?.max ?? r.v.reward ?? -1;
   const sorts = {
     ricompensa: (a, b) => rew(b) - rew(a),
+    posizione: (a, b) => RANK[a.av.state] - RANK[b.av.state] || (a.possible === b.possible ? 0 : a.possible ? -1 : 1) || rew(b) - rew(a),
     distanza: (a, b) => (a.dist?.d ?? Infinity) - (b.dist?.d ?? Infinity),
-    nave: (a, b) => FIT_ORDER[a.fit.fit] - FIT_ORDER[b.fit.fit],
+    nave: (a, b) => FIT_ORDER[a.fit.fit] - FIT_ORDER[b.fit.fit] || (b.fit.cargo?.scu ?? -1) - (a.fit.cargo?.scu ?? -1),
     titolo: (a, b) => a.v.title.localeCompare(b.v.title),
   };
   const s = sorts[q.sort] ?? sorts.ricompensa;
-  rows.sort((a, b) => RANK[a.av.state] - RANK[b.av.state] || s(a, b) || rew(b) - rew(a) || a.v.id.localeCompare(b.v.id));
+  // 2.1: lo stato restava sempre la prima chiave; dal 3.0 solo con "compatibilita' con la posizione" (o senza ordinamento)
+  const primary = q.sort && q.sort !== 'posizione' ? () => 0 : (a, b) => RANK[a.av.state] - RANK[b.av.state];
+  rows.sort((a, b) => primary(a, b) || s(a, b) || rew(b) - rew(a) || a.v.id.localeCompare(b.v.id));
+  for (const o of [counts.titles.cats, counts.titles.tabs]) for (const k of Object.keys(o)) o[k] = o[k].size;
   let out = rows;
   if (q.collapse) {
     const by = new Map();
-    for (const r of rows) { const k = !r.rec && r.v.group ? `g:${r.v.group}` : `${r.v.id}|${r.rec?.id ?? ''}`; const o = by.get(k); if (o) o.found++; else by.set(k, Object.assign(r, { found: 1 })); }
+    for (const r of rows) {
+      const k = !r.rec && r.v.group ? `g:${r.v.group}` : `${r.v.id}|${r.rec?.id ?? ''}`;
+      const o = by.get(k);
+      if (o) { o.found++; o.members.push(r); } else by.set(k, Object.assign(r, { found: 1, members: [r] }));
+    }
     out = [...by.values()];
   }
   return { rows: out, total: rows.length, counts, excluded };
@@ -537,7 +558,8 @@ export function planSelection(views, ctx, mode = 'guadagno', { maxCargo = 8 } = 
   const score = (r, set) => {
     const m = r.metrics; const reward = (m.rewardAccepted ?? 0) + (m.rewardUnconfirmed ?? 0);
     const time = m.hours ?? null; const dist = m.unknownLegs ? null : m.distance;
-    if (mode === 'guadagno') return [reward, -(m.rewardUnknown ?? 0), set.length, -(dist ?? Infinity)];
+    // ricompense dinamiche non note: non penalizzano (prima il piano sceglieva la missione singola quando tutte erano dinamiche)
+    if (mode === 'guadagno') return [reward, set.length, -(dist ?? Infinity)];
     if (mode === 'tempo') return [set.length, -(time ?? (dist !== null ? dist / 1e12 : Infinity)), reward];
     const per = time ? reward / time : dist ? reward / (dist / 1e9) : 0;
     return [per / (1 + 0.05 * (m.stops ?? 0)), reward, -set.length];
@@ -606,4 +628,129 @@ export function routeSteps(from, to, geo, links) {
   }
   steps.push({ kind: 'qt', from: cur, to, distance: geo.distance(cur, to) });
   return { ok: true, steps };
+}
+
+// ================================================================ 3.0: vista semplice (stessi dati, meno schermo)
+/** Sei grandi categorie: ognuna e' un insieme di categorie fini del Mission Control. */
+export const BIG_CATS = {
+  trasporti: { label: 'TRASPORTI', icon: '📦', cats: ['tr_local', 'tr_inter', 'tr_star', 'tr_multi', 'tr_open'] },
+  consegne: { label: 'CONSEGNE', icon: '✉', cats: ['delivery'] },
+  bounty: { label: 'BOUNTY HUNTING', icon: '🎯', cats: ['bounty'] },
+  merc: { label: 'MERCENARY', icon: '⚔', cats: ['merc'] },
+  invest: { label: 'INVESTIGAZIONI', icon: '🔍', cats: ['invest'] },
+  altre: { label: 'ALTRE MISSIONI', icon: '◇', cats: ['recovery', 'mining', 'racing', 'wikelo', 'other'] },
+};
+/** Filtri rapidi dei trasporti. "Da confermare" raccoglie i pool che ammettono piu' classi: mai una classe certa. */
+export const TRIPS = {
+  tutti: { label: 'Tutti', cats: null },
+  tr_local: { label: 'Locali', cats: ['tr_local'] },
+  tr_inter: { label: 'Interplanetari', cats: ['tr_inter'] },
+  tr_star: { label: 'Interstellari', cats: ['tr_star'] },
+  tr_multi: { label: 'Multidestinazione', cats: ['tr_multi'] },
+  tr_open: { label: 'Destinazione da confermare', cats: ['tr_open'] },
+};
+/** Categorie fini per (grande categoria, tipo di viaggio). null = tutte. */
+export function catsFor(big, trip = 'tutti') {
+  if (!big || !BIG_CATS[big]) return null;
+  if (big === 'trasporti' && trip && trip !== 'tutti' && TRIPS[trip]?.cats) return new Set(TRIPS[trip].cats);
+  return new Set(BIG_CATS[big].cats);
+}
+/** Conteggi delle grandi categorie e dei viaggi dai conteggi fini di controlList. */
+export function bigCounts(cats = {}) {
+  const out = {}; for (const [k, b] of Object.entries(BIG_CATS)) out[k] = b.cats.reduce((n, c) => n + (cats[c] ?? 0), 0);
+  const trips = {}; for (const [k, t] of Object.entries(TRIPS)) trips[k] = t.cats ? t.cats.reduce((n, c) => n + (cats[c] ?? 0), 0) : out.trasporti;
+  return { big: out, trips };
+}
+/** Etichette brevi di stato per la riga (solo gli stati che contano). */
+export const STATE_SHORT = {
+  accessibile: { label: 'POSSIBILE QUI', cls: 'ok' },
+  regione: { label: 'REQUISITI DA VERIFICARE', cls: 'warn' },
+  catalogata: { label: 'SOLO CATALOGO', cls: 'dim' },
+  non_accessibile: { label: 'NON ACCESSIBILE', cls: 'err' },
+  visibile: { label: 'VISTA NEL MOBIGLAS', cls: 'info' },
+  accettata: { label: 'ACCETTATA', cls: 'ok' },
+  completata: { label: 'COMPLETATA', cls: 'dim' },
+  fallita: { label: 'FALLITA', cls: 'err' },
+};
+
+/**
+ * Riassunto leggibile di un ruolo (ritiro, consegna, obiettivo): mai elenchi lunghi.
+ * @returns {{kind:'fisso'|'variabile'|'ignoto'|'nessuno', text, n, names:string[], slots}}
+ */
+export function roleSummary(ops, geo) {
+  if (!ops?.length) return { kind: 'nessuno', text: null, n: 0, names: [], slots: 0 };
+  const slots = new Set(ops.map((o) => o.slot)).size;
+  const names = [...new Set(ops.flatMap((o) => cands(o).map((id) => geo.get(id)?.name).filter(Boolean)))];
+  const unknown = ops.some((o) => !cands(o).some((id) => geo.get(id)));
+  if (!names.length) return { kind: 'ignoto', text: null, n: 0, names, slots };
+  if (ops.every(isFixed) && !unknown) return { kind: 'fisso', text: names.join(' + '), n: names.length, names, slots };
+  return { kind: 'variabile', text: null, n: names.length, names, slots, partial: unknown };
+}
+/** Origine e destinazione di una missione per la riga e il dettaglio. */
+export function opSummary(v, geo) {
+  const ops = v.ops ?? [];
+  const pickup = roleSummary(ops.filter((o) => o.role === 'pickup'), geo);
+  const dropoff = roleSummary(ops.filter((o) => o.role === 'dropoff'), geo);
+  const objective = roleSummary(v.objectives ?? [], geo);
+  return { pickup, dropoff, objective, cargo: cargoOf(v) };
+}
+
+/**
+ * LA MIA SPEDIZIONE: totali della selezione senza calcolo di stacking.
+ * Ricompense dinamiche e quantita' ignote contate a parte, mai stimate.
+ */
+export function expedition(views, ship) {
+  let reward = 0, dynamic = 0, scu = 0, scuUnknown = 0, pickKnown = 0, pickTotal = 0, dropKnown = 0, dropTotal = 0;
+  const incompat = [];
+  for (const v of views) {
+    const r = v.rewardInfo?.max ?? v.reward;
+    if (Number.isFinite(r) && r > 0) reward += r; else dynamic++;
+    const f = shipFit(v, ship);
+    const k = missionKind(v);
+    if (k === 'transport' || k === 'delivery') { if (f.cargo.scu) scu += f.cargo.scu; else scuUnknown++; }
+    if (f.fit === 'cassa') incompat.push({ v, why: f.note });
+    for (const o of v.ops ?? []) {
+      if (o.role === 'pickup') { pickTotal++; if (isFixed(o)) pickKnown++; }
+      if (o.role === 'dropoff') { dropTotal++; if (isFixed(o)) dropKnown++; }
+    }
+  }
+  // oltre la capacita' non e' un'incompatibilita': il piano divide in piu' viaggi
+  const trips = ship?.scu && scu ? Math.ceil(scu / ship.scu) : null;
+  return { n: views.length, reward, dynamic, scu, scuUnknown, capacity: ship?.scu ?? null, trips, incompat, pickups: { known: pickKnown, total: pickTotal }, dropoffs: { known: dropKnown, total: dropTotal } };
+}
+
+/** I motivi del motore di stacking ripetono il titolo ("Titolo: motivo"): nel report il titolo c'e' gia'. */
+const stripTitle = (why, title) => String(why ?? '').split('; ').map((w) => (w.startsWith(`${title}: `) ? w.slice(title.length + 2) : w)).filter((w, i, a) => a.indexOf(w) === i).join('; ');
+/** "quantita' non nota" mentre la riga mostra gli SCU dell'ordine: si dice quale dato manca davvero. */
+function explainWhy(why, v) {
+  const c = cargoOf(v);
+  return c.scu ? why.replace(/quantità SCU non nota/g, `quantità per consegna non indicata nei file (l'ordine dice fino a ${c.scu} SCU in totale)`) : why;
+}
+/**
+ * Esito di RAGGRUPPA E PIANIFICA nell'ordine che serve al pilota.
+ * Usa solo planSelection e groupSelection (nessun secondo motore).
+ */
+export function planReport(plan, groups, geo) {
+  const title = new Map([...(plan.best?.set ?? []), ...plan.excluded.map((x) => x.v), ...plan.others.map((x) => x.v)].map((v) => [v.id, v.title]));
+  const s = plan.summary;
+  const stops = s ? s.itinerary.value : [];
+  const task = (t) => ({ cargo: t.cargo ?? 'merce', qty: t.qty, mission: title.get(t.contractId) ?? null });
+  const pickups = [], deliveries = [];
+  for (const st of stops) {
+    const up = st.tasks.filter((t) => t.type === 'carico').map(task), down = st.tasks.filter((t) => t.type === 'scarico').map(task);
+    if (up.length) pickups.push({ place: st.name, system: st.system, items: up });
+    if (down.length) deliveries.push({ place: st.name, system: st.system, items: down });
+  }
+  const shared = (groups?.groups ?? []).filter((g) => g.kind !== 'sistema').map((g) => ({ label: g.label, where: g.keyLabel, sure: g.members.every((m) => m.sure), missions: g.members.map((m) => m.title) }));
+  const isPool = (v) => [...(v.ops ?? []), ...(v.objectives ?? [])].some((o) => !isFixed(o));
+  const partial = [...plan.excluded.map((x) => x.v), ...plan.others.map((x) => x.v)].filter(isPool).map((v) => v.title);
+  return {
+    ok: !!plan.best,
+    first: stops[0] ? { place: stops[0].name, system: stops[0].system } : null,
+    pickups, shared, deliveries,
+    trips: s?.trips ?? null, reward: s?.reward ?? null, distance: s?.distance ?? null, time: s?.time ?? null,
+    notCombinable: [...plan.excluded.map((x) => ({ id: x.v.id, title: x.v.title, why: explainWhy(stripTitle(x.why, x.v.title), x.v), cargo: true })), ...plan.others.map((x) => ({ id: x.v.id, title: x.v.title, why: x.note, cargo: false }))],
+    partial: [...new Set(partial)],
+    notes: plan.notes,
+  };
 }

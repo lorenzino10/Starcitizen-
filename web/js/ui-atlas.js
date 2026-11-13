@@ -877,5 +877,7 @@ export async function initAtlas(app) {
     showPlan: (r) => { const c = stackCtx(); S.plan = planFromStack(r, { capacity: c.capacity, ship: c.ship, start: c.start ? { id: c.start, name: geo.get(c.start).name, system: geo.get(c.start).system } : null }); draw(); activateBottom('plan'); },
     /** selettore SISTEMA della barra in alto */
     system(sys) { if (geo && sys && sys !== S.system) goSystem(sys, { fromApp: true }); },
+    /** sistema mostrato dall'ATLANTE (navigazione della mappa): non e' la posizione del giocatore */
+    currentSystem: () => S.system,
   };
 }

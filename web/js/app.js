@@ -21,8 +21,8 @@ import { initHome } from './ui-home.js';
 import { initControl } from './ui-control.js';
 import { HomeState } from './home/state.js';
 
-const VERSION = '2.1.0-web';
-const CACHE_NAME = 'navcom-v2.1.0'; // deve coincidere con CACHE in sw.js
+const VERSION = '3.0.0-web';
+const CACHE_NAME = 'navcom-v3.0.0'; // deve coincidere con CACHE in sw.js
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const ICON = { [STATUS.VERIFIED]: '🟢', [STATUS.DATA]: '🔵', [STATUS.THEORETICAL]: '🟠' };

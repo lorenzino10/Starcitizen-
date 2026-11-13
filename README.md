@@ -12,7 +12,7 @@ comandi e non interagisce con l'anti-cheat. Le posizioni si inseriscono a mano.
 
 App: <https://lorenzino10.github.io/Starcitizen-/>
 
-**📟 MISSION CONTROL** (2.1.0): Contract Manager in stile mobiGlas a partire dalla posizione della PLANCIA.
+**📟 MISSION CONTROL** (3.0.0, ripensato come un mobiGlas potenziato: dove sono → tipo di missione → POSSIBILI QUI → LA MIA SPEDIZIONE → RAGGRUPPA E PIANIFICA; modalità SEMPLICE e AVANZATA): Contract Manager a partire dalla posizione della PLANCIA.
 Categorie, regione d'offerta distinta da ritiro e consegna, titoli esatti (o dichiarati dinamici/assenti),
 PLAYER PROFILE locale per gradi e prerequisiti, RAGGRUPPA MISSIONI, ottimizzazione cargo col Centaurus e
 registro delle offerte viste/accettate (solo in NAVCOM, nessun collegamento al gioco).
