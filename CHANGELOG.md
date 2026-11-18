@@ -12,6 +12,14 @@
 - Prospector, ROC e tank risultano **senza stiva cargo** nei file: il minerale non è cargo e NAVCOM non lo inventa.
 - Corretto: l'avviso di sistema incoerente della plancia restava visibile come barra vuota.
 
+## HERCULES · Piano di carico 1.0.0 (2026-11-18)
+Programma separato in `web/hercules/` (sul sito: `/hercules/`, link dalla barra di NAVCOM). Dettagli in [docs/HERCULES.md](docs/HERCULES.md).
+- Griglie reali C2 (480 + 216 SCU), M2 (360 + 162), A2 (216) e casse 1–32 SCU dai file di gioco 4.10.3.
+- Inserisci tappe in ordine di consegna e casse per taglia: il programma mette l'ultima consegna in fondo e la
+  prima vicino alla rampa, verificando che ogni cassa possa uscire senza spostare quelle delle tappe dopo.
+- Vista 3D, piani dall'alto (dalla rampa), "mostra dopo la tappa N", sequenza di carico eseguibile, scarico
+  tappa per tappa con eventuali spostamenti dichiarati, copia del piano come testo.
+
 ## 3.0.1-web (2026-11-13): PLANCIA coerente
 Correzioni dopo la prova di Lorenzo: sistema, posizione e destinazione si contraddicevano.
 - **DOVE SEI** e **DESTINAZIONE** in evidenza nella barra della PLANCIA; il luogo si cambia direttamente lì
