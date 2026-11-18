@@ -1,5 +1,17 @@
 # Registro delle modifiche
 
+## 3.1.0-web (2026-11-18): FLOTTA
+- **Nave di serie: Crusader C2 Hercules Starlifter** (696 SCU in due griglie, cassa massima 32 SCU, dai file di
+  gioco 4.10.2). La Centaurus non è più predefinita: se era ancora quella di serie passa alla C2, una nave
+  scelta da te resta. Anche LOGISTICS ha la C2 come nave di serie (stessa regola: solo se i valori non erano
+  stati toccati).
+- **LA MIA FLOTTA** nella PLANCIA (tasto FLOTTA accanto a "Nave attiva"): flotta iniziale C2 + MISC Prospector.
+  Aggiungi mezzi dai file di gioco (navi e 38 veicoli di terra, tipo riconosciuto: veicolo a ruote, tank) o a
+  mano con nome, tipo, stiva e cassa massima (solo se le conosci: un valore non valido resta "n.d."). USA rende
+  attivo un mezzo; MISSION CONTROL e il piano cargo usano la sua stiva.
+- Prospector, ROC e tank risultano **senza stiva cargo** nei file: il minerale non è cargo e NAVCOM non lo inventa.
+- Corretto: l'avviso di sistema incoerente della plancia restava visibile come barra vuota.
+
 ## 3.0.1-web (2026-11-13): PLANCIA coerente
 Correzioni dopo la prova di Lorenzo: sistema, posizione e destinazione si contraddicevano.
 - **DOVE SEI** e **DESTINAZIONE** in evidenza nella barra della PLANCIA; il luogo si cambia direttamente lì

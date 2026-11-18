@@ -1,10 +1,10 @@
 // Stato della PLANCIA: posizione, nave, destinazione, ultima rotta, recenti, preferiti, visite.
 // Vive nelle chiavi "meta" dell'archivio IndexedDB gia' esistente (nessuna modifica di schema, nessun
 // punto del DATABASE PUNTI toccato). Senza archivio resta in memoria per la sessione e lo dice.
-import { DEFAULT_SHIP, pushRecent } from './model.js';
+import { DEFAULT_FLEET, DEFAULT_SHIP, OLD_DEFAULT_SHIP, pushRecent } from './model.js';
 
 export const META_KEYS = { state: 'homeState', recent: 'destRecent', fav: 'destFavorites', visits: 'destVisits' };
-const EMPTY = () => ({ position: null, ship: DEFAULT_SHIP, shipNotes: {}, destination: null, lastPlan: null });
+const EMPTY = () => ({ position: null, ship: DEFAULT_SHIP, shipNotes: {}, destination: null, lastPlan: null, fleet: null });
 
 export class HomeState {
   /** @param db funzione che restituisce l'archivio (getMeta/setMeta) o null */
@@ -23,6 +23,7 @@ export class HomeState {
       this.fav = (await db.getMeta(META_KEYS.fav)) ?? [];
       this.visits = (await db.getMeta(META_KEYS.visits)) ?? [];
     } catch { this.persistent = false; }
+    this.#initFleet();
     return this;
   }
 
@@ -39,6 +40,27 @@ export class HomeState {
   get ship() { return this.s.ship; }
   get destination() { return this.s.destination; }
   get lastPlan() { return this.s.lastPlan; }
+  /** FLOTTA: i tuoi mezzi (navi, veicoli a ruote, tank). La nave attiva e' state.ship. */
+  get fleet() { return this.s.fleet ?? []; }
+  /**
+   * Prima apertura con la flotta: Hercules C2 + Prospector. Se la nave attiva era ancora la vecchia
+   * di serie (Centaurus) passa alla C2; una nave scelta da te resta e viene aggiunta alla flotta.
+   * Le note sulle navi non vengono toccate.
+   */
+  #initFleet() {
+    if (Array.isArray(this.s.fleet)) return;
+    const fleet = DEFAULT_FLEET.map((v) => ({ ...v }));
+    if (!this.s.ship || this.s.ship === OLD_DEFAULT_SHIP) this.s.ship = DEFAULT_SHIP;
+    else if (!fleet.some((v) => v.name === this.s.ship)) fleet.unshift({ id: 'f-prev', name: this.s.ship, kind: 'nave' });
+    this.s.fleet = fleet;
+  }
+  addVehicle(v) { this.s.fleet = [...this.fleet, v]; return this.#saveState('ship'); }
+  removeVehicle(id) {
+    const gone = this.fleet.find((v) => v.id === id);
+    this.s.fleet = this.fleet.filter((v) => v.id !== id);
+    if (gone && gone.name === this.s.ship) this.s.ship = this.s.fleet.find((v) => v.kind === 'nave')?.name ?? this.s.fleet[0]?.name ?? DEFAULT_SHIP;
+    return this.#saveState('ship');
+  }
   shipNote(name) { return this.s.shipNotes?.[name] ?? ''; }
 
   /** pos {system,x,y,z (m), source} - registrata con l'ora della lettura. */

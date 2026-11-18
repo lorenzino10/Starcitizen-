@@ -258,7 +258,7 @@ export async function initDestinations(app) {
 
   function expeditionForm() {
     return `<div class="row wrap di-filters">
-      <label>Nave<input id="di-ship" list="di-ships" placeholder="es. Constellation Mk V Centaurus" value="${esc(S.ship ?? '')}"></label>
+      <label>Nave<input id="di-ship" list="di-ships" placeholder="es. Crusader C2 Hercules Starlifter" value="${esc(S.ship ?? '')}"></label>
       <label>Attività<select id="di-act">${[['trasporto', 'Trasporto merci'], ['mining_nave', 'Mining con nave'], ['mining_veicolo', 'Mining con veicolo'], ['mining_fps', 'Mining a piedi'], ['esplorazione', 'Esplorazione']].map(([k, l]) => `<option value="${k}" ${S.activity === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
       <label>Partenza (facoltativa)<input id="di-from" list="di-places" placeholder="es. Port Tressler" value="${esc(S.from ? ix.geo.get(S.from)?.name ?? '' : '')}"></label>
       <button id="di-exp-go">PREPARA SPEDIZIONE</button></div>`;

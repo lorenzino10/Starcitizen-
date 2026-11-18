@@ -117,3 +117,38 @@ test('HM-10 archivio personale preservato: 3.355 punti invariati dopo l\'uso del
   assert.equal(again.destination.id, 'pt:p7'); assert.ok(again.isFav('pt:p7'));
   db.close();
 });
+
+// ---------------------------------------------------------------- 3.1 FLOTTA
+import { DEFAULT_FLEET, OLD_DEFAULT_SHIP, kindOf, fleetShips, newVehicle } from '../js/home/model.js';
+import { shipCaps } from '../js/missions/finder.js';
+
+test('HM-F1 flotta iniziale: Hercules C2 + Prospector; la vecchia Centaurus di serie lascia il posto alla C2', async () => {
+  const st = await new HomeState(() => new FakeDb()).load();
+  assert.equal(st.ship, 'Crusader C2 Hercules Starlifter');
+  assert.deepEqual(st.fleet.map((v) => v.name), DEFAULT_FLEET.map((v) => v.name));
+  const db = new FakeDb(); db.m.set(META_KEYS.state, { ship: OLD_DEFAULT_SHIP, shipNotes: { [OLD_DEFAULT_SHIP]: 'nota' } });
+  const old = await new HomeState(() => db).load();
+  assert.equal(old.ship, DEFAULT_SHIP); assert.ok(!old.fleet.some((v) => v.name === OLD_DEFAULT_SHIP));
+  assert.equal(old.shipNote(OLD_DEFAULT_SHIP), 'nota', 'le note non vengono cancellate');
+  const db2 = new FakeDb(); db2.m.set(META_KEYS.state, { ship: 'Drake Caterpillar' });
+  const mine = await new HomeState(() => db2).load();
+  assert.equal(mine.ship, 'Drake Caterpillar', 'una nave scelta da te resta attiva'); assert.equal(mine.fleet[0].name, 'Drake Caterpillar');
+});
+
+test('HM-F2 mezzi a mano (ruote, tank): numeri solo se validi, niente doppioni, stiva usata da shipCaps', async () => {
+  const st = await new HomeState(() => new FakeDb()).load();
+  assert.ok(newVehicle({ name: '  ' }).error);
+  assert.ok(newVehicle({ name: 'misc prospector' }, st.fleet).error, 'doppione (maiuscole ignorate)');
+  const r = newVehicle({ name: 'Mio Ursa', kind: 'ruote', scu: '6', maxBox: 'boh', custom: true }, st.fleet);
+  assert.equal(r.vehicle.scu, 6); assert.equal(r.vehicle.maxBox, null, 'valore non numerico = non noto, mai inventato');
+  await st.addVehicle(r.vehicle);
+  const tank = newVehicle({ name: 'Tumbril Nova', kind: 'tank' }, st.fleet).vehicle;
+  assert.equal(tank.scu, null, 'dai file di gioco: nessun numero copiato a mano'); await st.addVehicle(tank);
+  const c = shipCaps('Mio Ursa', fleetShips(st.fleet));
+  assert.deepEqual([c.scu, c.maxBox], [6, null]); assert.match(c.source, /inseriti da te/);
+  await st.setShip('Mio Ursa'); await st.removeVehicle(r.vehicle.id);
+  assert.equal(st.ship, DEFAULT_SHIP, 'togliendo il mezzo attivo torna la prima nave della flotta');
+  assert.equal(kindOf({ vehicle: true, role: 'Heavy Tank', name: 'Tumbril Nova' }), 'tank');
+  assert.equal(kindOf({ vehicle: true, role: 'Light Mining', name: 'Greycat ROC' }), 'ruote');
+  assert.equal(kindOf({ vehicle: false, name: 'MISC Prospector' }), 'nave');
+});

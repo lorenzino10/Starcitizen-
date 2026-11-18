@@ -3,7 +3,35 @@
 import { parseShowLocation } from '../core/instructions.js';
 
 export const NOT_SET = 'POSIZIONE NON IMPOSTATA';
-export const DEFAULT_SHIP = 'RSI Constellation Mk V Centaurus';
+export const DEFAULT_SHIP = 'Crusader C2 Hercules Starlifter';
+/** La vecchia nave di serie (fino alla 3.0.1): se era ancora quella, la flotta iniziale la sostituisce. */
+export const OLD_DEFAULT_SHIP = 'RSI Constellation Mk V Centaurus';
+/** Flotta iniziale chiesta da Lorenzo: Hercules C2 (trasporto) + Prospector (mining). */
+export const DEFAULT_FLEET = [{ id: 'f-c2', name: 'Crusader C2 Hercules Starlifter', kind: 'nave' }, { id: 'f-prospector', name: 'MISC Prospector', kind: 'nave' }];
+export const VEHICLE_KINDS = { nave: '🚀 Nave', ruote: '🚙 Veicolo a ruote', tank: '🛡 Tank / cingolato', altro: '⚙ Altro' };
+/** Tipo dai file di gioco: veicoli di terra separati dalle navi, tank riconosciuti dal ruolo. */
+export function kindOf(ship) {
+  if (!ship) return 'nave';
+  if (!ship.vehicle) return 'nave';
+  if (/tank|anti-vehicle/i.test(ship.role ?? '') || /\b(Nova|Storm)\b/.test(ship.name)) return 'tank';
+  if (/ATLS|Power Suit/i.test(ship.name)) return 'altro';
+  return 'ruote';
+}
+/**
+ * Mezzi inseriti a mano come voci "nave" per shipCaps: stiva e cassa massima solo se le hai scritte tu.
+ * I mezzi presi dai file di gioco non servono qui (shipCaps li trova nei dati).
+ */
+export function fleetShips(fleet = []) {
+  return (fleet ?? []).filter((v) => v.custom).map((v) => ({ name: v.name, custom: true, scu: v.scu ?? null, maxBox: v.maxBox ?? null }));
+}
+/** Nuovo mezzo: nome obbligatorio, numeri solo se validi (mai inventati). */
+export function newVehicle({ name, kind = 'nave', scu = null, maxBox = null, note = '', custom = false }, existing = []) {
+  const n = String(name ?? '').trim();
+  if (!n) return { error: 'Scrivi il nome del mezzo.' };
+  if ((existing ?? []).some((v) => v.name.toLowerCase() === n.toLowerCase())) return { error: `"${n}" è già nella flotta.` };
+  const num = (x) => (x === '' || x === null || x === undefined || !Number.isFinite(+x) || +x < 0 ? null : +x);
+  return { vehicle: { id: `f-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`, name: n, kind: VEHICLE_KINDS[kind] ? kind : 'altro', custom: !!custom, scu: custom ? num(scu) : null, maxBox: custom ? num(maxBox) : null, note: String(note ?? '').trim() } };
+}
 const SYS = { stanton: 'Stanton', pyro: 'Pyro', nyx: 'Nyx' };
 const d3 = (a, b) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
 

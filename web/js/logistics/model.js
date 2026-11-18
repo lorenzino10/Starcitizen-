@@ -187,6 +187,12 @@ export function patchAge(dataPatch, currentPatch) {
  * cargo_capacity 240, una griglia aperta 7,5 x 5 x 12,5 m, cassa massima 32 SCU.
  */
 export const SHIPS = {
+  /** Crusader C2 Hercules Starlifter: scunpacked-data (file di gioco 4.10.2-LIVE.12881860), due griglie. */
+  'crus-c2-hercules': {
+    name: 'Crusader C2 Hercules Starlifter', scu: 696, maxBox: 32, minBox: 1,
+    grids: [{ width: 10, height: 5, length: 18.75, scu: 480, maxBox: 32 }, { width: 7.5, height: 5, length: 11.25, scu: 216, maxBox: 32 }],
+    source: 'scunpacked-data (file di gioco), 4.10.2-LIVE.12881860', patch: '4.10.2',
+  },
   'rsi-constellation-mk5-centaurus': {
     name: 'RSI Constellation Mk V Centaurus', scu: 240, maxBox: 32, minBox: 1,
     grids: [{ width: 7.5, height: 5, length: 12.5, scu: 240, maxBox: 32 }],

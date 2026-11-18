@@ -15,7 +15,7 @@ import { observeFromCatalog } from './logistics/catalog.js';
 import { ALTERNATIVES, EVIDENCE_LEVELS, freightRadar } from './logistics/radar.js';
 import { contractsToCsv, csvToContracts, exportFull, exportLogistics, jsonToContracts, mergeById, parseBackup } from './logistics/io.js';
 
-const DEFAULTS = { ship: 'rsi-constellation-mk5-centaurus', scu: 240, cap: 240, maxBox: 32, patch: '', prio: 'profitto', maxStops: '', ranks: '', hScu: '', hStop: '', cGm: '', cStop: '', cRisk: '', pos: '' };
+const DEFAULTS = { ship: 'crus-c2-hercules', scu: 696, cap: 696, maxBox: 32, patch: '', prio: 'profitto', maxStops: '', ranks: '', hScu: '', hStop: '', cGm: '', cStop: '', cRisk: '', pos: '' };
 const fmtA = (n) => (n == null ? 'n.d.' : `${Math.round(n).toLocaleString('it-IT')} aUEC`);
 const numOr = (v, d = null) => (v === '' || v == null || !Number.isFinite(+v) ? d : +v);
 
@@ -23,6 +23,8 @@ export async function initLogistics(app) {
   const { $, esc, store, VERSION } = app;
   const db = await LogisticsDB.open();
   let S = { ...DEFAULTS, ...((await db.getMeta('settings')) ?? {}) };
+  // 3.1: la Centaurus non e' piu' la nave di serie. Se era rimasta quella predefinita (valori mai toccati) passa alla C2.
+  if (S.ship === 'rsi-constellation-mk5-centaurus' && +S.scu === 240 && +S.cap === 240 && +S.maxBox === 32) Object.assign(S, { ship: DEFAULTS.ship, scu: DEFAULTS.scu, cap: DEFAULTS.cap, maxBox: DEFAULTS.maxBox });
   let dispatch = (await db.getMeta('dispatch')) ?? newDispatch(null);
   let contracts = [], observations = [], catalog = [], catalogMeta = {}, places = new PlaceIndex({}), lastPlan = null;
 
