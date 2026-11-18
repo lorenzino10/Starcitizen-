@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hercules piano di carico</title>
+<meta name="description" content="Piano di carico per Crusader Hercules (C2, M2, A2): casse per tappa disposte nella griglia per scaricare piu' in fretta.">
+<link rel="stylesheet" href="hercules.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">▣ HERCULES <b>PIANO DI CARICO</b> <small id="version"></small></div>
+  <a class="back" href="../">← NAVCOM</a>
+</header>
+
+<main class="cols">
+  <section class="panel" aria-labelledby="h-in">
+    <h2 id="h-in">Nave e stiva</h2>
+    <label>Nave
+      <select id="ship">
+        <option value="c2">C2 Hercules · 696 SCU</option>
+        <option value="m2">M2 Hercules · 522 SCU</option>
+        <option value="a2">A2 Hercules · 216 SCU</option>
+      </select>
+    </label>
+    <p class="note" id="ship-info"></p>
+    <label>Posizione delle griglie
+      <select id="order">
+        <option value="grande-rampa">Griglia grande verso la rampa (ipotesi)</option>
+        <option value="piccola-rampa">Griglia piccola verso la rampa</option>
+      </select>
+    </label>
+    <label class="check"><input type="checkbox" id="lift" checked> Le casse si possono sollevare col raggio traente per passare sopra le altre</label>
+
+    <h2>Consegne in ordine di viaggio</h2>
+    <p class="note">La prima tappa è la prima consegna. Per ogni tappa scrivi quante casse hai per taglia.</p>
+    <div id="stops"></div>
+    <div class="row">
+      <button id="add" type="button">+ AGGIUNGI TAPPA</button>
+      <button id="example" type="button" class="ghost">ESEMPIO</button>
+      <button id="clear" type="button" class="ghost">SVUOTA</button>
+    </div>
+    <div class="fill" id="fill"></div>
+  </section>
+
+  <section class="out" aria-live="polite">
+    <div id="summary"></div>
+    <div id="views" hidden>
+      <div class="panel">
+        <div class="viewbar">
+          <h2>Stiva</h2>
+          <label class="after">Mostra
+            <select id="after"></select>
+          </label>
+        </div>
+        <div id="legend" class="legend"></div>
+        <div id="iso" class="isowrap"></div>
+        <div id="layers" class="layers"></div>
+        <p class="note">Piani visti dall'alto stando sulla rampa e guardando verso la prua: sinistra è sinistra. Le misure di posizione partono dal bordo della griglia lato rampa e dal suo bordo sinistro. ↑ = cassa che continua dal piano sotto.</p>
+      </div>
+      <div class="panel">
+        <h2>Scarico, tappa per tappa</h2>
+        <div id="unload"></div>
+      </div>
+      <div class="panel">
+        <h2>Sequenza di carico</h2>
+        <p class="note">Carica in quest'ordine: le casse delle ultime consegne entrano per prime e vanno in fondo.</p>
+        <div class="tablewrap"><table id="load"></table></div>
+        <div class="row"><button id="copy" type="button" class="ghost">COPIA IL PIANO COME TESTO</button><span id="copied" class="note"></span></div>
+      </div>
+      <div class="panel limits">
+        <h2>Fonti e limiti</h2>
+        <ul id="limits"></ul>
+      </div>
+    </div>
+  </section>
+</main>
+<script type="module" src="app.js"></script>
+</body>
+</html>
