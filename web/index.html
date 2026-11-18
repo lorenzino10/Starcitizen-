@@ -46,7 +46,22 @@
   <div id="hm-bar" class="cb-strip" aria-label="Stato NAVCOM"></div>
   <div id="hm-sync" class="cb-sync" hidden></div>
   <div id="cb-ship" class="panel cb-ship" hidden>
-    <div class="row wrap"><label style="flex:1 1 320px">Nave <input id="hm-ship-in" list="di-ships" placeholder="es. RSI Constellation Mk V Centaurus"></label></div>
+    <div class="cb-fleet-head"><h3>🚀 LA MIA FLOTTA</h3><button class="small" id="cb-fleet-close" title="Chiudi">✕</button></div>
+    <div id="hm-fleet"></div>
+    <details id="hm-fleet-add" class="cb-sec"><summary>＋ AGGIUNGI UN MEZZO</summary>
+      <div class="cb-fleet-add">
+        <div class="row wrap"><label style="flex:2 1 300px">Dai file di gioco (navi e veicoli) <input id="hm-ship-in" list="di-ships" placeholder="es. Crusader M2 Hercules Starlifter, Greycat ROC, Tumbril Nova"></label>
+          <button id="hm-fleet-add-game" class="primary small">AGGIUNGI</button></div>
+        <p class="hint">Oppure a mano, se il mezzo non è nei file o vuoi i tuoi valori (stiva e cassa solo se le conosci):</p>
+        <div class="row wrap"><label style="flex:2 1 220px">Nome <input id="hm-fl-name" placeholder="es. il mio Ursa"></label>
+          <label style="flex:1 1 160px">Tipo <select id="hm-fl-kind"></select></label>
+          <label style="flex:0 1 110px">Stiva SCU <input id="hm-fl-scu" inputmode="numeric" placeholder="n.d."></label>
+          <label style="flex:0 1 120px">Cassa max SCU <input id="hm-fl-box" inputmode="numeric" placeholder="n.d."></label>
+          <label style="flex:2 1 220px">Nota <input id="hm-fl-note" placeholder="facoltativa"></label>
+          <button id="hm-fleet-add-manual" class="small">AGGIUNGI A MANO</button></div>
+        <p id="hm-fleet-msg" class="hint"></p>
+      </div></details>
+    <h4 id="hm-ship-title" class="cb-fleet-sub"></h4>
     <div id="hm-ship"></div>
     <details><summary>Le tue note sulla nave</summary><textarea id="hm-ship-note" rows="2" placeholder="es. quantum drive sostituito, componenti montati…"></textarea>
       <button id="hm-ship-note-save" class="small">Salva nota</button> <span id="hm-ship-note-msg" class="hint"></span></details>

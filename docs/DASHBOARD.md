@@ -104,3 +104,10 @@ Backup: **Esporta stato plancia (JSON)** nella PLANCIA. I punti continuano a esp
 - La mappa parte da "dove sei"; guardare un altro sistema è solo una vista ("↺ torna a …").
 - Limite: con una posizione XYZ incollata da /showlocation il sistema resta quello scelto nel campo Sistema
   (non è nel testo del gioco): controllalo.
+
+## 3.1: LA MIA FLOTTA
+- Stato in `homeState.fleet` (stessa chiave meta, nessuna modifica di schema): `{id, name, kind: nave|ruote|tank|altro,
+  custom, scu, maxBox, note}`. Nave attiva = `homeState.ship`.
+- Prima apertura: C2 Hercules + Prospector; la Centaurus di serie diventa C2, una nave scelta da te resta in flotta.
+- Mezzi dai file di gioco: stiva e cassa da scunpacked. Mezzi a mano: solo i numeri che scrivi (`fleetShips` → `shipCaps`).
+- Togliere un mezzo non cancella le sue note.

@@ -12,7 +12,7 @@ import { shipCaps, jumpLinks } from './missions/finder.js';
 import { provenance } from './missions/load.js';
 import { draftMovements, observedInput } from './missions/observe.js';
 import { normalizeContract } from './logistics/model.js';
-import { DEFAULT_SHIP } from './home/model.js';
+import { DEFAULT_SHIP, fleetShips } from './home/model.js';
 import { newId, nowIso } from './core/points.js';
 
 const SYS = { stanton: 'Stanton', pyro: 'Pyro', nyx: 'Nyx' };
@@ -50,7 +50,7 @@ export async function initControl(app) {
   await store.load();
   const save = () => state.setBridge({ mc: { ui: S.ui, tab: S.tab, big: S.big, trip: S.trip, scope: S.scope, relation: S.relation, legal: S.legal, sort: S.sort, fine: [...S.fine], showAll: S.showAll, collapse: S.collapse, fitOnly: S.fitOnly, hideBlocked: S.hideBlocked, minReward: S.minReward, sel: S.sel, mode: S.mode, detailW: S.detailW } });
   const links = () => (geo() ? jumpLinks(geo()) : []);
-  const ship = () => shipCaps(state.ship ?? DEFAULT_SHIP, D.ships);
+  const ship = () => shipCaps(state.ship ?? DEFAULT_SHIP, [...fleetShips(state.fleet), ...D.ships]);
   const userViews = () => (A()?.views?.() ?? []).filter((v) => v.origin === 'utente');
   const viewOf = (id) => D.byId.get(id) ?? userViews().find((v) => v.id === id) ?? null;
   const recordById = (id) => store.records.find((r) => r.id === id) ?? null;

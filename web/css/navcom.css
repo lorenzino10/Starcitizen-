@@ -501,3 +501,19 @@ tr.cb-focus td { background: rgba(255, 179, 71, .08); }
 .cb-sync button, .cb-sync button.primary { width: auto; flex: 0 0 auto; margin: 0; padding: 4px 12px; letter-spacing: .08em; font-size: .78rem; }
 .cb-sync > span { color: var(--dim); }
 .cb-alert { color: #ffd27a; }
+
+/* 3.1 FLOTTA */
+.cb-fleet-head { display: flex; justify-content: space-between; align-items: center; }
+.cb-fleet-head h3 { margin: 0; letter-spacing: .14em; font-size: .95rem; }
+.cb-fleet { display: grid; gap: 4px; margin: 8px 0; }
+.cb-veh { display: grid; grid-template-columns: 170px minmax(200px, 1.4fr) minmax(150px, 1fr) minmax(120px, 1fr) auto; gap: 10px; align-items: center; padding: 7px 10px; border: 1px solid var(--line); border-radius: 5px; background: rgba(255, 255, 255, .02); }
+.cb-veh.on { border-color: var(--accent, #3fd0ff); background: rgba(63, 208, 255, .08); }
+.cb-veh > b { color: #fff; font-weight: 600; }
+.cb-veh-kind { font-size: .78rem; color: var(--dim); }
+.cb-veh-acts { display: flex; gap: 6px; align-items: center; justify-content: flex-end; }
+.cb-veh-acts button { width: auto; margin: 0; }
+.cb-fleet-add .row button { width: auto; align-self: flex-end; }
+.cb-fleet-sub { margin: 12px 0 4px; letter-spacing: .12em; font-size: .8rem; color: var(--dim); }
+.cb-chip select#cb-ship-sel { width: auto; max-width: 300px; margin: 0; padding: 2px 6px; font-size: .85rem; }
+@media (max-width: 900px) { .cb-veh { grid-template-columns: 1fr 1fr; } .cb-veh-acts { justify-content: flex-start; } }
+.cb-sync[hidden] { display: none; }

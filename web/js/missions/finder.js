@@ -97,6 +97,7 @@ export function shipCaps(name, atlasShips = []) {
   if (known) return { name, scu: known.scu, maxBox: known.maxBox, source: known.source };
   const s = atlasShips.find((x) => x.name === name);
   if (!s) return { name, scu: null, maxBox: null, source: null };
+  if (s.custom) return { name, scu: s.scu ?? null, maxBox: s.maxBox ?? null, source: 'valori inseriti da te (FLOTTA)' };
   const boxes = (s.grids ?? []).map((g) => maxBoxFromGrid(g.maxItem ?? g.dims)).filter(Boolean);
   return { name, scu: s.scu ?? null, maxBox: boxes.length ? Math.max(...boxes) : null, source: `file di gioco (griglia cargo${boxes.length ? ', cassa massima dalle dimensioni' : ''})` };
 }

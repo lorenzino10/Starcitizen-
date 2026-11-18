@@ -3,7 +3,7 @@
 // in basso MISSIONI (Mission Finder sul Mission Database 2.0) / CARGO (stacking) / ATTIVITA'.
 // Solo stato reale: posizione e destinazione inserite da te, ultima rotta del PIANIFICATORE, dati
 // pubblicati con versione e data. Nessuna telemetria, nessuna missione dichiarata disponibile ora.
-import { NOT_SET, DEFAULT_SHIP, nearestBody, nearestMarker, parsePosition, planSummary, shipSheet, straightDistance } from './home/model.js';
+import { NOT_SET, DEFAULT_SHIP, VEHICLE_KINDS, fleetShips, kindOf, newVehicle, nearestBody, nearestMarker, parsePosition, planSummary, shipSheet, straightDistance } from './home/model.js';
 import { bridgeScene, nextJump, nextLeg, LEGEND, SYS_LABEL } from './home/bridge.js';
 import { SERVICE_FILTERS } from './dest/model.js';
 import { AtlasView, LINE_STYLE, fmtLen } from './atlas/render.js';
@@ -64,7 +64,7 @@ export async function initHome(app) {
   }
   const viewById = (id) => A()?.index?.()?.byId.get(id) ?? finderViews().find((v) => v.id === id) ?? null;
   const caps = () => {
-    const sc = shipCaps(state.ship ?? DEFAULT_SHIP, M.ships);
+    const sc = shipCaps(state.ship ?? DEFAULT_SHIP, [...fleetShips(state.fleet), ...M.ships]);
     return { ...sc, scu: num(S.form.maxScu) ?? sc.scu };
   };
   const evalOne = (v) => findMissions([v], { ship: caps(), profile: { ranks: ranks() }, includeIncompatible: true }, { geo: geo(), links: links() }).rows[0] ?? null;
@@ -82,16 +82,18 @@ export async function initHome(app) {
       : `<span class="warn">non impostata</span>`;
     const destTxt = d
       ? `<button class="link" id="cb-dest-go" title="Mostra la destinazione su mappa e pannello${d.via ? ` · impostata ${esc(VIA[d.via] ?? d.via)}` : ''} · ${fmtDT(d.at)}">${esc(d.name)} <span class="cb-sys-tag">${esc(SYS[d.system] ?? d.system ?? '?')}</span></button> <button class="small cb-x" id="cb-dest-x" title="Togli la destinazione">✕</button>`
-      : '<span class="hm-nd">nessuna · cercala a destra o clic su un luogo della mappa</span>';
+      : '<span class="hm-nd" title="Cercala nel pannello a destra o clic su un luogo della mappa">nessuna</span>';
     $('hm-bar').innerHTML = `
       <div class="cb-chip cb-where"><span>📍 Dove sei</span><b>${posTxt}</b>
         <input id="cb-pos-q" list="cb-places" placeholder="${pos ? 'cambia…' : 'città, stazione, avamposto…'}" autocomplete="off" aria-label="Dove sei"><datalist id="cb-places"></datalist>
         <button class="small" id="hm-paste" title="Incolla la riga di /showlocation">📋</button></div>
       <div class="cb-chip cb-where"><span>🎯 Destinazione</span><b>${destTxt}</b></div>
-      <div class="cb-chip"><span>Nave</span><b><button class="link" id="cb-ship-tog" title="Scheda tecnica (file di gioco)">${esc(state.ship ?? DEFAULT_SHIP)} ▾</button></b></div>
+      <div class="cb-chip"><span>Nave attiva</span><b><select id="cb-ship-sel" title="Il mezzo che usi adesso: stiva e cassa massima valgono per missioni e piano cargo">${fleetOptions()}</select></b>
+        <button class="small" id="cb-ship-tog" title="La tua flotta: aggiungi navi, veicoli a ruote, tank">FLOTTA (${state.fleet.length})</button></div>
       <div class="cb-chip"><span>Rotta</span><b>${routeTxt}</b></div>
       <div class="cb-chip cb-dim"><span>Dati</span><b>${prov.ok ? `${esc(prov.version)} · ${esc(String(prov.date).slice(0, 10))}${prov.stale ? ' <span class="warn">⚠</span>' : ''}` : `<span class="hm-nd">${M.res ? 'n.d.' : 'in caricamento'}</span>`}</b></div>`;
     $('cb-ship-tog').onclick = () => { $('cb-ship').hidden = !$('cb-ship').hidden; if (!$('cb-ship').hidden) renderShip(); };
+    $('cb-ship-sel').onchange = () => state.setShip($('cb-ship-sel').value);
     $('hm-paste').onclick = pastePosition;
     const q = $('cb-pos-q'); const g = geo();
     q.oninput = () => { const list = g ? g.search(q.value, { limit: 25 }) : []; $('cb-places').innerHTML = list.map((x) => `<option value="${esc(x.name)}">${esc(g.pathLabel(x.id))}</option>`).join(''); };
@@ -160,14 +162,51 @@ export async function initHome(app) {
     const list = ix()?.ships ?? []; const q = String(name ?? '').trim().toLowerCase();
     return list.find((s) => s.name.toLowerCase() === q) ?? (q ? list.find((s) => s.name.toLowerCase().includes(q)) : null) ?? null;
   }
+  // ---------------------------------------------------------------- FLOTTA
+  function fleetOptions() {
+    const cur = state.ship ?? DEFAULT_SHIP; const list = state.fleet;
+    const opts = list.map((v) => `<option value="${esc(v.name)}" ${v.name === cur ? 'selected' : ''}>${esc(VEHICLE_KINDS[v.kind]?.split(' ')[0] ?? '')} ${esc(v.name)}</option>`);
+    if (!list.some((v) => v.name === cur)) opts.unshift(`<option value="${esc(cur)}" selected>${esc(cur)} (non in flotta)</option>`);
+    return opts.join('');
+  }
+  /** stiva e cassa di un mezzo della flotta: valori tuoi se inseriti a mano, altrimenti file di gioco */
+  function vehicleCaps(v) { return shipCaps(v.name, [...fleetShips(state.fleet), ...M.ships]); }
+  function renderFleet() {
+    const cur = state.ship ?? DEFAULT_SHIP;
+    $('hm-fleet').innerHTML = state.fleet.length ? `<div class="cb-fleet">${state.fleet.map((v) => {
+      const c = vehicleCaps(v); const f = v.custom ? null : findShip(v.name);
+      const cargo = c.scu ? `${c.scu} SCU${c.maxBox ? ` · cassa ≤${c.maxBox}` : ''}` : f && f.cargo === 0 ? `nessuna stiva cargo${f.mining ? ' (il minerale non è cargo)' : ''}` : 'stiva n.d.';
+      const src = v.custom ? 'inserito da te' : f ? 'file di gioco' : ix() ? '<span class="warn">non trovato nei file</span>' : '';
+      return `<div class="cb-veh ${v.name === cur ? 'on' : ''}">
+        <span class="cb-veh-kind">${esc(VEHICLE_KINDS[v.kind] ?? v.kind)}</span>
+        <b>${esc(v.name)}</b>
+        <span>${esc(cargo)}</span>
+        <span class="hint">${src}${v.note ? ` · ${esc(v.note)}` : ''}</span>
+        <span class="cb-veh-acts">${v.name === cur ? '<span class="ok">● ATTIVA</span>' : `<button class="small" data-fl-use="${esc(v.id)}">USA</button>`}
+          <button class="small" data-fl-del="${esc(v.id)}" title="Togli dalla flotta (le tue note sul mezzo restano)">✕</button></span></div>`;
+    }).join('')}</div>` : '<p class="hint">Flotta vuota: aggiungi un mezzo qui sotto.</p>';
+    $('hm-fleet').querySelectorAll('[data-fl-use]').forEach((b) => { b.onclick = () => { const v = state.fleet.find((x) => x.id === b.dataset.flUse); if (v) state.setShip(v.name); }; });
+    $('hm-fleet').querySelectorAll('[data-fl-del]').forEach((b) => { b.onclick = () => state.removeVehicle(b.dataset.flDel); });
+  }
+  async function addVehicle(input) {
+    const r = newVehicle(input, state.fleet);
+    if (r.error) { $('hm-fleet-msg').innerHTML = `<span class="warn">${esc(r.error)}</span>`; return false; }
+    await state.addVehicle(r.vehicle);
+    $('hm-fleet-msg').innerHTML = `<span class="ok">${esc(r.vehicle.name)} aggiunto alla flotta.</span> <button class="link" id="hm-fl-use-new">usalo adesso</button>`;
+    $('hm-fl-use-new').onclick = () => state.setShip(r.vehicle.name);
+    return true;
+  }
   function renderShip() {
-    const name = state.ship ?? DEFAULT_SHIP; const ship = findShip(name);
-    $('hm-ship-in').value = name;
+    renderFleet();
+    const name = state.ship ?? DEFAULT_SHIP; const own = state.fleet.find((v) => v.name === name);
+    const ship = own?.custom ? null : findShip(name);
+    $('hm-ship-title').textContent = `SCHEDA DEL MEZZO ATTIVO · ${name}`;
     const sh = shipSheet(ship, state.shipNote(name)); const c = caps();
     $('hm-ship').innerHTML = `<p><b>Per il cargo:</b> ${c.scu ? `${c.scu} SCU` : 'stiva n.d.'} · cassa massima ${c.maxBox ? `${c.maxBox} SCU` : 'n.d.'} <span class="hint">${esc(c.source ?? 'fonte n.d.')}</span></p>`
       + (sh ? `<div class="hm-kv cb-kv2">${sh.rows.map((r) => `<span>${esc(r.label)}</span><b>${r.value === null ? '<span class="hm-nd">non nei dati</span>' : esc(r.value)}</b>`).join('')}</div>
       <p class="hint">${esc(sh.source)} Carburante, scudi e danni non vengono mostrati: NAVCOM non legge la telemetria del gioco.</p>`
-      : ix() ? `<p class="warn">"${esc(name)}" non trovata nei file di gioco caricati.</p>` : '<p class="hint">Dati delle navi in caricamento…</p>');
+      : own?.custom ? '<p class="hint">Mezzo inserito a mano: nessuna scheda dai file di gioco. Stiva e cassa sono i valori che hai scritto tu.</p>'
+        : ix() ? `<p class="warn">"${esc(name)}" non trovata nei file di gioco caricati.</p>` : '<p class="hint">Dati delle navi in caricamento…</p>');
     $('hm-ship-note').value = state.shipNote(name);
   }
 
@@ -714,7 +753,17 @@ export async function initHome(app) {
   $('hm-pos-set').onclick = () => setPositionFromText($('hm-pos-text').value);
   $('hm-pos-clear').onclick = async () => { if (confirm('Cancellare la posizione impostata? (I punti salvati non vengono toccati.)')) await state.setPosition(null); };
   $('hm-pos-save').onclick = () => { const p = state.position; if (!p) return; app.openInDatabase?.({ name: `Posizione ${fmtDT(p.at)}`, system: p.system, x: p.x, y: p.y, z: p.z, unit: 'm', notes: `da ${SRC_LABEL[p.source] ?? p.source}` }); };
-  $('hm-ship-in').onchange = async () => { await state.setShip(findShip($('hm-ship-in').value)?.name ?? $('hm-ship-in').value.trim()); };
+  $('hm-fl-kind').innerHTML = Object.entries(VEHICLE_KINDS).map(([k, l]) => `<option value="${k}">${esc(l)}</option>`).join('');
+  $('cb-fleet-close').onclick = () => { $('cb-ship').hidden = true; };
+  $('hm-fleet-add-game').onclick = async () => {
+    const f = findShip($('hm-ship-in').value);
+    if (!f) { $('hm-fleet-msg').innerHTML = `<span class="warn">${ix() ? 'Non trovato nei file di gioco: scegli dall\'elenco o aggiungilo a mano.' : 'Dati dei mezzi in caricamento…'}</span>`; return; }
+    if (await addVehicle({ name: f.name, kind: kindOf(f) })) $('hm-ship-in').value = '';
+  };
+  $('hm-fleet-add-manual').onclick = async () => {
+    const ok = await addVehicle({ name: $('hm-fl-name').value, kind: $('hm-fl-kind').value, scu: $('hm-fl-scu').value, maxBox: $('hm-fl-box').value, note: $('hm-fl-note').value, custom: true });
+    if (ok) for (const id of ['hm-fl-name', 'hm-fl-scu', 'hm-fl-box', 'hm-fl-note']) $(id).value = '';
+  };
   $('hm-ship-note-save').onclick = async () => { await state.setShipNote(state.ship, $('hm-ship-note').value.trim()); $('hm-ship-note-msg').textContent = 'salvata'; };
   $('hm-q').oninput = renderSearch; $('hm-q-sys').onchange = renderSearch;
   $('hm-q').onkeydown = (e) => { if (e.key === 'Escape') { $('hm-q').value = ''; renderSearch(); } if (e.key === 'Enter') $('hm-results').querySelector('[data-act]')?.click(); };
