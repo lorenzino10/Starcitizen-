@@ -230,3 +230,23 @@ File: `web/js/atlas/gl3d.js` (renderer WebGL2), `web/js/atlas/scene3d.js` (matem
 ## Layout HONOR V5 (3.2.0)
 
 Pulsante **📱 HONOR V5** nella barra in alto: layout per lo schermo interno dell'Honor Magic V5 aperto (7,95", 2352×2172, quasi quadrato, touch). Scelta salvata in `localStorage` (`navcom.layout`); alla prima apertura si attiva da solo su uno schermo touch quasi quadrato largo 640-1150 px CSS. Vale per tutta l'app: schede in una riga scorrevole, pulsanti e campi alti almeno 40-44 px. Nell'ATLANTE: mappa a tutta altezza, ricerca e ☰ sopra la mappa, pannello sinistro e scheda del luogo come **cassetti** (la scheda si apre da sola selezionando un luogo, ✕ per chiudere, un tocco sulla mappa chiude il pannello sinistro), piano come foglio dal basso. WebGL a risoluzione 0,75 e 24 fps per la batteria.
+
+## SITUAZIONE (3.3.0)
+
+File: `web/js/dest/factions.js` (fazioni e rapporto, puro), `web/js/dest/situation.js` (riepilogo, puro), interfaccia in `web/js/ui-atlas.js`. Test: `web/tests/situation.test.mjs` (SIT-1 … SIT-7).
+
+**Cosa mostra.** In cima alla scheda del luogo, cinque riquadri: ora locale, esterno (temperatura min … max), aria respirabile, fazione, rapporto con te. "⛶ SITUAZIONE COMPLETA" apre la schermata intera (a tutto schermo nel layout HONOR V5) con armistizio, multa base, merce rubata tollerata, respawn, gravità, casco, descrizione della fazione e il perché del rapporto. L'ora si aggiorna ogni 15 s. Ogni riquadro dice lo stato del dato: *doc* (fonte), *da verificare* (calcolo o dato community), *tuo dato*, *n.d.*.
+
+**Da dove vengono i dati.** Nessuna fonte nuova per l'ambiente: temperatura, respirabilità, armistizio e giurisdizione sono quelli della DESTINATION INTELLIGENCE ([DESTINATIONS.md](DESTINATIONS.md)), con le stesse regole (la temperatura è il min/max della superficie del corpo, non il meteo né il valore del punto; l'atmosfera non implica che sia respirabile). La fazione è la **giurisdizione** della starmap del gioco, ereditata risalendo la gerarchia (Shadowfall → XenoThreat; Lorville → Hurston Dynamics; un pianeta di Pyro → Ungoverned). Le fazioni vengono da `factions/*.json` di scunpacked: tipo (legale, fuorilegge, forze dell'ordine, sicurezza privata), reazione predefinita, scala dei gradi con la reputazione minima (es. Headhunters: Neutral 0, Jr. Contractor 800, Contractor 2.200, Sr. 5.800, Veteran 15.000, Head 38.000, Elite 95.250).
+
+**Abbinamento giurisdizione → fazione.** Nome identico; nome abbreviato solo se univoco a parola intera ("Klescher Rehabilitation" → "Klescher Rehabilitation Facilities"); alias espliciti: UEE (legge dell'Impero, nessuna scala), Ungoverned (nessun governo), People's Alliance (il file `faction_lawful_pa` non ha nome: abbinato per nome del file, dichiarato). Nessun abbinamento per somiglianza.
+
+**Rapporto con te.** Precedenza:
+1. il tuo "come ti tratta in gioco" (ALLEATO, NEUTRALE, A RISCHIO, OSTILE, con nota e data);
+2. CrimeStat > 0 in una giurisdizione legale: A RISCHIO (fazione legale) o OSTILE (legge UEE). Le gang non guardano il CrimeStat;
+3. la tua reputazione (grado o numero): grado `FactionRep_Allied_*` → ALLEATO; grado di partenza → NEUTRALE; sotto zero o sotto il primo grado → A RISCHIO;
+4. la reazione predefinita dei file (Neutral, Hostile, Friendly).
+
+**Limiti dichiarati.** Il grado ostile esiste nei file (`Reputation.Hostility`, lo stesso per tutte le 38 fazioni con scala) ma **senza soglia esportata**: NAVCOM non dice OSTILE da un numero, dice A RISCHIO finché non lo segni tu. Alcune fazioni hanno due record con lo stesso nome (XenoThreat: reputazione *Neutral* e NPC *Hostile*): il secondo è citato nel perché, non usato. I rapporti fra fazioni (chi è nemico di chi) non sono nei file: non sono mostrati. Nessun meteo, nessuna lettura del gioco.
+
+**Profilo.** Gradi, CrimeStat e "come ti tratta in gioco" stanno nel PLAYER PROFILE di MISSION CONTROL (IndexedDB, chiave `playerProfile`, nuovo campo `relations`). Chi salva avvisa gli altri moduli (evento `navcom-profile`).

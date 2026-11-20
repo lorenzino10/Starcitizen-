@@ -127,6 +127,7 @@ export class DestIndex {
     this.smPois = dest.smPois?.byPlace ?? {}; this.mining = dest.mining?.byPlace ?? {};
     this.uexLocs = dest.uex?.locations ?? {}; this.terminals = dest.uex?.terminals ?? {};
     this.meta = dest.meta ?? {};
+    this.factions = dest.factions ?? null; // fazioni dei file di gioco (SITUAZIONE, 3.3.0)
     // gravita': se quasi tutti i valori della fonte sono identici (1 g) sono un valore predefinito, non misure
     const gs = Object.values(this.env).map((e) => e.gravityRaw ?? e.gravity).filter((g) => g !== null && g !== undefined);
     if (gs.length >= 3) {

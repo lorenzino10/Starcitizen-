@@ -16,6 +16,9 @@ import { holdChartSvg } from './logistics/manifest.js';
 import { RANKS, STATUS, normalizeContract, rankIndex, patchAge } from './logistics/model.js';
 import { normalizeObservation } from './logistics/intel.js';
 import { UNITS, newId, nowIso } from './core/points.js';
+import { situation } from './dest/situation.js';
+import { REL as FREL, withStanding, withOverride, overrideOf, profileEntry } from './dest/factions.js';
+import { McStore } from './missions/records.js';
 
 const fmtA = (n) => (n == null ? 'n.d.' : `${Math.round(n).toLocaleString('it-IT')} aUEC`);
 const fmtKm = (m) => `${Math.round(m / 1000).toLocaleString('it-IT')} km`;
@@ -33,6 +36,9 @@ export async function initAtlas(app) {
   S.force = new Set(); S.page = {}; S.open = new Set(['certo_out', 'certo_in']);
   let geo = null, cat = null, schp = null, index = null, views = [], meta = {}, queueExtra = new Map(), obsByPlace = new Map();
   let contracts = [], observations = [], plans = [], attachments = [];
+  // profilo del giocatore: lo stesso di MISSION CONTROL (gradi, CrimeStat, rapporti visti in gioco)
+  const mc = new McStore(db); await mc.load().catch(() => {});
+  mc.onChange((w) => { if (w === 'profile-ext' || w === 'profile') renderSit(); });
   const saveUi = () => db.setMeta('atlasUi', { system: S.system, level: S.level, selected: S.selected, sel: [...S.sel], mode: S.mode, modeChosen: !!S.modeChosen, scope: S.scope, dest: S.dest ?? null });
 
   // ------------------------------------------------------------------ rotazione "ADESSO" (ATLANTE 3D v2)
@@ -432,6 +438,7 @@ export async function initAtlas(app) {
     const tile = (key, label, n, cls, hint) => `<button class="at-tile ${cls}" data-jump="${key}" title="${esc(hint)}"><b>${n}</b><span>${label}</span></button>`;
     $('at-right').innerHTML = `<div class="at-card">
       <h3>${esc(p.name)}</h3><div class="path">${esc(geo.pathLabel(id))}</div>
+      <div id="at-sit" class="at-sit"><p class="hint">SITUAZIONE in caricamento…</p></div>
       <div class="at-tiles">
         ${tile('certo_out', 'CERTE', res.unique.certain, 'sure', 'il luogo è il punto fisso di ritiro o consegna')}
         ${tile('possibile_out', 'POSSIBILI', res.unique.possible, 'maybe', 'il luogo è una delle alternative: il gioco sceglie')}
@@ -494,7 +501,93 @@ export async function initAtlas(app) {
       <p class="hint">Le missioni dei modelli vengono offerte in un luogo e il gioco assegna il punto di ritiro e di consegna al momento: il luogo dell'offerta non è mai copiato nel ritiro. CERTO — POSSIBILE — REGIONALE — SCONOSCIUTO restano sempre distinti.</p>
     </div>`;
     bindCard(id);
+    renderSit();
     if (S.dest?.label) runDest(id);
+  }
+
+  // ------------------------------------------------------------------ SITUAZIONE (3.3.0)
+  // Una schermata con quello che serve sul posto: ora locale, esterno, aria, fazione, rapporto con te.
+  // I dati vengono dalla DESTINATION INTELLIGENCE (fonti e stati invariati) e dal tuo profilo.
+  const sitCache = { id: null, card: null, ix: null };
+  async function sitOf(id) {
+    const p = geo?.get(id); if (!p) return null;
+    if (sitCache.id !== id || !sitCache.card) {
+      const ix = await app.destIndex?.().catch(() => null);
+      sitCache.id = id; sitCache.ix = ix; sitCache.card = ix?.card(id) ?? null;
+    }
+    if (!sitCache.card) return { none: sitCache.ix ? 'luogo non presente nelle schede delle destinazioni' : 'dati delle destinazioni non disponibili (fuori linea e nessuna copia salvata)' };
+    return situation({ card: sitCache.card, factions: sitCache.ix?.factions ?? null, profile: mc.profile, sun: sunOf(p, Date.now()), fmtHour });
+  }
+  const ST_SHORT = { documentata: 'doc', ipotetica: 'da verificare', tua: 'tuo dato', sconosciuta: 'n.d.', segnalata: 'community' };
+  const stTag = (st) => `<i class="st st-${esc(st)}">${esc(ST_SHORT[st] ?? st)}</i>`;
+  function sitTile(icon, label, t, cls = '') {
+    return `<div class="sit-t ${cls} ${t.tone ? `tone-${t.tone}` : ''}"><span class="sit-l">${icon} ${label}</span><b>${t.value == null ? 'N.D.' : esc(t.value)}</b><small>${esc(t.sub ?? '')}</small>${stTag(t.status)}</div>`;
+  }
+  function relTile(r, big = false) {
+    const R0 = FREL[r.state] ?? FREL.ignoto;
+    const sub = r.rank ? `grado ${r.rank.name}${r.next ? ` · ${r.next.name} fra ${r.next.missing.toLocaleString('it-IT')}` : ''}` : r.override ? 'impostato da te' : r.why[r.why.length - 1] ?? '';
+    return `<div class="sit-t sit-rel rel-${R0.cls}${big ? ' big' : ''}"><span class="sit-l">⚑ RAPPORTO CON TE</span><b>${R0.icon} ${R0.label}</b><small>${esc(sub)}</small>${stTag(r.status)}</div>`;
+  }
+  async function renderSit() {
+    const el = $('at-sit'); const id = S.selected; if (!el || !id) return;
+    const s = await sitOf(id); if (S.selected !== id || !$('at-sit')) return;
+    if (!s || s.none) { el.innerHTML = `<p class="hint">SITUAZIONE: ${esc(s?.none ?? 'non disponibile')}</p>`; return; }
+    el.innerHTML = `<div class="sit-grid">
+        ${sitTile('◷', 'ORA LOCALE', s.time)}
+        ${sitTile('🌡', 'ESTERNO', s.temp)}
+        ${sitTile('🫁', 'ARIA RESPIRABILE', s.air)}
+        ${sitTile('⚖', 'FAZIONE', s.faction)}
+        ${relTile(s.relation)}
+      </div>
+      <div class="row wrap"><button class="mini primary" id="at-sit-open" style="width:auto">⛶ SITUAZIONE COMPLETA</button>${s.faction.faction ? '<button class="mini" id="at-sit-rep">✎ La mia reputazione</button>' : ''}<span class="hint">armistizio: ${esc(s.armistice.value ?? 'n.d.')}</span></div>`;
+    $('at-sit-open').onclick = () => sitDialog(id);
+    $('at-sit-rep') && ($('at-sit-rep').onclick = () => sitDialog(id, { edit: true }));
+  }
+  async function sitDialog(id, { edit = false } = {}) {
+    const s = await sitOf(id); if (!s || s.none) return;
+    const p = geo.get(id); const fac = s.faction.faction; const lad = s.faction.ladder;
+    const pe = fac ? profileEntry(mc.profile, fac) : null; const ov = fac ? overrideOf(mc.profile, fac) : null;
+    const rows = (list) => list.map((x) => `<dt>${esc(x.label)}</dt><dd>${esc(x.value)}</dd>`).join('');
+    dlg(`<div class="sit-full"><h2>◉ SITUAZIONE · ${esc(p.name)}</h2><div class="path">${esc(geo.pathLabel(id))}</div>
+      <div class="sit-grid big">
+        ${sitTile('◷', 'ORA LOCALE', s.time)}
+        ${sitTile('🌡', 'TEMPERATURA ESTERNA', s.temp)}
+        ${sitTile('🫁', 'ARIA RESPIRABILE', s.air)}
+        ${sitTile('🛡', 'ARMISTIZIO', s.armistice)}
+        ${sitTile('⚖', 'FAZIONE / GIURISDIZIONE', s.faction)}
+        ${relTile(s.relation, true)}
+      </div>
+      <details class="sit-why" open><summary>Perché ${esc((FREL[s.relation.state] ?? FREL.ignoto).label)}</summary>${s.relation.why.map((w) => `<p class="hint">• ${esc(w)}</p>`).join('')}
+        <p class="hint">• i rapporti fra fazioni (chi è nemico di chi) non sono nei file di gioco: NAVCOM non li mostra come dati.</p></details>
+      ${s.extra.length ? `<dl class="sit-dl">${rows(s.extra)}</dl>` : ''}
+      ${s.faction.description ? `<p class="hint sit-desc">${esc(s.faction.description)}</p>` : ''}
+      ${fac ? `<fieldset class="sit-edit" id="sit-edit"><legend>✎ LA MIA REPUTAZIONE CON ${esc(fac.toUpperCase())}</legend>
+        <p class="hint">La leggi nel mobiGlas (Reputation) e la scrivi qui: il rapporto si ricalcola subito. Stesso profilo di MISSION CONTROL.</p>
+        <div class="row wrap form">
+          ${lad ? `<label>Grado<select id="sit-rank"><option value="">non registrato</option>${lad.standings.map((x) => `<option value="${esc(x.name)}" ${pe?.standing === x.name || (Number.isFinite(pe?.rep) && s.relation.rank?.name === x.name) ? 'selected' : ''}>${esc(x.name)} (da ${x.min.toLocaleString('it-IT')})</option>`).join('')}</select></label>` : '<p class="hint">Nessuna scala di gradi nei file per questa fazione: puoi solo indicare come ti tratta in gioco.</p>'}
+          ${lad ? `<label>Reputazione (numero, facoltativo)<input id="sit-rep" inputmode="numeric" value="${pe?.rep ?? ''}" placeholder="es. 2500 o -200"></label>` : ''}
+          <label>CrimeStat<select id="sit-crime"><option value="">non registrato</option>${[0, 1, 2, 3, 4, 5].map((n) => `<option ${mc.profile.crime === n ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
+        </div>
+        <div class="sit-ov"><span class="hint">Come ti tratta in gioco (vince sul calcolo):</span>
+          ${[['', 'calcola da reputazione'], ...['alleato', 'neutrale', 'rischio', 'ostile'].map((k) => [k, `${FREL[k].icon} ${FREL[k].label}`])].map(([k, l]) => `<label class="check"><input type="radio" name="sit-ov" value="${k}" ${(ov?.state ?? '') === k ? 'checked' : ''}>${esc(l)}</label>`).join('')}
+          <input id="sit-ov-note" placeholder="nota (es. torrette che sparano)" value="${esc(ov?.note ?? '')}"></div>
+        <div class="row wrap"><button id="sit-save" class="primary" style="width:auto">SALVA E RICALCOLA</button><button id="sit-close">Chiudi</button><span id="sit-msg" class="hint"></span></div>
+      </fieldset>` : '<div class="row wrap"><button id="sit-close">Chiudi</button></div>'}
+      <p class="hint">Fonti: ${esc(['ambiente e sicurezza dalla DESTINATION INTELLIGENCE (starmap.space, file di gioco, UEX)', 'fazioni dai file di gioco (scunpacked)', 'ora locale da rotazione della community', 'reputazione inserita da te'].join(' · '))}. Niente meteo in tempo reale, niente lettura del gioco.</p></div>`);
+    $('sit-close').onclick = close;
+    if (edit) $('sit-edit')?.scrollIntoView({ block: 'center' });
+    $('sit-rank') && ($('sit-rank').onchange = () => { $('sit-rep').value = ''; }); // grado scelto: vale il minimo del grado
+    $('sit-save') && ($('sit-save').onclick = async () => {
+      let prof = mc.profile;
+      const repV = $('sit-rep')?.value.trim() ?? ''; const rank = $('sit-rank')?.value ?? '';
+      if (repV !== '' && !Number.isFinite(+repV)) { $('sit-msg').textContent = 'reputazione: scrivi solo un numero'; return; }
+      if (lad) prof = withStanding(prof, fac, { rep: repV === '' ? null : repV, standing: rank || null });
+      const st = [...document.querySelectorAll('input[name="sit-ov"]')].find((x) => x.checked)?.value ?? '';
+      prof = withOverride(prof, fac, st || null, $('sit-ov-note').value);
+      const cr = $('sit-crime').value; prof = { ...prof, crime: cr === '' ? null : +cr };
+      await mc.saveProfile(prof);
+      sitDialog(id, { edit: true }); renderSit();
+    });
   }
 
   function parseDest(text) {
@@ -884,7 +977,7 @@ export async function initAtlas(app) {
     if (!view.gl3) { $('at-anim').disabled = true; $('at-anim').parentElement.title = 'Animazioni disponibili solo con WebGL2'; }
     $('at-gl').parentElement.title += ` · Motore: ${view.glKind}`;
     // ADESSO: aggiorna le posizioni ogni 15 s, solo con la mappa visibile
-    setInterval(() => { if (nowOn && geo && !document.hidden && $('at-canvas').clientWidth > 0) { draw(); } const el = $('at-sun'); const p = S.selected ? geo?.get(S.selected) : null; if (el && p && !document.hidden) el.innerHTML = sunText(p); }, 15000);
+    setInterval(() => { if (nowOn && geo && !document.hidden && $('at-canvas').clientWidth > 0) { draw(); } const el = $('at-sun'); const p = S.selected ? geo?.get(S.selected) : null; if (el && p && !document.hidden) el.innerHTML = sunText(p); if (p && !document.hidden && $('at-sit')) renderSit(); }, 15000);
     {
       let pref = true; try { pref = localStorage.getItem('navcom.atlas.gl') !== '0'; } catch { /* */ }
       const glBox = $('at-gl');

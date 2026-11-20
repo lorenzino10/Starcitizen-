@@ -204,7 +204,7 @@ export function regionRelation(v, region, geo, scope = 'corpo') {
 }
 
 // ---------------------------------------------------------------- profilo e requisiti
-export const EMPTY_PROFILE = () => ({ standings: [], completed: [], tags: [], crime: null, notes: '', updatedAt: null });
+export const EMPTY_PROFILE = () => ({ standings: [], relations: [], completed: [], tags: [], crime: null, notes: '', updatedAt: null });
 /**
  * Scale di reputazione ricavate dal catalogo: (fazione|scope) -> [{name, rep}] ordinate.
  * Fonti: grado minimo/massimo del modello (MinStanding/MaxStanding) e prerequisito di reputazione.

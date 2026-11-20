@@ -36,3 +36,9 @@
 | **VerseTime** `github.com/dydrmr/VerseTime` (`data/bodies.csv`), dati raccolti dai file di gioco da **Murphy Exploration Group** | ✅ Analizzata | Per 16 corpi di Stanton e 11 di Pyro: durata del giorno in ore reali (`rotationRate`) e correzione di fase in gradi (`rotationCorrection`), riferite al 2020-01-01 00:00 UTC. Nyx assente. Fuego ha 0 (non nota). | Codice GPL-3.0: **non copiato**. Usati solo i numeri (fatti), con attribuzione. Formula dell'angolo ricavata in NAVCOM (`web/js/atlas/scene3d.js`). | ATLANTE "◷ Adesso": basi in superficie nella posizione attuale, giorno/notte, ora locale. **Da collaudare in gioco**. |
 
 Verifica fatta: le coordinate locali delle basi nel dataset coincidono con gli offset di scunpacked rispetto al centro del corpo (New Babbage 520,723 / 419,364 / 743,655 km in entrambe), quindi il frame del corpo è lo stesso. L'ora locale calcolata da NAVCOM coincide al millesimo d'ora con quella di VerseTime (test 3D-3). I pianeti **non orbitano**: le loro posizioni restano quelle dei file di gioco.
+
+## Aggiunte 3.3.0 (20 novembre 2026): fazioni
+
+| Fonte | Esito | Cosa offre | Limiti, licenza | Uso in NAVCOM |
+|---|---|---|---|---|
+| **scunpacked-data** `factions/*.json` | ✅ Analizzata (4.10.3-LIVE.13165946) | 75 file: nome (63 validi, gli altri `<= UNINITIALIZED =>`), `FactionType`, `DefaultReaction`, flag di polizia; per 38 fazioni la scala `Reputation.Context.PrimaryScope.Standings` (nome, `MinReputation`). | La soglia del grado ostile (`Reputation.Hostility.StandingUUID`, uguale per tutte) non è fra i gradi esportati. Nessun rapporto fra fazioni. | SITUAZIONE dell'ATLANTE: fazione della giurisdizione e rapporto con te. Snapshot in `data/destinations/dest.json` (`factions`). |

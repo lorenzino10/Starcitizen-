@@ -21,8 +21,8 @@ import { initHome } from './ui-home.js';
 import { initControl } from './ui-control.js';
 import { HomeState } from './home/state.js';
 
-const VERSION = '3.2.0-web';
-const CACHE_NAME = 'navcom-v3.2.0'; // deve coincidere con CACHE in sw.js
+const VERSION = '3.3.0-web';
+const CACHE_NAME = 'navcom-v3.3.0'; // deve coincidere con CACHE in sw.js
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const ICON = { [STATUS.VERIFIED]: '🟢', [STATUS.DATA]: '🔵', [STATUS.THEORETICAL]: '🟠' };
@@ -665,6 +665,7 @@ async function main() {
         pointsDb: () => pointsUi?.db ?? null,
         planTo: (pt) => planner.planToPoint(pt),
         openDestination: (id) => dest?.open(id),
+        destIndex: async () => { if (!dest) return null; await dest.ensure(); return dest.index(); },
         onSelect: (id) => dest?.follow(id),
         onSystem: (sys) => { if (sys !== system) switchSystem(sys); },
         missionsAt: (id, relation) => control?.open({ placeId: id, relation, scope: 'luogo' }),
