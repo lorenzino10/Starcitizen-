@@ -517,3 +517,43 @@ tr.cb-focus td { background: rgba(255, 179, 71, .08); }
 .cb-chip select#cb-ship-sel { width: auto; max-width: 300px; margin: 0; padding: 2px 6px; font-size: .85rem; }
 @media (max-width: 900px) { .cb-veh { grid-template-columns: 1fr 1fr; } .cb-veh-acts { justify-content: flex-start; } }
 .cb-sync[hidden] { display: none; }
+
+/* ATLANTE 3D v2 + layout HONOR MAGIC V5 aperto (schermo interno 7,95", quasi quadrato, touch) */
+.foldbtn { background: none; border: 1px solid var(--line); color: var(--dim); border-radius: 6px; padding: 4px 10px; font: inherit; font-size: .78rem; letter-spacing: .1em; cursor: pointer; }
+body.fold .foldbtn { color: var(--cyan); border-color: var(--cyan); }
+.fold-only { display: none; } body.fold .fold-only { display: inline; } body.fold .pc-only { display: none; }
+body.fold { font-size: 15px; }
+body.fold .topbar { padding: 6px 10px; gap: 6px 12px; flex-wrap: nowrap; overflow-x: auto; }
+body.fold .brand { font-size: .95rem; letter-spacing: .12em; white-space: nowrap; }
+body.fold .datastatus { display: none; }
+body.fold .foldbtn { padding: 8px 12px; }
+body.fold .tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding: 0 6px; -webkit-overflow-scrolling: touch; }
+body.fold .tabs::-webkit-scrollbar { display: none; }
+body.fold .tabs .tabgroup { display: flex; flex-wrap: nowrap; }
+body.fold .tabs small { display: none; }
+body.fold .tabs button { white-space: nowrap; padding: 12px 10px; min-height: 44px; letter-spacing: .06em; }
+body.fold main { padding: 8px 8px 24px; }
+body.fold button, body.fold select, body.fold input:not([type=checkbox]):not([type=radio]):not([type=range]) { min-height: 40px; }
+body.fold input[type=checkbox], body.fold input[type=radio] { width: 20px; height: 20px; }
+body.fold label.check { padding: 4px 2px; }
+/* ATLANTE: mappa a tutto schermo, pannelli come cassetti, piano come foglio dal basso */
+body.fold .at-toolbar { flex-wrap: nowrap; overflow-x: auto; gap: 8px; }
+body.fold .at-tools { flex-wrap: nowrap; white-space: nowrap; }
+body.fold .at-grid, body.fold .at-grid.no-l, body.fold .at-grid.no-r, body.fold .at-grid.no-l.no-r { grid-template-columns: 1fr; grid-template-rows: max(360px, calc(100dvh - var(--at-top, 150px) - 10px)) auto; grid-template-areas: "m" "b"; padding: 0; gap: 6px; }
+body.fold .at-left, body.fold .at-right { position: fixed; top: 0; bottom: 0; z-index: 60; width: min(88vw, 460px); max-height: none; resize: none; border-radius: 0; box-shadow: 0 0 40px rgba(0, 0, 0, .7); background: rgba(8, 16, 26, .97); padding-top: 52px; -webkit-overflow-scrolling: touch; }
+body.fold .at-left { left: 0; } body.fold .at-right { right: 0; }
+.at-dclose { display: none; position: fixed; top: 8px; z-index: 70; min-width: 48px; min-height: 48px; font-size: 1.1rem; border-radius: 24px; background: rgba(8, 16, 26, .95); border: 1px solid var(--cyan); color: var(--cyan); }
+#at-dclose-l { right: 8px; } #at-dclose-r { left: 8px; }
+body.fold .at-grid:not(.no-l) #at-dclose-l, body.fold .at-grid:not(.no-r) #at-dclose-r { display: block; }
+body.fold .at-map { border-radius: 0; border-left: 0; border-right: 0; }
+body.fold .at-bottom { position: fixed; left: 0; right: 0; bottom: 0; z-index: 55; max-height: 48dvh; resize: none; border-radius: 12px 12px 0 0; box-shadow: 0 -10px 40px rgba(0, 0, 0, .7); }
+body.fold .at-hover { font-size: .9rem; }
+body.fold .at-maplegend { font-size: .8rem; }
+body.fold .at-tile { min-height: 64px; }
+.at-fsearch { display: none; }
+body.fold .at-fsearch { display: flex; gap: 6px; position: absolute; left: 8px; right: 8px; top: 34px; z-index: 3; max-width: 520px; }
+body.fold .at-fsearch input { flex: 1; min-height: 44px; font-size: 16px; background: rgba(8, 16, 26, .9); }
+body.fold .at-fsearch button { min-width: 48px; min-height: 44px; font-size: 1.2rem; }
+body.fold #at-banner { font-size: .75rem; max-height: 4.5em; overflow: auto; }
+body.fold #at-banner > * { margin: 2px 0; padding: 4px 8px; }
+body.fold .at-crumbs { white-space: nowrap; overflow-x: auto; max-width: 40vw; }

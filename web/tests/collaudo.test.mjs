@@ -14,5 +14,6 @@ const TODO = [
   'Parametri del proprio quantum drive (Vmax, Ve, a1, a2, preparazione)',
   'Raggio di ostruzione reale dei corpi celesti rispetto al margine impostato',
   'Posizione dell\'ingresso dei jump point rispetto alle stazioni Gateway',
+  'ATLANTE ADESSO: ora locale, alba e tramonto di una base coincidono con il gioco (rotazione dei corpi, dato della community)',
 ];
 for (const t of TODO) test(`[collaudo in gioco] ${t}`, { todo: 'da verificare in gioco' }, () => {});
