@@ -94,12 +94,12 @@ export function segDist(px, py, a, b) {
   return Math.hypot(px - (a.x + t * vx), py - (a.y + t * vy));
 }
 
-/** Selezione: gruppo piu' vicino entro 12 px, altrimenti collegamento entro 6 px. */
-export function pick(px, py, clusters, lines = []) {
-  let best = null, bd = 12;
+/** Selezione: gruppo piu' vicino entro 12 px (piu' largo al tocco), altrimenti collegamento entro 6 px. */
+export function pick(px, py, clusters, lines = [], radius = 12) {
+  let best = null, bd = radius;
   for (const c of clusters) { const d = Math.hypot(c.lead.x - px, c.lead.y - py); if (d < bd) { bd = d; best = c; } }
   if (best) return { kind: best.members.length > 1 ? 'cluster' : 'place', cluster: best, id: best.lead.id };
-  let bl = null, ld = 6;
+  let bl = null, ld = Math.max(6, radius / 2);
   for (const l of lines) { if (!l.a?.visible || !l.b?.visible || !l.pickable) continue; const d = segDist(px, py, l.a, l.b); if (d < ld) { ld = d; bl = l; } }
   return bl ? { kind: 'line', line: bl, id: bl.id } : null;
 }

@@ -10,6 +10,7 @@ import { LEVELS, observationsByPlace, placeStats, discoveryScore, rankDiscovery 
 import { stopsOf, moveStop, measure, planFromStack, manifestOf } from './atlas/plan.js';
 import { AtlasView, fmtLen } from './atlas/render.js';
 import { compressor } from './atlas/view.js';
+import { rotationAngle, rotateZ, localSun, nextLightChange, fmtHour, ROTATION_SOURCE, STAR_RADIUS } from './atlas/scene3d.js';
 import { jumpLinks } from './missions/finder.js';
 import { holdChartSvg } from './logistics/manifest.js';
 import { RANKS, STATUS, normalizeContract, rankIndex, patchAge } from './logistics/model.js';
@@ -33,6 +34,32 @@ export async function initAtlas(app) {
   let geo = null, cat = null, schp = null, index = null, views = [], meta = {}, queueExtra = new Map(), obsByPlace = new Map();
   let contracts = [], observations = [], plans = [], attachments = [];
   const saveUi = () => db.setMeta('atlasUi', { system: S.system, level: S.level, selected: S.selected, sel: [...S.sel], mode: S.mode, modeChosen: !!S.modeChosen, scope: S.scope, dest: S.dest ?? null });
+
+  // ------------------------------------------------------------------ rotazione "ADESSO" (ATLANTE 3D v2)
+  // I corpi non orbitano: ruotano. Con ADESSO acceso le basi in superficie sono disegnate dove si
+  // trovano in questo momento (dato della community, vedi scene3d.js); i calcoli di distanza di
+  // NAVCOM continuano a usare le coordinate dei file di gioco.
+  const pref = (k, d) => { try { const v = localStorage.getItem(k); return v == null ? d : v === '1'; } catch { return d; } };
+  const setPref = (k, v) => { try { localStorage.setItem(k, v ? '1' : '0'); } catch { /* */ } };
+  let nowOn = pref('navcom.atlas.now', true), tNow = Date.now();
+  const surfCache = new Map();
+  const surfOf = (p) => { if (!surfCache.has(p.id)) { const sp = geo.surface(p.id); surfCache.set(p.id, sp.ok ? sp.body : null); } return surfCache.get(p.id); };
+  const angleOf = (body) => (nowOn && body ? rotationAngle(body.system, body.name, tNow) : null);
+  /** Posizione da disegnare: quella attuale per i luoghi in superficie (ADESSO), altrimenti quella dei file. */
+  function curPos(p) {
+    if (!p?.pos || !nowOn || BODY_KINDS.has(p.kind)) return p?.pos ?? null;
+    const body = surfOf(p); const a = angleOf(body);
+    return a == null ? p.pos : rotateZ(p.pos, body.pos, a);
+  }
+  /** Ora locale, giorno/notte e prossimo cambio di luce per un luogo in superficie (o null). */
+  function sunOf(p, t = tNow) {
+    const body = p?.pos && !BODY_KINDS.has(p.kind) ? surfOf(p) : null; if (!body) return null;
+    const star = geo.star(p.system); const a = rotationAngle(body.system, body.name, t);
+    if (a == null || !star?.pos) return null;
+    const local = { x: p.pos.x - body.pos.x, y: p.pos.y - body.pos.y, z: p.pos.z - body.pos.z };
+    return { ...localSun(local, body, star.pos, a), next: nextLightChange(body.system, body.name, local, body, star.pos, t), body };
+  }
+  const cp = (id) => curPos(geo.get(id));
 
   // ------------------------------------------------------------------ dati
   async function getJson(url) { const r = await fetch(url, { cache: 'no-cache' }); if (!r.ok) throw new Error(`${url}: HTTP ${r.status}`); return r.json(); }
@@ -130,6 +157,7 @@ export async function initAtlas(app) {
   const STAR_TINT = { stanton: [1.0, 0.78, 0.42], pyro: [1.0, 0.42, 0.2], nyx: [0.85, 0.7, 1.0] };
   function draw({ refit = false } = {}) {
     if (!geo) return;
+    tNow = Date.now();
     const f = filters();
     const cargoOnly = $('at-l-cargo').checked, termOnly = $('at-l-terminal').checked, disc = $('at-disc').checked;
     const places = levelPlaces().filter((p) => p.pos && layerOk(p)
@@ -138,7 +166,9 @@ export async function initAtlas(app) {
     const discCtx = disc ? { geo, index, obsByPlace, currentPatch: currentPatch(), now: nowIso() } : null;
     const tags = routeTags();
     const items = places.map((p) => {
-      const it = { id: p.id, pos: p.pos, kind: p.kind, label: p.name, selected: p.id === S.selected, badge: badgeFor(p.id, f), radius: p.radius ?? null, system: p.system, parentPos: p.kind === 'moon' ? geo.get(p.parentId)?.pos ?? null : null };
+      const it = { id: p.id, pos: curPos(p), kind: p.kind, label: p.name, selected: p.id === S.selected, badge: badgeFor(p.id, f), radius: p.radius ?? null, system: p.system, parentPos: p.kind === 'moon' ? geo.get(p.parentId)?.pos ?? null : null };
+      if (BODY_KINDS.has(p.kind) && p.kind !== 'star') it.spin = angleOf(p) ?? 0;
+      else if (nowOn && surfOf(p)) { const sn = sunOf(p); if (sn && !sn.day) it.night = true; }
       if (discCtx && !BODY_KINDS.has(p.kind)) { const lv = discoveryScore(p.id, discCtx).level; it.ring = LEVELS[lv].color; }
       if (tags.has(p.id)) it.tag = tags.get(p.id);
       if (p.hidden) it.color = '#3b5266';
@@ -146,12 +176,13 @@ export async function initAtlas(app) {
     });
     const lvl = S.level ? geo.get(S.level) : null;
     let sphere = null;
-    if (lvl && (lvl.kind === 'moon' || lvl.kind === 'planet') && lvl.radius) sphere = { center: lvl.pos, radius: lvl.radius };
+    if (lvl && (lvl.kind === 'moon' || lvl.kind === 'planet') && lvl.radius) sphere = { center: lvl.pos, radius: lvl.radius, spin: angleOf(lvl) ?? 0 };
     if (sphere) for (const it of items) { const sp = geo.surface(it.id); it.onSurface = sp.ok; }
     const compress = $('at-compress').checked ? compressor(lvl?.pos ?? geo.star(S.system)?.pos ?? { x: 0, y: 0, z: 0 }, lvl?.radius ? lvl.radius * 4 : 2e9) : null;
     const star = geo.star(S.system);
-    view.setScene({ items, lines: buildLines(f), sphere: compress ? null : sphere, compress, clusterRadius: 14, star: star?.pos ? { pos: star.pos, radius: star.radius ?? null, color: STAR_TINT[S.system] ?? null } : null });
-    if (refit) view.frame(places.map((p) => p.pos), lvl?.pos ?? null);
+    view.setScene({ items, lines: buildLines(f), sphere: compress ? null : sphere, compress, clusterRadius: 14, star: star?.pos ? { pos: star.pos, radius: star.radius ?? STAR_RADIUS[S.system] ?? null, color: STAR_TINT[S.system] ?? null } : null,
+      clock: nowOn ? (geo.places.some((x) => x.system === S.system && BODY_KINDS.has(x.kind) && rotationAngle(x.system, x.name, tNow) != null) ? `◷ ADESSO ${new Date(tNow).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })} · rotazione reale (dato community)` : '◷ ADESSO: rotazione non nota in questo sistema') : null });
+    if (refit) view.frame(places.map((p) => curPos(p)), lvl?.pos ?? null);
     crumbs();
   }
 
@@ -178,13 +209,13 @@ export async function initAtlas(app) {
         if (!a?.pos || !b?.pos) continue;
         if (a.system !== b.system) continue; // fra sistemi: nessuna linea (jump point)
         if (a.system !== S.system) continue;
-        lines.push({ a: a.pos, b: b.pos, style: 'navcom', arrow: true, label: `${i}`, id: `leg:${i}` });
+        lines.push({ a: curPos(a), b: curPos(b), style: 'navcom', arrow: true, label: `${i}`, id: `leg:${i}` });
       }
     } else {
       for (const id of S.sel) {
         const v = index.byId.get(id); if (!v) continue;
         for (const s of missionSegments(v, geo, S.system)) {
-          lines.push({ a: geo.get(s.from).pos, b: geo.get(s.to).pos, style: s.style, arrow: s.style !== 'offerta', label: s.scu ? `${s.scu} SCU` : '', id: `ms:${v.id}`, pickable: s.style !== 'offerta' });
+          lines.push({ a: cp(s.from), b: cp(s.to), style: s.style, arrow: s.style !== 'offerta', label: s.scu ? `${s.scu} SCU` : '', id: `ms:${v.id}`, pickable: s.style !== 'offerta' });
         }
       }
     }
@@ -193,7 +224,7 @@ export async function initAtlas(app) {
       for (const c of index.connections(S.selected, { ...f, maxAlternatives: f.maxAlternatives ?? 10 })) {
         if (!inSys(c.from) || !inSys(c.to)) continue;
         if (S.mode === 'verificate' && !c.fixed) continue; // VERIFICATE: solo collegamenti con luoghi certi
-        lines.push({ a: geo.get(c.from).pos, b: geo.get(c.to).pos, style: c.strength, width: Math.min(6, 1 + Math.log2(c.missions.length)), arrow: true, id: `conn:${c.from}>${c.to}`, pickable: true, conn: c, alpha: 0.8 });
+        lines.push({ a: cp(c.from), b: cp(c.to), style: c.strength, width: Math.min(6, 1 + Math.log2(c.missions.length)), arrow: true, id: `conn:${c.from}>${c.to}`, pickable: true, conn: c, alpha: 0.8 });
       }
     }
     // associazioni regionali (dal corpo celeste) e missioni espanse su richiesta: mai fra sistemi
@@ -202,7 +233,7 @@ export async function initAtlas(app) {
       for (const x of seg.segments) {
         if (!(S.force.has(x.mission) || x.style === 'regionale')) continue;
         if (x.style === 'regionale' && !$('at-conn').checked) continue;
-        lines.push({ a: geo.get(x.from).pos, b: geo.get(x.to).pos, style: x.style, arrow: true, id: `ms:${x.mission}`, pickable: true, alpha: 0.7 });
+        lines.push({ a: cp(x.from), b: cp(x.to), style: x.style, arrow: true, id: `ms:${x.mission}`, pickable: true, alpha: 0.7 });
       }
     }
     return lines;
@@ -243,6 +274,7 @@ export async function initAtlas(app) {
     if (p.system !== S.system) { S.system = p.system; app.onSystem?.(p.system); }
     S.selected = id; S.conn = null;
     app.onSelect?.(id);
+    if (document.body.classList.contains('fold')) $('at-grid').classList.remove('no-r'); // HONOR V5: apre la scheda
     let refit = false;
     if (p.kind === 'planet' || p.kind === 'moon') { if (S.level !== id) { S.level = id; refit = true; } }
     else if (p.kind === 'star') { S.level = null; refit = true; }
@@ -252,8 +284,8 @@ export async function initAtlas(app) {
     }
     saveUi();
     draw({ refit });
-    if (fly && !refit && p.pos) view.flyTo(view.vis(p.pos), Math.min(view.cam.dist, frameHint(p)));
-    if (refit && !BODY_KINDS.has(p.kind) && p.pos) setTimeout(() => view.flyTo(view.vis(p.pos), Math.min(view.cam.dist, frameHint(p))), 470);
+    if (fly && !refit && p.pos) view.flyTo(view.vis(curPos(p)), Math.min(view.cam.dist, frameHint(p)));
+    if (refit && !BODY_KINDS.has(p.kind) && p.pos) view.flyTo(view.vis(curPos(p)), Math.min(view.cam.dist, frameHint(p)), { after: true });
     renderCard();
   }
   const frameHint = (p) => { const b = geo.bodyOf(p.id); if (b?.radius && b.id !== p.id) return b.radius * 3.2; return p.kind === 'outpost' || p.kind === 'city' ? 1.5e5 : p.kind === 'station' ? 2e6 : 5e8; };
@@ -378,6 +410,13 @@ export async function initAtlas(app) {
   }
   function hiddenBy(res, pred) { return uniqN(res.rows.filter((r) => r.passFilters && r.passScope && !r.pass && pred(r))); }
 
+  function sunText(p) {
+    const sn = sunOf(p, Date.now());
+    if (!sn) return `rotazione di ${esc(surfOf(p)?.name ?? '')} non nota nei dati`;
+    const nx = sn.next?.minutes != null ? ` · ${esc(sn.next.event)} fra ${sn.next.minutes} min reali` : sn.next ? ` · ${esc(sn.next.event)}` : '';
+    return `${sn.day ? '☀' : '☾'} ${fmtHour(sn.hour)} · stella a ${sn.elevation.toFixed(0)}° sull'orizzonte${nx}<br><span class="hint">giorno di ${esc(sn.body.name)}: rotazione da ${esc(ROTATION_SOURCE.label)}, ${esc(ROTATION_SOURCE.status)}</span>`;
+  }
+  const sunRow = (p) => (p.pos && !BODY_KINDS.has(p.kind) && surfOf(p) ? `<dt>Ora locale</dt><dd id="at-sun">${sunText(p)}</dd>` : '');
   function renderCard() {
     const id = S.selected; const p = id ? geo.get(id) : null;
     if (!p) { $('at-right').innerHTML = '<p class="hint">Seleziona un luogo.</p>'; return; }
@@ -416,6 +455,7 @@ export async function initAtlas(app) {
         <dt>Tipo</dt><dd>${esc(KIND_LABEL[p.kind] ?? p.kind)}${p.type ? ` (${esc(p.type)})` : ''}${p.hidden ? ' · nascosto sulla starmap di gioco' : ''}</dd>
         <dt>Coordinate</dt><dd>${p.pos ? `${fmtKm(p.pos.x)} / ${fmtKm(p.pos.y)} / ${fmtKm(p.pos.z)} · frame ${esc(p.frame)}` : 'non disponibili'}</dd>
         <dt>Sul globo</dt><dd>${esc(sp.ok ? `${(sp.lat * 180 / Math.PI).toFixed(2)}° / ${(sp.lon * 180 / Math.PI).toFixed(2)}° · ${sp.note}` : sp.note)}</dd>
+        ${sunRow(p)}
         ${p.radius ? `<dt>Raggio</dt><dd>${fmtKm(p.radius)} (${esc(p.radiusSource)})</dd>` : ''}
         <dt>Marker QT</dt><dd>${p.qtValid ? 'sì (bersaglio quantum nei dati)' : 'no o non indicato'}</dd>
         <dt>Servizi</dt><dd>${term ? `${esc(term.label)}: ${esc(term.tags.slice(0, 12).join(', '))}${term.tags.length > 12 ? '…' : ''}` : 'nessun servizio nei dati'}</dd>
@@ -570,7 +610,7 @@ export async function initAtlas(app) {
   function showMission(id) {
     const v = index.byId.get(id); if (!v) return;
     const ps = v.ops.filter((o) => o.fixed).map((o) => geo.get(o.ids[0])).filter((p) => p?.pos && p.system === S.system);
-    if (ps.length) view.frame(ps.map((p) => p.pos));
+    if (ps.length) view.frame(ps.map((p) => curPos(p)));
     activateBottom('sel');
   }
   function showConnection(c) {
@@ -837,6 +877,14 @@ export async function initAtlas(app) {
   function bindUi() {
     $('at-home').onclick = () => goSystem(S.system);
     $('at-2d').onchange = () => { view.setOrtho($('at-2d').checked); draw(); };
+    $('at-now').checked = nowOn;
+    $('at-now').onchange = () => { nowOn = $('at-now').checked; setPref('navcom.atlas.now', nowOn); draw(); renderCard(); };
+    $('at-anim').checked = pref('navcom.atlas.anim', true); view.setAnim($('at-anim').checked);
+    $('at-anim').onchange = () => { view.setAnim($('at-anim').checked); setPref('navcom.atlas.anim', $('at-anim').checked); };
+    if (!view.gl3) { $('at-anim').disabled = true; $('at-anim').parentElement.title = 'Animazioni disponibili solo con WebGL2'; }
+    $('at-gl').parentElement.title += ` · Motore: ${view.glKind}`;
+    // ADESSO: aggiorna le posizioni ogni 15 s, solo con la mappa visibile
+    setInterval(() => { if (nowOn && geo && !document.hidden && $('at-canvas').clientWidth > 0) { draw(); } const el = $('at-sun'); const p = S.selected ? geo?.get(S.selected) : null; if (el && p && !document.hidden) el.innerHTML = sunText(p); }, 15000);
     {
       let pref = true; try { pref = localStorage.getItem('navcom.atlas.gl') !== '0'; } catch { /* */ }
       const glBox = $('at-gl');
@@ -850,6 +898,28 @@ export async function initAtlas(app) {
     $('at-f-alt-v').textContent = 'tutti';
     $('at-q').oninput = renderResults;
     $('at-q').onkeydown = (e) => { if (e.key === 'Enter') { const p = geo.search($('at-q').value, { limit: 1 })[0]; if (p) select(p.id); } };
+    // layout HONOR V5: GPU a risoluzione ridotta e 24 fps, bersagli al tocco piu' larghi, pannelli come cassetti
+    const grid = $('at-grid');
+    const fold = () => document.body.classList.contains('fold');
+    const placeMap = () => { const r = grid.getBoundingClientRect(); document.documentElement.style.setProperty('--at-top', `${Math.max(0, r.top + globalThis.scrollY)}px`); };
+    const applyFold = () => {
+      const on = fold();
+      view.setRenderScale(on ? 0.75 : 1); view.fps = on ? 24 : 30; view.pickRadius = on ? 22 : 12;
+      if (on) { grid.classList.add('no-l', 'no-r', 'no-b'); placeMap(); }
+      else grid.classList.remove('no-l', 'no-r', 'no-b');
+      view.dirty = true;
+    };
+    globalThis.addEventListener('navcom-layout', applyFold); globalThis.addEventListener('resize', () => { if (fold()) placeMap(); });
+    applyFold();
+    if (globalThis.IntersectionObserver) new IntersectionObserver((es) => { if (fold() && es.some((e) => e.isIntersecting)) { placeMap(); view.dirty = true; } }).observe(grid);
+    // ricerca sulla mappa (HONOR V5): scrive nella ricerca del pannello, che si apre con i risultati
+    $('at-fmenu').onclick = () => grid.classList.toggle('no-l');
+    $('at-q2').oninput = () => { $('at-q').value = $('at-q2').value; renderResults(); grid.classList.remove('no-l'); };
+    $('at-q2').onkeydown = (e) => { if (e.key !== 'Enter') return; const q = geo.search($('at-q2').value, { limit: 1 })[0]; if (q) { grid.classList.add('no-l'); $('at-q2').blur(); select(q.id); } };
+    $('at-results').addEventListener('click', () => { if (fold()) grid.classList.add('no-l'); });
+    $('at-dclose-l').onclick = () => { grid.classList.add('no-l'); };
+    $('at-dclose-r').onclick = () => { grid.classList.add('no-r'); };
+    $('at-canvas').addEventListener('pointerdown', () => { if (fold()) grid.classList.add('no-l'); });
     const tog = (b, cls) => { $(b).onclick = () => { $('at-grid').classList.toggle(cls); globalThis.dispatchEvent(new Event('resize')); }; };
     tog('at-hide-l', 'no-l'); tog('at-hide-r', 'no-r'); tog('at-hide-b', 'no-b');
     $('at-compact').onclick = () => { document.body.classList.toggle('at-compact'); if (document.body.classList.contains('at-compact')) activateBottom('plan'); };

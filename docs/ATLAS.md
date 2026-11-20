@@ -9,7 +9,7 @@ nessuna chiave, nessuna missione inventata.
 
 | Parte | Stato | Note |
 |---|---|---|
-| Mappa 3D (rotazione, zoom, pan, clic, ricerca, centra, reset) | ✅ | Canvas 2D proprio, nessuna libreria e nessun WebGL. Prospettiva con camera yaw/pitch/distanza. |
+| Mappa 3D (rotazione, zoom, pan, clic, ricerca, centra, reset) | ✅ | Canvas 2D proprio per marker ed etichette; sotto, WebGL2 proprio (3.2.0) o WebGL1 (0.9.0) per la grafica. Nessuna libreria. Prospettiva con camera yaw/pitch/distanza. |
 | Vista 2D | ✅ | Proiezione ortogonale dall'alto, scala uniforme (metri per pixel). |
 | Raggruppamento ed etichette | ✅ | Cluster in spazio schermo (14 px); i corpi celesti hanno priorità nel gruppo; etichette senza sovrapposizioni. |
 | Scala visiva compressa | ✅ (attivabile) | `s·ln(1+r/s)` solo grafica; distanze mostrate sempre reali. |
@@ -204,3 +204,29 @@ stack executive ed exploratory, contratti dell'utente, regressione, offline, Ind
 ## Grafica WebGL (0.9.0)
 
 `web/js/atlas/gl.js` disegna sotto il canvas 2D: cielo, stella, sfere dei corpi con raggio noto (illuminate dalla direzione della stella) e orbite circolari nel piano XY del sistema alla quota del corpo. Tutte le proiezioni sono calcolate in JS in doppia precisione e passate alla GPU in pixel, quindi le distanze di sistema non perdono precisione. Le superfici sono procedurali e illustrative (colori scelti a mano per i corpi di Stanton, variazioni dal nome per gli altri): **non** rappresentano il terreno reale. Nyx non ha raggi: i suoi corpi restano bagliori. Marker, etichette, selezione e linee restano nel canvas 2D (`render.js`). Interruttore "Grafica 3D", preferenza in `localStorage` (`navcom.atlas.gl`).
+
+## ATLANTE 3D v2 (3.2.0)
+
+File: `web/js/atlas/gl3d.js` (renderer WebGL2), `web/js/atlas/scene3d.js` (matematica pura e rotazione), `web/js/atlas/render.js` (scelta del motore, camera, occlusione, gesti). Test: `web/tests/atlas3d.test.mjs` (3D-1 … 3D-14).
+
+**Motore.** `render.js` prova WebGL2 (`gl3d.js`); se manca usa WebGL1 (`gl.js`, 0.9.0); se manca anche quello resta il canvas 2D completo. Il motore in uso compare nel suggerimento di "Grafica 3D".
+
+**Cosa cambia con WebGL2.**
+- Profondità vera con buffer **logaritmico** (da 1 m a 1e13 m): pianeti e lune coprono orbite, rotte, bagliori e la stella. Marker ed etichette dietro un corpo (anche stazioni, non solo basi in superficie) diventano trasparenti e scendono di priorità: test di occlusione raggio-sfera in doppia precisione (`occluded`).
+- Sfere calcolate per pixel (ray casting) con silhouette e profondità esatte anche a pochi km dalla superficie. Tutte le posizioni passano alla GPU in coordinate di **vista** (relative alla camera) calcolate in JS: niente coordinate da 1e10 m in float32.
+- Rotte e orbite come nastri sulla GPU: spessore costante, alone, tratteggio per stile, **frecce che scorrono** da A verso B (sostituiscono le frecce 2D). Le etichette delle linee restano nel 2D e spariscono se il punto medio è dietro un corpo.
+- **Eclissi**: la luce della stella su ogni punto di un corpo è ridotta dagli altri corpi fra il punto e la stella (dischi apparenti di stella e corpo). Le posizioni dei corpi sono fisse, quindi le ombre lo sono anche nel gioco.
+- Atmosfera integrata lungo la corda nel guscio (6 campioni), terminatore arrossato, luci della città sul lato notturno di ArcCorp, stella con granulazione, corona e riflesso sull'ottica (spento se la stella è coperta).
+- Raggi delle stelle (solo grafica ed eclissi): Stanton 696.000 km, Pyro 570.720 km (stesso dataset della rotazione).
+
+**◷ Adesso (rotazione reale).** I corpi non orbitano: ruotano. Con l'interruttore acceso (predefinito, preferenza `navcom.atlas.now`) ogni pianeta e luna con dati di rotazione è ruotato all'ora reale; le basi in superficie (`geo.surface().ok`) sono disegnate dove si trovano ora; la superficie illustrativa gira con il corpo; i luoghi di notte hanno ☾. La scheda del luogo mostra **Ora locale**, altezza della stella e minuti reali al prossimo alba/tramonto (aggiornata ogni 15 s). Formula e fonte in `scene3d.js` e [FONTI.md](FONTI.md). **Solo grafica**: distanze, pianificatore, missioni e combinazioni usano sempre le coordinate dei file di gioco. Le stazioni in orbita non vengono ruotate (non è documentato che seguano la rotazione). Nyx: rotazione non nota. Da collaudare in gioco ([COLLAUDO_IN_GIOCO.md](COLLAUDO_IN_GIOCO.md) §7).
+
+**Camera.** Inerzia dopo il trascinamento; rotella con **zoom verso il cursore** (sopra un pianeta ci si avvicina al punto della superficie, senza mai entrarci); **doppio clic** vola sul luogo (corpo: 3,2 raggi; base: 150 km); volo ad **arco** (fra due pianeti la camera si alza e poi scende) con durata proporzionale al salto di scala; tastiera con la mappa a fuoco: frecce o Q/E ruotano, WASD spostano, + e − zoom. Clic sul disco di un pianeta lo seleziona.
+
+**Touch.** Un dito ruota; due dita fanno zoom (pizzico), spostano e ruotano; doppio tocco vola; raggio di selezione 22 px.
+
+**Risparmio GPU.** Il disegno avviene solo quando qualcosa cambia. Le animazioni (interruttore "Animazioni", `navcom.atlas.anim`) girano solo con WebGL2, a mappa visibile, a 30 fps al massimo e per 20 s dopo l'ultimo tocco; poi la GPU resta ferma. Con la scheda del browser nascosta non si disegna nulla.
+
+## Layout HONOR V5 (3.2.0)
+
+Pulsante **📱 HONOR V5** nella barra in alto: layout per lo schermo interno dell'Honor Magic V5 aperto (7,95", 2352×2172, quasi quadrato, touch). Scelta salvata in `localStorage` (`navcom.layout`); alla prima apertura si attiva da solo su uno schermo touch quasi quadrato largo 640-1150 px CSS. Vale per tutta l'app: schede in una riga scorrevole, pulsanti e campi alti almeno 40-44 px. Nell'ATLANTE: mappa a tutta altezza, ricerca e ☰ sopra la mappa, pannello sinistro e scheda del luogo come **cassetti** (la scheda si apre da sola selezionando un luogo, ✕ per chiudere, un tocco sulla mappa chiude il pannello sinistro), piano come foglio dal basso. WebGL a risoluzione 0,75 e 24 fps per la batteria.

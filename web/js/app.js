@@ -21,8 +21,8 @@ import { initHome } from './ui-home.js';
 import { initControl } from './ui-control.js';
 import { HomeState } from './home/state.js';
 
-const VERSION = '3.1.0-web';
-const CACHE_NAME = 'navcom-v3.1.0'; // deve coincidere con CACHE in sw.js
+const VERSION = '3.2.0-web';
+const CACHE_NAME = 'navcom-v3.2.0'; // deve coincidere con CACHE in sw.js
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const ICON = { [STATUS.VERIFIED]: '🟢', [STATUS.DATA]: '🔵', [STATUS.THEORETICAL]: '🟠' };
@@ -510,7 +510,22 @@ function readFile(input, cb) {
 }
 
 // ---------------------------------------------------------------- avvio
+// Layout HONOR MAGIC V5 aperto: schermo interno quasi quadrato (2352x2172), touch. Scelta salvata nel
+// browser; alla prima apertura si attiva da solo su uno schermo touch quasi quadrato di quella misura.
+function foldDefault() {
+  try { const v = localStorage.getItem('navcom.layout'); if (v) return v === 'fold'; } catch { /* */ }
+  const w = globalThis.innerWidth, h = globalThis.innerHeight, coarse = globalThis.matchMedia?.('(pointer: coarse)').matches;
+  return !!coarse && w >= 640 && w <= 1150 && h >= 560 && Math.max(w, h) / Math.min(w, h) < 1.35;
+}
+function setFold(on, save = true) {
+  document.body.classList.toggle('fold', on);
+  if (save) { try { localStorage.setItem('navcom.layout', on ? 'fold' : 'pc'); } catch { /* */ } }
+  globalThis.dispatchEvent(new CustomEvent('navcom-layout', { detail: { fold: on } }));
+  globalThis.dispatchEvent(new Event('resize'));
+}
 function bind() {
+  setFold(foldDefault(), false);
+  $('layout-fold').onclick = () => setFold(!document.body.classList.contains('fold'));
   document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
   $('system').value = system;
   $('system').onchange = () => switchSystem($('system').value);

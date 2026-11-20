@@ -32,3 +32,9 @@ Davanti a una stazione nota, confronta l'output con le coordinate in DATI E IMPO
 
 ## 6. Tratte
 Dopo ogni salto riuscito o fallito, usa nel PIANIFICATORE i pulsanti "✔ Provata in gioco" o "✖ Non disponibile in gioco". Valgono per la sola direzione A→B.
+
+## 7. Rotazione dei pianeti (ATLANTE, interruttore ◷ Adesso)
+1. Atterra (o resta in hangar) in una base di Stanton, per esempio Lorville o New Babbage.
+2. Nell'ATLANTE seleziona la base: la scheda mostra "Ora locale" e "alba/tramonto fra N min reali".
+3. Annota l'ora reale in cui in gioco la stella tocca l'orizzonte e confrontala con la previsione.
+4. Se lo scarto è entro 2-3 minuti reali, la rotazione è confermata per quel corpo. Se lo scarto è costante su più giorni, è un errore di fase (correzione in gradi); se cresce, è la durata del giorno.
