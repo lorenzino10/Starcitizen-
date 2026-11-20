@@ -1,5 +1,22 @@
 # Registro delle modifiche
 
+## 3.3.0-web (2026-11-20): SITUAZIONE
+- **SITUAZIONE** in cima alla scheda del luogo dell'ATLANTE: ora locale (giorno/notte, minuti all'alba o al
+  tramonto), temperatura esterna min … max, aria respirabile, fazione che controlla la zona e **rapporto con te**
+  (ALLEATO / NEUTRALE / A RISCHIO / OSTILE / NON NOTO). "⛶ SITUAZIONE COMPLETA" apre la schermata intera con
+  armistizio, multa base, merce rubata tollerata, respawn, casco e il perché del rapporto.
+- **La mia reputazione**: scegli il grado (scala dei file di gioco) o scrivi il numero letto nel mobiGlas, il
+  CrimeStat e, se in gioco ti trattano diversamente, "come ti tratta in gioco" (vince sul calcolo). Il rapporto
+  si ricalcola subito. È lo stesso profilo di MISSION CONTROL: quello che salvi da una parte vale anche nell'altra.
+- Fazioni dai file di gioco (75: tipo, reazione predefinita, gradi con reputazione minima) aggiunte allo
+  snapshot delle destinazioni. La soglia del grado ostile **non** è nei file: sotto il primo grado il rapporto è
+  A RISCHIO, non OSTILE, finché non lo vedi in gioco. I rapporti fra fazioni non sono nei file e non sono mostrati.
+- Layout HONOR V5: riquadri a due colonne e schermata SITUAZIONE a tutto schermo.
+
+## 3.2.0-web (2026-11-20): ATLANTE 3D v2
+- WebGL2 con profondità vera, rotazione reale dei pianeti (◷ Adesso), ora locale, layout HONOR V5. Dettagli in
+  [docs/ATLAS.md](docs/ATLAS.md).
+
 ## 3.1.0-web (2026-11-18): FLOTTA
 - **Nave di serie: Crusader C2 Hercules Starlifter** (696 SCU in due griglie, cassa massima 32 SCU, dai file di
   gioco 4.10.2). La Centaurus non è più predefinita: se era ancora quella di serie passa alla C2, una nave

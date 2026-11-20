@@ -618,6 +618,7 @@ export async function initControl(app) {
   }
   function renderAll() { $('tab-control').dataset.ui = S.ui; renderProv(); renderAdv(); renderQuick(); renderList(); renderDetail(); renderPlan(); }
 
+  store.onChange((what) => { if (what === 'profile-ext' && D.views.length) renderAll(); }); // gradi aggiornati dalla SITUAZIONE dell'ATLANTE
   state.onChange((what) => { if (what === 'position') { S.shown = PAGE; renderList(); if (S.open && S.open !== '__plan__') renderDetail(); } if (what === 'ship') { renderList(); renderDetail(); renderPlan(); } });
   bindSplit();
   renderAll();

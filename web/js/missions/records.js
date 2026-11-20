@@ -39,6 +39,8 @@ export function cleanProfile(p) {
   const crime = p.crime === '' || p.crime === null || p.crime === undefined ? null : Number(p.crime);
   return {
     standings: (p.standings ?? []).filter((s) => s?.faction && (s.standing || Number.isFinite(+s.rep))).map((s) => ({ faction: String(s.faction), scope: s.scope || null, standing: s.standing || null, rep: s.rep === '' || s.rep === null || s.rep === undefined ? null : Number(s.rep) })),
+    // rapporto "visto in gioco" con una fazione (schermata SITUAZIONE dell'ATLANTE): vince sul calcolo
+    relations: (p.relations ?? []).filter((r) => r?.faction && ['ostile', 'rischio', 'neutrale', 'alleato'].includes(r.state)).map((r) => ({ faction: String(r.faction), state: r.state, note: String(r.note ?? '').slice(0, 200), at: r.at ?? null })),
     completed: (p.completed ?? []).filter((c) => c?.uuid || c?.title).map((c) => ({ uuid: c.uuid ?? null, title: c.title ?? null })),
     tags: [...new Set((p.tags ?? []).filter(Boolean).map(String))],
     crime: Number.isInteger(crime) && crime >= 0 && crime <= 5 ? crime : null,
@@ -48,7 +50,11 @@ export function cleanProfile(p) {
 
 /** Accesso all'archivio (db = LogisticsDB o qualsiasi oggetto con getMeta/setMeta). */
 export class McStore {
-  constructor(db) { this.db = db; this.records = []; this.profile = EMPTY_PROFILE(); this.listeners = new Set(); }
+  constructor(db) {
+    this.db = db; this.records = []; this.profile = EMPTY_PROFILE(); this.listeners = new Set();
+    // piu' moduli (MISSION CONTROL, SITUAZIONE dell'ATLANTE) leggono lo stesso profilo: chi salva avvisa gli altri
+    globalThis.addEventListener?.('navcom-profile', (e) => { if (e.detail?.from !== this && e.detail?.profile) { this.profile = e.detail.profile; this.#emit('profile-ext'); } });
+  }
   async load() {
     if (!this.db) return this;
     this.records = (await this.db.getMeta(MC_KEYS.records).catch(() => null)) ?? [];
@@ -62,6 +68,8 @@ export class McStore {
   async setStatus(id, status) { this.records = this.records.map((r) => (r.id === id ? withStatus(r, status) : r)); await this.#saveRecords(); return this.records.find((r) => r.id === id); }
   async update(id, patch) { this.records = this.records.map((r) => (r.id === id ? { ...r, ...patch, updatedAt: now() } : r)); await this.#saveRecords(); }
   async remove(id) { this.records = this.records.filter((r) => r.id !== id); await this.#saveRecords(); }
-  async saveProfile(p) { this.profile = { ...cleanProfile(p), updatedAt: now() }; if (this.db) await this.db.setMeta(MC_KEYS.profile, this.profile); this.#emit('profile'); return this.profile; }
+  async saveProfile(p) { this.profile = { ...cleanProfile(p), updatedAt: now() }; if (this.db) await this.db.setMeta(MC_KEYS.profile, this.profile); this.#emit('profile');
+    try { globalThis.dispatchEvent?.(new CustomEvent('navcom-profile', { detail: { from: this, profile: this.profile } })); } catch { /* ambiente senza eventi */ }
+    return this.profile; }
   exportJson() { return { [MC_KEYS.records]: this.records, [MC_KEYS.profile]: this.profile }; }
 }

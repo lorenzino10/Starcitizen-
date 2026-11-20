@@ -38,3 +38,9 @@ Dopo ogni salto riuscito o fallito, usa nel PIANIFICATORE i pulsanti "✔ Provat
 2. Nell'ATLANTE seleziona la base: la scheda mostra "Ora locale" e "alba/tramonto fra N min reali".
 3. Annota l'ora reale in cui in gioco la stella tocca l'orizzonte e confrontala con la previsione.
 4. Se lo scarto è entro 2-3 minuti reali, la rotazione è confermata per quel corpo. Se lo scarto è costante su più giorni, è un errore di fase (correzione in gradi); se cresce, è la durata del giorno.
+
+## 8. SITUAZIONE: rapporto con le fazioni (ATLANTE, 3.3.0)
+1. Nel mobiGlas apri Reputation e annota grado e, se visibile, il numero di reputazione con la fazione della base (es. Headhunters, Citizens For Prosperity, XenoThreat).
+2. Nell'ATLANTE seleziona la base, "✎ La mia reputazione", inserisci il grado o il numero e salva.
+3. Avvicinati: se torrette o guardie ti sparano mentre NAVCOM dice NEUTRALE o A RISCHIO, segna "OSTILE" con una nota e annota la tua reputazione: è il dato che manca nei file (soglia del grado ostile).
+4. Confronta temperatura e respirabilità con il casco e l'indicatore della tuta in superficie.

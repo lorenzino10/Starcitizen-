@@ -5,13 +5,14 @@
 //  - UEX Corp API 2.0: luoghi, terminali, prezzi (uso personale non commerciale)
 //  - starmap.space API v4: ambiente dei corpi celesti, POI (se l'endpoint risponde)
 // Ogni fonte che non risponde viene sostituita dall'ultimo snapshot pubblicato, dichiarandolo.
-import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
+import { mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { gzipSync } from 'node:zlib';
 import { Geo } from '../js/atlas/geo.js';
 import { SOURCE_URL } from '../js/atlas/scunpacked.js';
+import { buildFactions } from '../js/dest/factions.js';
 import { SRC, buildGameInfo, buildMining, buildEnvironment, buildSmPois, buildUexPlaces, buildMarket, buildExpeditionShips, makeResolver, makeSuggester } from '../js/dest/build.js';
 
 const outDir = new URL('../data/destinations/', import.meta.url);
@@ -51,25 +52,27 @@ const resolveFull = makeResolver(geo);
 const resolveId = (n, s) => resolveFull(n, s)?.id ?? null;
 
 // ---------------------------------------------------------------- 2. file di gioco
-let game = null, mining = null, ships = null, patch = geoSnap.meta?.patch ?? null;
+let game = null, mining = null, ships = null, factions = null, patch = geoSnap.meta?.patch ?? null;
 try {
   let dir = process.argv[2];
   if (!dir) {
     dir = join(tmpdir(), `scunpacked-dest-${Date.now()}`);
     const git = (...a) => execFileSync('git', a, { stdio: ['ignore', 'inherit', 'inherit'], timeout: 900000 });
     git('clone', '--depth', '1', '--filter=blob:none', '--sparse', `${SOURCE_URL}.git`, dir);
-    git('-C', dir, 'sparse-checkout', 'set', '--no-cone', '/starmap.json', '/resources/locations.json', '/resources/resources.json', '/ships.json');
+    git('-C', dir, 'sparse-checkout', 'set', '--no-cone', '/starmap.json', '/resources/locations.json', '/resources/resources.json', '/ships.json', '/factions/');
     try { const s = execFileSync('git', ['-C', dir, 'log', '-1', '--format=%s'], { encoding: 'utf8' }).trim(); if (/^\d+\.\d+/.test(s)) patch = s; } catch { /* */ }
   }
   game = buildGameInfo(readJson(join(dir, 'starmap.json')));
   for (const k of Object.keys(game)) if (!geo.get(k) && !game[k].amenities.length && !game[k].jurisdiction) delete game[k];
   mining = buildMining(readJson(join(dir, 'resources/locations.json')), readJson(join(dir, 'resources/resources.json')), { resolve: resolveId, patch });
   ships = buildExpeditionShips(readJson(join(dir, 'ships.json')), { patch });
-  status.scu = { ok: true, patch, at: fetchedAt, places: Object.keys(game).length, miningPlaces: Object.keys(mining.byPlace).length, ships: ships.length };
+  // fazioni (schermata SITUAZIONE): tipo, reazione predefinita, scala dei gradi
+  try { factions = buildFactions(readdirSync(join(dir, 'factions')).filter((f) => f.endsWith('.json')).map((f) => ({ file: f, json: readJson(join(dir, 'factions', f)) })), { patch }); } catch (e) { console.warn(`fazioni non lette: ${e.message}`); }
+  status.scu = { ok: true, patch, at: fetchedAt, places: Object.keys(game).length, miningPlaces: Object.keys(mining.byPlace).length, ships: ships.length, factions: factions?.list.length ?? 0 };
 } catch (e) {
   const prev = await previous('dest.json');
   status.scu = { ok: false, error: e.message, reused: prev?.meta?.sources?.scu?.at ?? null };
-  game = prev?.game ?? {}; mining = prev?.mining ?? { byPlace: {}, unmatched: [] };
+  game = prev?.game ?? {}; mining = prev?.mining ?? { byPlace: {}, unmatched: [] }; factions = prev?.factions ?? null;
   ships = (await previous('ships.json'))?.ships ?? [];
 }
 
@@ -122,7 +125,7 @@ try {
 // ---------------------------------------------------------------- 5. scrittura
 const meta = { generatedAt: fetchedAt, patch, sources: status, catalog: Object.values(SRC) };
 const sizes = {
-  dest: write('dest.json', { meta, game, env, smPois, mining, uex }),
+  dest: write('dest.json', { meta, game, env, smPois, mining, uex, factions: factions ?? (await previous('dest.json'))?.factions ?? null }),
   market: market ? write('market.json', market) : 0,
   ships: write('ships.json', { meta: { patch, fetchedAt, source: 'scu' }, ships }),
 };

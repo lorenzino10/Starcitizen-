@@ -15,5 +15,6 @@ const TODO = [
   'Raggio di ostruzione reale dei corpi celesti rispetto al margine impostato',
   'Posizione dell\'ingresso dei jump point rispetto alle stazioni Gateway',
   'ATLANTE ADESSO: ora locale, alba e tramonto di una base coincidono con il gioco (rotazione dei corpi, dato della community)',
+  'SITUAZIONE: reputazione alla quale una fazione di Pyro diventa ostile (soglia non esportata nei file)',
 ];
 for (const t of TODO) test(`[collaudo in gioco] ${t}`, { todo: 'da verificare in gioco' }, () => {});
