@@ -12,9 +12,60 @@
 export const WEATHER = {
   available: false,
   value: null,
-  sub: 'nessuna fonte pubblica le condizioni meteo, il vento o la visibilità',
-  note: 'file di gioco (scunpacked), starmap.space, UEX e Wiki non le pubblicano; in gioco sono locali e dinamiche',
+  sub: 'il gioco genera tempeste, nebbia e vento sul momento: nessuna fonte pubblica previsioni o condizioni per luogo',
+  note: 'file di gioco (scunpacked), starmap.space, UEX e Wiki API non hanno dati meteo; la Wiki starcitizen.tools vieta la lettura automatica (robots.txt). NAVCOM non legge il client, quindi non vede il meteo in corso',
 };
+
+const ARTICLE = { planet: 'un pianeta', moon: 'una luna', star: 'la stella', station: 'una stazione', gateway: 'una stazione di salto (gateway)', city: 'una città', outpost: 'una base', poi: 'un punto di interesse', asteroid: 'un punto fra gli asteroidi', navpoint: 'un punto di navigazione', jumppoint: 'un punto di salto', personal: 'un tuo punto personale' };
+
+/**
+ * Descrizione dei file di gioco (testo ufficiale CIG, in inglese): separa il racconto dagli elenchi
+ * "Potential ... Mineables / Harvestables / Creatures:" che alcune schede si portano dietro.
+ */
+const LIST_LABEL = [[/mineable/i, 'Minerali'], [/harvestable/i, 'Da raccogliere'], [/creature/i, 'Creature']];
+export function splitLore(text) {
+  if (!has(text)) return { lore: null, lists: [] };
+  const lore = []; const lists = []; let cur = null;
+  for (const raw of String(text).replace(/\r/g, '').split('\n')) {
+    const l = raw.trim();
+    const head = l.match(/^potential (.+?):?$/i);
+    if (head && l.length < 60) {
+      const label = (LIST_LABEL.find(([re]) => re.test(head[1])) ?? [null, head[1]])[1];
+      const veh = /vehicle/i.test(head[1]) ? ' (veicolo di terra)' : /ship/i.test(head[1]) ? ' (nave)' : '';
+      cur = { label: `${label}${veh}`, items: [] }; lists.push(cur); continue;
+    }
+    if (!l) { if (!cur) lore.push(''); continue; }
+    if (cur && l.length < 60 && !/[.!?]$/.test(l)) { if (!cur.items.includes(l)) cur.items.push(l); continue; }
+    cur = null; lore.push(l);
+  }
+  const out = lore.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  return { lore: out || null, lists: lists.filter((x) => x.items.length) };
+}
+
+/** Riassunto in italiano costruito solo dai valori presenti nella scheda: nessuna frase senza un dato dietro. */
+export function summaryOf({ place, parentName = null, systemName = '', hero, sections, isBody }) {
+  const h = Object.fromEntries(hero.map((t) => [t.key, t]));
+  const rowOf = (sec, label) => sections.find((x) => x.key === sec)?.rows?.find((r) => r.label.startsWith(label)) ?? null;
+  const out = [];
+  const where = place.kind === 'star' ? `al centro del sistema ${systemName}` : `${parentName && parentName !== systemName ? `${['planet', 'moon'].includes(place.kind) ? 'di' : ['city', 'outpost'].includes(place.kind) ? 'su' : 'presso'} ${parentName}, ` : ''}nel sistema ${systemName}`;
+  out.push(`${place.name} è ${ARTICLE[place.kind] ?? 'un luogo'} ${where}.`);
+  if (h.time.value) out.push(isBody ? `Un giorno dura ${h.time.value.replace(/^giorno di /, '')} reali.` : `Adesso lì è ${/☾/.test(h.time.value) ? 'notte' : 'giorno'}: ora locale ${h.time.value.replace(/^[☀☾]\s*/, '')}${h.time.sub && /fra \d+ min/.test(h.time.sub) ? ` (${h.time.sub.split(' · ').slice(1).join(', ')})` : ''}.`);
+  const env = [];
+  if (h.temp.value) env.push(h.temp.value === 'vuoto' ? 'fuori c\'è il vuoto' : `temperatura da ${h.temp.value.replace(' … ', ' a ')}`);
+  if (h.air.value === 'NO') env.push('aria NON respirabile: serve il casco');
+  else if (h.air.value === 'SÌ') env.push('aria respirabile secondo la fonte');
+  else if (place.kind !== 'star') env.push('respirabilità non documentata, tieni il casco');
+  if (h.grav.value && h.grav.status === 'documentata') env.push(`gravità ${h.grav.value}`);
+  if (env.length) out.push(`${env[0][0].toUpperCase()}${env[0].slice(1)}${env.length > 1 ? `, ${env.slice(1).join(', ')}` : ''}.`);
+  const bio = rowOf('env', 'Biomi'); if (bio?.value) out.push(`Paesaggi: ${bio.value.replace(/,(?=\S)/g, ', ')}.`);
+  const jur = rowOf('sec', 'Giurisdizione'); const arm = rowOf('sec', 'Zona di armistizio');
+  if (jur?.value) out.push(`Giurisdizione: ${jur.value}${arm?.value ? `, armistizio ${arm.value.toLowerCase()}` : ''}.`);
+  else if (arm?.value) out.push(`Armistizio: ${arm.value.toLowerCase()}.`);
+  const svc = sections.find((x) => x.key === 'svc'); const known = (svc?.rows ?? []).filter((r) => r.value && r.label !== 'Servizi');
+  if (known.length) out.push(`Servizi indicati dalle fonti: ${known.slice(0, 6).map((r) => r.label.replace(/\s*\([^)]*\)/g, '').toLowerCase()).join(', ')}${known.length === 7 ? ' e un altro' : known.length > 7 ? ` e altri ${known.length - 6}` : ''}.`);
+  out.push('Meteo e visibilità: nessun dato pubblico, li scopri sul posto.');
+  return out.join(' ');
+}
 
 const BODY = new Set(['star', 'planet', 'moon']);
 const has = (v) => v !== null && v !== undefined && v !== '';
@@ -42,7 +93,7 @@ export function fmtDuration(hours) {
  * @param bodyName  nome del corpo di riferimento (luna o pianeta) o null
  * @param fmtKm     formattatore delle distanze in km
  */
-export function explorerCard({ place, pathLabel = '', kindLabel = '', surface = null, sit = null, card = null, rotation = null, bodyName = null, fmtKm = (m) => `${Math.round(m / 1000)} km` }) {
+export function explorerCard({ place, pathLabel = '', kindLabel = '', parentName = null, systemName = '', surface = null, sit = null, card = null, rotation = null, bodyName = null, fmtKm = (m) => `${Math.round(m / 1000)} km` }) {
   if (!place) return null;
   const isBody = BODY.has(place.kind);
   const env = card?.env ?? {}; const ext = env.exterior ?? []; const sec = card?.security ?? [];
@@ -123,10 +174,12 @@ export function explorerCard({ place, pathLabel = '', kindLabel = '', surface = 
     row('Fonte', [place.source, place.patch].filter(Boolean).join(' · ') || null),
   ].filter(Boolean);
   sections.push({ key: 'pos', title: 'POSIZIONE', rows: pos });
-  if (card?.description) sections.push({ key: 'desc', title: 'DESCRIZIONE (file di gioco)', text: card.description });
+  // IL POSTO: riassunto in italiano dai dati + storia ufficiale dai file di gioco
+  const { lore, lists } = splitLore(card?.description ?? null);
+  const story = { summary: summaryOf({ place, parentName, systemName, hero, sections, isBody }), lore, lists, loreSource: lore ? 'descrizione ufficiale nei file di gioco (CIG, via scunpacked), in inglese' : null };
 
   return {
-    id: place.id, title: place.name, path: pathLabel, kind: kindLabel, isBody, mode, hero, sections,
+    id: place.id, title: place.name, path: pathLabel, kind: kindLabel, isBody, mode, hero, sections, story,
     missingCard: !card,
     sources: ['posizioni e gerarchia: file di gioco (scunpacked)', card ? 'ambiente, servizi e sicurezza: DESTINATION INTELLIGENCE (starmap.space, file di gioco, UEX)' : null, rotation || sit?.time?.value ? 'rotazione: Murphy Exploration Group via VerseTime (community)' : null].filter(Boolean),
   };
