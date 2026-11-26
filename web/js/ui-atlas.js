@@ -609,10 +609,14 @@ export async function initAtlas(app) {
     const s = await sitOf(id); if (S.selected !== id || !explore) return;
     const body = BODY_KINDS.has(p.kind) ? p : geo.bodyOf(id);
     const c = explorerCard({ place: p, pathLabel: geo.pathLabel(id), kindLabel: `${KIND_LABEL[p.kind] ?? p.kind}${p.type ? ` (${p.type})` : ''}`,
+      parentName: geo.get(p.parentId)?.name ?? null, systemName: SYSTEM_LABEL[p.system] ?? p.system,
       surface: BODY_KINDS.has(p.kind) ? null : geo.surface(id), sit: s && !s.none ? s : null, card: sitCache.id === id ? sitCache.card : null,
       rotation: body ? rotationOf(body.system, body.name) : null, bodyName: body?.name ?? null, fmtKm });
     const scroll = box.scrollTop;
     box.innerHTML = `<div class="ex-head"><h2>${esc(c.title)}</h2><div class="path">${esc(c.kind)} · ${esc(c.path)}</div></div>
+      <section class="ex-story"><h3>📖 IL POSTO</h3><p class="ex-sum">${esc(c.story.summary)}</p>
+        ${c.story.lore ? `<details class="ex-lore" open><summary>Storia <span class="hint">· ${esc(c.story.loreSource)}</span></summary>${c.story.lore.split(/\n\n+/).map((t) => `<p>${esc(t)}</p>`).join('')}</details>` : '<p class="hint">Nessuna descrizione nei file di gioco per questo luogo.</p>'}
+        ${c.story.lists.map((x) => `<p class="hint"><b>${esc(x.label)}</b> (dalla descrizione): ${esc(x.items.join(', '))}</p>`).join('')}</section>
       <div class="ex-hero">${c.hero.map((t) => `<div class="sit-t ${t.tone ? `tone-${t.tone}` : ''}" title="${esc(t.note ?? '')}"><span class="sit-l">${t.icon} ${esc(t.label)}</span><b>${t.value == null ? 'N.D.' : esc(t.value)}</b><small>${esc(t.sub ?? '')}</small>${exTag(t.status)}</div>`).join('')}</div>
       ${c.missingCard ? `<p class="hint ex-warn">${esc(s?.none ?? 'scheda della destinazione non disponibile')}: mostro solo i dati dell'ATLANTE.</p>` : ''}
       ${c.sections.map((sec) => `<details class="ex-sec" ${['env', 'haz', 'sec'].includes(sec.key) || !foldOn() ? 'open' : ''}><summary>${esc(sec.title)}</summary>

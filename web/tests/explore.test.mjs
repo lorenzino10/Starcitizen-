@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { RESET_GROUPS, NEVER_TOUCHED, UNDO_KEY, plan, applyReset, undoReset, lastUndo } from '../js/home/reset.js';
-import { explorerCard, fmtDuration, WEATHER } from '../js/atlas/explore.js';
+import { explorerCard, fmtDuration, WEATHER, splitLore } from '../js/atlas/explore.js';
 
 // ---------------------------------------------------------------- archivi finti
 class LS { constructor(o = {}) { this.m = new Map(Object.entries(o)); } getItem(k) { return this.m.has(k) ? this.m.get(k) : null; } setItem(k, v) { this.m.set(k, String(v)); } removeItem(k) { this.m.delete(k); } }
@@ -173,4 +173,28 @@ test('EX-6 gravità 1 g: valore predefinito della fonte, mostrato come da verifi
   assert.equal(g.value, '1 g'); assert.equal(g.status, 'ipotetica'); assert.match(g.sub, /predefinito/);
   card.env.exterior = card.env.exterior.map((f) => (f.key === 'grav' ? F('grav', 'Gravità', '0.33 g') : f));
   assert.equal(explorerCard({ place: base, card }).hero.find((t) => t.key === 'grav').status, 'documentata');
+});
+
+test('EX-7 IL POSTO: storia separata dai minerali, riassunto solo con dati presenti', () => {
+  const s = splitLore('A moon of dust (sintetico).\n\nPotential Ship Mineables:\nQuartz\nBorase\n\nPotential Ground Vehicle Mineables:\nHadanite');
+  assert.equal(s.lore, 'A moon of dust (sintetico).');
+  assert.deepEqual(s.lists, [{ label: 'Minerali (nave)', items: ['Quartz', 'Borase'] }, { label: 'Minerali (veicolo di terra)', items: ['Hadanite'] }]);
+  assert.deepEqual(splitLore('Text.\nPotential Harvestables:\nRanta Dung (Caves)\nPotential Creatures\nJuvenile Valakkar').lists.map((x) => x.label), ['Da raccogliere', 'Creature']);
+  assert.deepEqual(splitLore(null), { lore: null, lists: [] });
+  const moon = { id: 'm', name: 'Daymar', kind: 'moon', system: 'stanton', pos: { x: 0, y: 0, z: 0 } };
+  const card = syntheticCard('corpo'); card.description = s.lore;
+  const c = explorerCard({ place: moon, parentName: 'Crusader', systemName: 'Stanton', card, sit, rotation: { hours: 2.48 } });
+  assert.match(c.story.summary, /^Daymar è una luna di Crusader, nel sistema Stanton\./);
+  assert.match(c.story.summary, /Un giorno dura 2 h 29 min reali\./);
+  assert.match(c.story.summary, /aria NON respirabile/);
+  assert.match(c.story.summary, /Giurisdizione: microTech, armistizio sì\./);
+  assert.match(c.story.summary, /Servizi indicati dalle fonti: hangar\./);
+  assert.match(c.story.summary, /Meteo e visibilità: nessun dato pubblico/);
+  assert.ok(!/gravità/.test(c.story.summary), 'gravità N.D. non entra nel riassunto');
+  assert.equal(c.story.lore, 'A moon of dust (sintetico).');
+  assert.ok(!c.sections.some((x) => x.key === 'desc'), 'la storia non è più ripetuta in fondo');
+  const bare = explorerCard({ place: { ...base, kind: 'outpost' }, parentName: 'Daymar', systemName: 'Stanton' });
+  assert.match(bare.story.summary, /è una base su Daymar, nel sistema Stanton\./);
+  assert.match(bare.story.summary, /Respirabilità non documentata/);
+  assert.equal(bare.story.lore, null);
 });

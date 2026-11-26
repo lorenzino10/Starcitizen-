@@ -1,5 +1,14 @@
 # Registro delle modifiche
 
+## 3.4.1-web (2026-11-26): ESPLORA, IL POSTO
+- **📖 IL POSTO** in cima alla scheda di ESPLORA: un riassunto in italiano scritto solo con i dati presenti
+  (cos'è e dove sta, giorno/notte e ora locale o durata del giorno, temperatura, aria, paesaggi, giurisdizione,
+  armistizio, servizi) e la **storia** del luogo: la descrizione ufficiale nei file di gioco (CIG, in inglese),
+  presente per 1.152 luoghi. Gli elenchi "Potential … Mineables/Harvestables/Creatures" sono separati in
+  minerali, cose da raccogliere e creature.
+- **Meteo**: resta N.D. con il motivo spiegato. Il gioco genera tempeste, nebbia e vento sul momento e nessuna
+  fonte pubblica dati per luogo; la Wiki starcitizen.tools vieta la lettura automatica (robots.txt).
+
 ## 3.4.0-web (2026-11-26): ESPLORA e RESET SCELTE
 - **🔭 ESPLORA** (barra in alto): solo la mappa 3D a tutto schermo. Una ricerca ("Dove vuoi andare?") su
   pianeti, lune, stazioni, basi, POI e tuoi punti di tutti i sistemi; alla selezione la mappa vola sul luogo e si

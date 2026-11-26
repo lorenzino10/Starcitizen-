@@ -687,3 +687,8 @@ body.explore .at-maplegend { display: none; }
 .ex-sec .ex-nd summary { color: var(--dim); font-weight: 400; letter-spacing: 0; font-size: .78em; }
 .ex-head .path { margin-right: 76px; }
 body.fold .ex-head h2, body.fold .ex-head .path { margin-right: 110px; }
+.ex-story { margin: .2em 0 .6em; padding: .6em .75em; background: #0c1b2a; border: 1px solid #24384d; border-left: 3px solid var(--cyan); border-radius: 6px; }
+.ex-story h3 { margin: 0 0 .35em; font-size: .82em; letter-spacing: .12em; color: var(--cyan); }
+.ex-sum { margin: 0 0 .4em; line-height: 1.5; color: #fff; font-size: .95em; }
+.ex-lore summary { cursor: pointer; color: var(--amber); font-size: .85em; }
+.ex-lore p { margin: .35em 0; line-height: 1.5; font-size: .88em; color: #cfe8ff; font-style: italic; }
