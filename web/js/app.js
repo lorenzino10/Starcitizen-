@@ -20,9 +20,10 @@ import { initDestinations } from './ui-dest.js';
 import { initHome } from './ui-home.js';
 import { initControl } from './ui-control.js';
 import { HomeState } from './home/state.js';
+import { RESET_GROUPS, NEVER_TOUCHED, applyReset, undoReset, lastUndo } from './home/reset.js';
 
-const VERSION = '3.3.0-web';
-const CACHE_NAME = 'navcom-v3.3.0'; // deve coincidere con CACHE in sw.js
+const VERSION = '3.4.0-web';
+const CACHE_NAME = 'navcom-v3.4.0'; // deve coincidere con CACHE in sw.js
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const ICON = { [STATUS.VERIFIED]: '🟢', [STATUS.DATA]: '🔵', [STATUS.THEORETICAL]: '🟠' };
@@ -47,6 +48,7 @@ let dest = null;
 let home = null;
 let homeState = null;
 let control = null;
+let logisticsApi = null;
 
 // ---------------------------------------------------------------- utilita'
 function parseNum(s) {
@@ -523,8 +525,61 @@ function setFold(on, save = true) {
   globalThis.dispatchEvent(new CustomEvent('navcom-layout', { detail: { fold: on } }));
   globalThis.dispatchEvent(new Event('resize'));
 }
+// ---------------------------------------------------------------- ESPLORA (3.4.0)
+// Solo la mappa 3D a tutto schermo con ricerca e scheda del luogo. Scelta ricordata nel browser;
+// si apre direttamente anche con l'indirizzo ...#esplora (comodo come collegamento sul desktop).
+function setExplore(on, save = true) {
+  if (on && !atlas) { banner('ESPLORA non disponibile: l\'ATLANTE non è stato avviato.', 'err'); return; }
+  if (on) showTab('atlas');
+  document.body.classList.toggle('explore', on);
+  atlas?.explore(on);
+  $('explore-btn').classList.toggle('active', on);
+  if (save) { try { localStorage.setItem('navcom.explore', on ? '1' : '0'); } catch { /* */ } }
+  if (on) setTimeout(() => $('ex-q')?.focus({ preventScroll: true }), 50);
+}
+const exploreDefault = () => { if (/^#esplora/i.test(location.hash)) return true; try { return localStorage.getItem('navcom.explore') === '1'; } catch { return false; } };
+
+// ---------------------------------------------------------------- RESET SCELTE (3.4.0)
+function lsSafe() { try { return globalThis.localStorage ?? null; } catch { return null; } }
+function resetDialog() {
+  const dlg = $('reset-dlg'); const u = lastUndo(lsSafe());
+  const when = (iso) => new Date(iso).toLocaleString('it-IT', { dateStyle: 'short', timeStyle: 'short' });
+  dlg.innerHTML = `<h2>⟲ RESET SCELTE</h2>
+    <p>Riporta NAVCOM come alla prima apertura. Scegli cosa azzerare: prima di farlo NAVCOM salva una copia, così puoi tornare indietro con <b>ANNULLA L'ULTIMO RESET</b>.</p>
+    ${Object.entries(RESET_GROUPS).map(([k, g]) => `<fieldset><legend><label><input type="checkbox" data-rg="${k}" ${g.def ? 'checked' : ''}>${esc(g.label)}</label></legend>
+      <ul>${g.what.map((w) => `<li>${esc(w)}</li>`).join('')}</ul></fieldset>`).join('')}
+    <fieldset class="never"><legend>✓ NON VIENE TOCCATO</legend><ul>${NEVER_TOUCHED.map((w) => `<li>${esc(w)}</li>`).join('')}</ul></fieldset>
+    <p class="hint">Dopo il reset la pagina si ricarica. Per una copia completa dei dati usa comunque BACKUP COMPLETO in LOGISTICS o 🗄 DATI.</p>
+    <div class="row wrap"><button id="reset-go" class="danger">⟲ RESETTA ORA</button><button id="reset-cancel">Annulla</button>
+      ${u ? `<button id="reset-undo" title="Rimette le scelte com'erano prima del reset del ${esc(when(u.at))}">↶ ANNULLA L'ULTIMO RESET (${esc(when(u.at))})</button>` : ''}
+      <span id="reset-msg" class="hint"></span></div>`;
+  const dbs = () => ({ points: pointsUi?.db ?? null, logistics: logisticsApi?.db?.() ?? null });
+  const groups = () => [...dlg.querySelectorAll('[data-rg]')].filter((x) => x.checked).map((x) => x.dataset.rg);
+  const sync = () => { $('reset-go').disabled = !groups().length; };
+  dlg.querySelectorAll('[data-rg]').forEach((x) => { x.onchange = sync; });
+  $('reset-cancel').onclick = () => dlg.close();
+  $('reset-go').onclick = async () => {
+    const ls = lsSafe(); if (!ls) { $('reset-msg').textContent = 'il browser non permette di salvare la copia: reset non eseguito'; return; }
+    $('reset-go').disabled = true; $('reset-msg').textContent = 'reset in corso…';
+    try {
+      const r = await applyReset({ groups: groups(), ls, dbs: dbs() });
+      if (!r.changed.length) { $('reset-msg').textContent = 'niente da azzerare: sei già alle impostazioni di partenza'; $('reset-go').disabled = false; return; }
+      location.hash = ''; location.reload();
+    } catch (e) { console.error(e); $('reset-msg').textContent = `reset non completato: ${e.message}`; $('reset-go').disabled = false; }
+  };
+  if ($('reset-undo')) $('reset-undo').onclick = async () => {
+    try { await undoReset({ ls: lsSafe(), dbs: dbs() }); location.reload(); } catch (e) { $('reset-msg').textContent = `annullamento non riuscito: ${e.message}`; }
+  };
+  dlg.showModal();
+}
+
 function bind() {
   setFold(foldDefault(), false);
+  $('explore-btn').onclick = () => setExplore(!document.body.classList.contains('explore'));
+  $('reset-btn').onclick = resetDialog;
+  $('ex-exit').onclick = () => setExplore(false);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && document.body.classList.contains('explore') && !document.querySelector('dialog[open]')) setExplore(false); });
+  globalThis.addEventListener('hashchange', () => { if (/^#esplora/i.test(location.hash)) setExplore(true); });
   $('layout-fold').onclick = () => setFold(!document.body.classList.contains('fold'));
   document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
   $('system').value = system;
@@ -652,7 +707,7 @@ async function main() {
   homeState.onChange((what) => { const ps = homeState.position?.system; if (what === 'position' && ps && ps !== system) switchSystem(ps); });
   let logistics = null;
   try {
-    logistics = await initLogistics({
+    logistics = logisticsApi = await initLogistics({
       $, esc, store, VERSION, ensureSystemData, navOptions: () => navOptions(settings),
       pointsDb: () => pointsUi?.db ?? null,
       missionControlReload: () => control?.reload?.(),
@@ -669,6 +724,7 @@ async function main() {
         onSelect: (id) => dest?.follow(id),
         onSystem: (sys) => { if (sys !== system) switchSystem(sys); },
         missionsAt: (id, relation) => control?.open({ placeId: id, relation, scope: 'luogo' }),
+        setExplore: (on) => setExplore(on),
       });
       atlas?.system?.(system); // stesso sistema del selettore in alto
     } catch (e) { console.error(e); $('at-banner').innerHTML = `<p class="err">ATLANTE non avviato: ${esc(e.message)}</p>`; }
@@ -698,6 +754,7 @@ async function main() {
       planTo: (pt) => planner.planToPoint(pt),
     });
   } catch (e) { console.error(e); $('mc-prov').innerHTML = `<p class="err">MISSION CONTROL non avviato: ${esc(e.message)}</p>`; }
+  if (exploreDefault()) setExplore(true, false);
   // la ricerca universale della PLANCIA usa l'archivio delle destinazioni: caricato subito, in background
   dest?.ensure().then(() => home?.refresh()).catch((e) => console.warn(e));
   // cache offline (service worker) e precaricamento della libreria grafica locale

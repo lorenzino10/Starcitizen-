@@ -250,3 +250,33 @@ File: `web/js/dest/factions.js` (fazioni e rapporto, puro), `web/js/dest/situati
 **Limiti dichiarati.** Il grado ostile esiste nei file (`Reputation.Hostility`, lo stesso per tutte le 38 fazioni con scala) ma **senza soglia esportata**: NAVCOM non dice OSTILE da un numero, dice A RISCHIO finché non lo segni tu. Alcune fazioni hanno due record con lo stesso nome (XenoThreat: reputazione *Neutral* e NPC *Hostile*): il secondo è citato nel perché, non usato. I rapporti fra fazioni (chi è nemico di chi) non sono nei file: non sono mostrati. Nessun meteo, nessuna lettura del gioco.
 
 **Profilo.** Gradi, CrimeStat e "come ti tratta in gioco" stanno nel PLAYER PROFILE di MISSION CONTROL (IndexedDB, chiave `playerProfile`, nuovo campo `relations`). Chi salva avvisa gli altri moduli (evento `navcom-profile`).
+
+
+## ESPLORA (3.4.0)
+
+**Cosa fa.** Il tasto 🔭 ESPLORA nasconde tutto tranne la mappa 3D dell'ATLANTE. In alto: ricerca (tutti i
+sistemi o uno solo), sistema mostrato, ⌂ vista generale, livelli basi / stazioni / POI, ✕ ESCI (anche Esc).
+Selezionando un luogo (ricerca, clic o tocco sulla mappa) la camera vola lì e si apre la scheda.
+
+**Scheda** (logica pura in `web/js/atlas/explore.js`, test `web/tests/explore.test.mjs`): sei riquadri in alto
+(ORA LOCALE o DURATA DEL GIORNO, TEMPERATURA, ARIA RESPIRABILE, GRAVITÀ, ATMOSFERA, METEO E VISIBILITÀ) e le
+sezioni AMBIENTE, PERICOLI E SOPRAVVIVENZA, SICUREZZA E GIURISDIZIONE, SERVIZI, POSIZIONE, DESCRIZIONE. Usa solo
+dati già presenti: SITUAZIONE, DESTINATION INTELLIGENCE, rotazione dei corpi. Ogni valore porta il suo stato
+(*doc*, *da verificare*, *community*, *n.d.*).
+
+| Dato | Fonte | Nota |
+|---|---|---|
+| Ora locale di una base | rotazione Murphy Exploration Group via VerseTime | da collaudare in gioco; Nyx assente |
+| Durata del giorno (pianeta/luna) | stessa tabella | l'ora dipende dal punto: non viene inventata un'ora del corpo |
+| Temperatura min … max, respirabilità, composizione, biomi, oceani | starmap.space v4 | valore del corpo, ereditato e dichiarato |
+| Gravità | starmap.space v4 | 1 g esatto = "da verificare" (valore predefinito della fonte) |
+| Meteo, vento, visibilità, pressione | nessuna | **N.D.**: nessuna fonte li pubblica; in gioco sono locali e dinamici |
+| Servizi | file di gioco + UEX | mostrati solo quelli indicati da almeno una fonte; gli altri contati |
+| Sicurezza, giurisdizione, rapporto con te | DI + profilo MISSION CONTROL | come la SITUAZIONE 3.3.0 |
+
+## RESET SCELTE (3.4.0)
+
+`web/js/home/reset.js` (test RS-1..7). Due gruppi: *scelte* (localStorage `navcom.layout`, `navcom.atlas.*`,
+`navcom.explore`, `navcom.settings`; meta `atlasUi`; campi filtro di `settings` di LOGISTICS; `homeState.bridge`)
+e *viaggio* (`homeState.position/destination/lastPlan`, `settings.pos`, `destRecent`). Prima di cancellare salva
+la copia in `navcom.resetUndo`: se il salvataggio fallisce il reset non parte. ANNULLA rimette i valori salvati.

@@ -10,7 +10,8 @@ import { LEVELS, observationsByPlace, placeStats, discoveryScore, rankDiscovery 
 import { stopsOf, moveStop, measure, planFromStack, manifestOf } from './atlas/plan.js';
 import { AtlasView, fmtLen } from './atlas/render.js';
 import { compressor } from './atlas/view.js';
-import { rotationAngle, rotateZ, localSun, nextLightChange, fmtHour, ROTATION_SOURCE, STAR_RADIUS } from './atlas/scene3d.js';
+import { rotationAngle, rotationOf, rotateZ, localSun, nextLightChange, fmtHour, ROTATION_SOURCE, STAR_RADIUS } from './atlas/scene3d.js';
+import { explorerCard } from './atlas/explore.js';
 import { jumpLinks } from './missions/finder.js';
 import { holdChartSvg } from './logistics/manifest.js';
 import { RANKS, STATUS, normalizeContract, rankIndex, patchAge } from './logistics/model.js';
@@ -34,6 +35,7 @@ export async function initAtlas(app) {
   S.mode = S.modeChosen && MODES[S.mode] ? S.mode : 'possibili'; // predefinita: tutte le evidenze, ognuna etichettata
   S.scope = SCOPES[S.scope] ? S.scope : 'tutte';
   S.force = new Set(); S.page = {}; S.open = new Set(['certo_out', 'certo_in']);
+  let explore = false; // modalita' ESPLORA (vedi sotto)
   let geo = null, cat = null, schp = null, index = null, views = [], meta = {}, queueExtra = new Map(), obsByPlace = new Map();
   let contracts = [], observations = [], plans = [], attachments = [];
   // profilo del giocatore: lo stesso di MISSION CONTROL (gradi, CrimeStat, rapporti visti in gioco)
@@ -165,14 +167,14 @@ export async function initAtlas(app) {
     if (!geo) return;
     tNow = Date.now();
     const f = filters();
-    const cargoOnly = $('at-l-cargo').checked, termOnly = $('at-l-terminal').checked, disc = $('at-disc').checked;
+    const cargoOnly = !explore && $('at-l-cargo').checked, termOnly = !explore && $('at-l-terminal').checked, disc = !explore && $('at-disc').checked;
     const places = levelPlaces().filter((p) => p.pos && layerOk(p)
       && (!cargoOnly || BODY_KINDS.has(p.kind) || p.id === S.selected || badgeFor(p.id, f))
       && (!termOnly || BODY_KINDS.has(p.kind) || p.services.length || p.id === S.selected));
     const discCtx = disc ? { geo, index, obsByPlace, currentPatch: currentPatch(), now: nowIso() } : null;
-    const tags = routeTags();
+    const tags = explore ? new Map() : routeTags();
     const items = places.map((p) => {
-      const it = { id: p.id, pos: curPos(p), kind: p.kind, label: p.name, selected: p.id === S.selected, badge: badgeFor(p.id, f), radius: p.radius ?? null, system: p.system, parentPos: p.kind === 'moon' ? geo.get(p.parentId)?.pos ?? null : null };
+      const it = { id: p.id, pos: curPos(p), kind: p.kind, label: p.name, selected: p.id === S.selected, badge: explore ? null : badgeFor(p.id, f), radius: p.radius ?? null, system: p.system, parentPos: p.kind === 'moon' ? geo.get(p.parentId)?.pos ?? null : null };
       if (BODY_KINDS.has(p.kind) && p.kind !== 'star') it.spin = angleOf(p) ?? 0;
       else if (nowOn && surfOf(p)) { const sn = sunOf(p); if (sn && !sn.day) it.night = true; }
       if (discCtx && !BODY_KINDS.has(p.kind)) { const lv = discoveryScore(p.id, discCtx).level; it.ring = LEVELS[lv].color; }
@@ -186,7 +188,7 @@ export async function initAtlas(app) {
     if (sphere) for (const it of items) { const sp = geo.surface(it.id); it.onSurface = sp.ok; }
     const compress = $('at-compress').checked ? compressor(lvl?.pos ?? geo.star(S.system)?.pos ?? { x: 0, y: 0, z: 0 }, lvl?.radius ? lvl.radius * 4 : 2e9) : null;
     const star = geo.star(S.system);
-    view.setScene({ items, lines: buildLines(f), sphere: compress ? null : sphere, compress, clusterRadius: 14, star: star?.pos ? { pos: star.pos, radius: star.radius ?? STAR_RADIUS[S.system] ?? null, color: STAR_TINT[S.system] ?? null } : null,
+    view.setScene({ items, lines: explore ? [] : buildLines(f), sphere: compress ? null : sphere, compress, clusterRadius: 14, star: star?.pos ? { pos: star.pos, radius: star.radius ?? STAR_RADIUS[S.system] ?? null, color: STAR_TINT[S.system] ?? null } : null,
       clock: nowOn ? (geo.places.some((x) => x.system === S.system && BODY_KINDS.has(x.kind) && rotationAngle(x.system, x.name, tNow) != null) ? `◷ ADESSO ${new Date(tNow).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })} · rotazione reale (dato community)` : '◷ ADESSO: rotazione non nota in questo sistema') : null });
     if (refit) view.frame(places.map((p) => curPos(p)), lvl?.pos ?? null);
     crumbs();
@@ -249,7 +251,8 @@ export async function initAtlas(app) {
     const el = $('at-hover');
     if (!h) { el.style.display = 'none'; return; }
     let t = '';
-    if (h.kind === 'place') { const p = geo.get(h.id); t = `${esc(p.name)} · ${esc(KIND_LABEL[p.kind] ?? p.kind)}${index.at.has(p.id) ? ` · ${new Set([...index.at.get(p.id).out, ...index.at.get(p.id).in].map((e) => e.v.id)).size} missioni nei dati` : ''}`; }
+    if (h.kind === 'place' && explore) { const p = geo.get(h.id); t = `${esc(p.name)} · ${esc(KIND_LABEL[p.kind] ?? p.kind)}`; }
+    else if (h.kind === 'place') { const p = geo.get(h.id); t = `${esc(p.name)} · ${esc(KIND_LABEL[p.kind] ?? p.kind)}${index.at.has(p.id) ? ` · ${new Set([...index.at.get(p.id).out, ...index.at.get(p.id).in].map((e) => e.v.id)).size} missioni nei dati` : ''}`; }
     else if (h.kind === 'cluster') t = `${h.cluster.members.length} luoghi vicini: clic per avvicinarti`;
     else if (h.kind === 'line' && h.line.conn) t = `${esc(geo.get(h.line.conn.from)?.name)} → ${esc(geo.get(h.line.conn.to)?.name)} · ${h.line.conn.missions.length} missioni (${h.line.conn.fixed} con luoghi certi): clic per i dettagli`;
     else if (h.kind === 'line') t = 'collegamento di una missione selezionata';
@@ -259,6 +262,7 @@ export async function initAtlas(app) {
     if (!h) return;
     if (h.kind === 'place') select(h.id, { fly: false });
     else if (h.kind === 'cluster') stackedChooser(h.cluster.members.map((m) => m.it));
+    else if (explore) return; // ESPLORA: niente missioni né collegamenti
     else if (h.kind === 'line' && h.line.conn) showConnection(h.line.conn);
     else if (h.kind === 'line' && h.id?.startsWith('ms:')) showMission(h.id.slice(3));
   }
@@ -269,9 +273,10 @@ export async function initAtlas(app) {
     const ps = items.filter((it) => it.pos); if (ps.length < 2) return;
     const c = ps[0].pos; const spread = Math.max(...ps.map((it) => Math.hypot(it.pos.x - c.x, it.pos.y - c.y, it.pos.z - c.z)));
     if (spread > 2000) return; // gruppo normale: basta avvicinarsi
-    $('at-right').innerHTML = `<h3>${ps.length} luoghi nello stesso punto</h3><p class="hint">Distano fra loro al massimo ${fmtLen(spread)}: lo zoom non li separa. Scegli quale aprire.</p>
+    const box = explore ? exShowCard() : $('at-right');
+    box.innerHTML = `<h3>${ps.length} luoghi nello stesso punto</h3><p class="hint">Distano fra loro al massimo ${fmtLen(spread)}: lo zoom non li separa. Scegli quale aprire.</p>
       <div class="at-stack">${ps.map((it) => { const p = geo.get(it.id); return `<button class="at-go" data-id="${esc(it.id)}">${esc(it.label ?? it.id)} <span class="hint">${esc(KIND_LABEL[p?.kind ?? it.kind] ?? it.kind)}</span></button>`; }).join('')}</div>`;
-    $('at-right').querySelectorAll('.at-go').forEach((a) => { a.onclick = () => select(a.dataset.id); });
+    box.querySelectorAll('.at-go').forEach((a) => { a.onclick = () => select(a.dataset.id); });
   }
 
   /** Selezione di un luogo: pianeti e lune aprono la loro vista; le basi aprono la scheda. */
@@ -280,7 +285,7 @@ export async function initAtlas(app) {
     if (p.system !== S.system) { S.system = p.system; app.onSystem?.(p.system); }
     S.selected = id; S.conn = null;
     app.onSelect?.(id);
-    if (document.body.classList.contains('fold')) $('at-grid').classList.remove('no-r'); // HONOR V5: apre la scheda
+    if (document.body.classList.contains('fold') && !explore) $('at-grid').classList.remove('no-r'); // HONOR V5: apre la scheda
     let refit = false;
     if (p.kind === 'planet' || p.kind === 'moon') { if (S.level !== id) { S.level = id; refit = true; } }
     else if (p.kind === 'star') { S.level = null; refit = true; }
@@ -292,10 +297,10 @@ export async function initAtlas(app) {
     draw({ refit });
     if (fly && !refit && p.pos) view.flyTo(view.vis(curPos(p)), Math.min(view.cam.dist, frameHint(p)));
     if (refit && !BODY_KINDS.has(p.kind) && p.pos) view.flyTo(view.vis(curPos(p)), Math.min(view.cam.dist, frameHint(p)), { after: true });
-    renderCard();
+    if (explore) renderExplore(); else renderCard();
   }
   const frameHint = (p) => { const b = geo.bodyOf(p.id); if (b?.radius && b.id !== p.id) return b.radius * 3.2; return p.kind === 'outpost' || p.kind === 'city' ? 1.5e5 : p.kind === 'station' ? 2e6 : 5e8; };
-  function goSystem(sys, { fromApp = false } = {}) { if (!fromApp) app.onSystem?.(sys); S.system = sys; S.level = null; S.selected = null; saveUi(); draw({ refit: true }); renderTree(); $('at-right').innerHTML = '<p class="hint">Seleziona un luogo sulla mappa, nella ricerca o nella gerarchia.</p>'; }
+  function goSystem(sys, { fromApp = false } = {}) { if (!fromApp) app.onSystem?.(sys); S.system = sys; S.level = null; S.selected = null; saveUi(); draw({ refit: true }); renderTree(); $('at-right').innerHTML = '<p class="hint">Seleziona un luogo sulla mappa, nella ricerca o nella gerarchia.</p>'; if (explore) { $('ex-sys').value = sys; exHideCard(); } }
 
   function crumbs() {
     const sysLinks = SYSTEMS.map((s) => `<a data-sys="${s}" ${s === S.system ? 'style="font-weight:700"' : ''}>${SYSTEM_LABEL[s]}</a>`).join(' · ');
@@ -588,6 +593,83 @@ export async function initAtlas(app) {
       await mc.saveProfile(prof);
       sitDialog(id, { edit: true }); renderSit();
     });
+  }
+
+  // ------------------------------------------------------------------ ESPLORA (3.4.0)
+  // Solo la mappa 3D, una ricerca e la scheda del luogo: niente missioni, filtri o pannelli.
+  // Stessa mappa e stessi dati dell'ATLANTE; la scheda e' composta in atlas/explore.js.
+  const ST_EX = { documentata: 'doc', ipotetica: 'da verificare', tua: 'tuo dato', sconosciuta: 'n.d.', segnalata: 'community', verificata: 'verificato' };
+  const exTag = (st) => `<i class="st st-${esc(st)}">${esc(ST_EX[st] ?? st ?? '')}</i>`;
+  function exShowCard() { const c = $('ex-card'); c.hidden = false; c.classList.remove('min'); return $('ex-card-body'); }
+  function exHideCard() { $('ex-card').hidden = true; }
+  async function renderExplore({ quiet = false } = {}) {
+    const id = S.selected; const p = id ? geo?.get(id) : null; const box = exShowCard();
+    if (!p) { exHideCard(); return; }
+    if (!quiet) box.innerHTML = `<h2>${esc(p.name)}</h2><p class="hint">scheda in caricamento…</p>`;
+    const s = await sitOf(id); if (S.selected !== id || !explore) return;
+    const body = BODY_KINDS.has(p.kind) ? p : geo.bodyOf(id);
+    const c = explorerCard({ place: p, pathLabel: geo.pathLabel(id), kindLabel: `${KIND_LABEL[p.kind] ?? p.kind}${p.type ? ` (${p.type})` : ''}`,
+      surface: BODY_KINDS.has(p.kind) ? null : geo.surface(id), sit: s && !s.none ? s : null, card: sitCache.id === id ? sitCache.card : null,
+      rotation: body ? rotationOf(body.system, body.name) : null, bodyName: body?.name ?? null, fmtKm });
+    const scroll = box.scrollTop;
+    box.innerHTML = `<div class="ex-head"><h2>${esc(c.title)}</h2><div class="path">${esc(c.kind)} · ${esc(c.path)}</div></div>
+      <div class="ex-hero">${c.hero.map((t) => `<div class="sit-t ${t.tone ? `tone-${t.tone}` : ''}" title="${esc(t.note ?? '')}"><span class="sit-l">${t.icon} ${esc(t.label)}</span><b>${t.value == null ? 'N.D.' : esc(t.value)}</b><small>${esc(t.sub ?? '')}</small>${exTag(t.status)}</div>`).join('')}</div>
+      ${c.missingCard ? `<p class="hint ex-warn">${esc(s?.none ?? 'scheda della destinazione non disponibile')}: mostro solo i dati dell'ATLANTE.</p>` : ''}
+      ${c.sections.map((sec) => `<details class="ex-sec" ${['env', 'haz', 'sec'].includes(sec.key) || !foldOn() ? 'open' : ''}><summary>${esc(sec.title)}</summary>
+        ${sec.text ? `<p class="ex-desc">${esc(sec.text)}</p>` : exRows(sec.rows)}
+        ${sec.hiddenNote ? `<p class="hint">${esc(sec.hiddenNote)}</p>` : ''}</details>`).join('')}
+      <div class="row wrap ex-actions"><button id="ex-fly" class="small">⌖ Inquadra</button>${p.pos ? '<button id="ex-qt" class="small">🛰 Rotta QT qui</button>' : ''}<button id="ex-full" class="small">📚 Scheda completa</button></div>
+      <p class="hint">Fonti: ${esc(c.sources.join(' · '))}. N.D. = nessuna fonte collegata pubblica il dato: NAVCOM non lo inventa e non legge il gioco.</p>`;
+    box.scrollTop = scroll;
+    $('ex-fly').onclick = () => { if (p.pos) view.flyTo(view.vis(curPos(p)), BODY_KINDS.has(p.kind) && p.radius ? p.radius * 3.2 : frameHint(p)); };
+    $('ex-full').onclick = () => { app.setExplore?.(false); app.openDestination?.(id); };
+    $('ex-qt') && ($('ex-qt').onclick = () => { app.setExplore?.(false); app.planTo?.({ name: p.name, system: p.system, x: p.pos.x, y: p.pos.y, z: p.pos.z, unit: 'm' }); });
+  }
+  const foldOn = () => document.body.classList.contains('fold');
+  /** Righe con un valore in vista; quelle senza dati raccolte in fondo, aperte a richiesta. */
+  function exRows(rows) {
+    const dl = (list) => `<dl class="ex-dl">${list.map((r) => `<dt>${esc(r.label)}</dt><dd>${r.value == null ? `<span class="dim">${esc(r.display ?? 'N.D.')}</span>` : esc(r.value)} ${exTag(r.status)}${r.note ? `<small>${esc(r.note)}</small>` : ''}</dd>`).join('')}</dl>`;
+    const known = rows.filter((r) => r.value != null), unknown = rows.filter((r) => r.value == null);
+    return `${known.length ? dl(known) : ''}${unknown.length ? `<details class="ex-nd"><summary class="hint">${unknown.length} ${unknown.length === 1 ? 'voce' : 'voci'} senza dati nelle fonti: ${esc(unknown.map((r) => r.label).join(', '))}</summary>${dl(unknown)}</details>` : ''}`;
+  }
+  function exResults() {
+    const q = $('ex-q').value; const out = $('ex-results');
+    if (!q.trim() || !geo) { out.hidden = true; return; }
+    const sys = $('ex-sys-f').value || null;
+    const list = geo.search(q, { system: sys, limit: 14 });
+    out.hidden = false;
+    out.innerHTML = list.length ? list.map((p) => `<button data-id="${esc(p.id)}"><b>${esc(p.name)}</b><span>${esc(KIND_LABEL[p.kind] ?? p.kind)} · ${esc(geo.pathLabel(p.id))}</span></button>`).join('') : '<p class="hint">nessun luogo con questo nome</p>';
+    out.querySelectorAll('[data-id]').forEach((b) => { b.onclick = () => exPick(b.dataset.id); });
+  }
+  function exPick(id) { $('ex-results').hidden = true; $('ex-q').blur(); select(id); }
+  function bindExplore() {
+    $('ex-q').oninput = exResults;
+    $('ex-q').onfocus = exResults;
+    $('ex-sys-f').onchange = exResults;
+    $('ex-q').onkeydown = (e) => {
+      if (e.key === 'Enter') { const q = geo?.search($('ex-q').value, { system: $('ex-sys-f').value || null, limit: 1 })[0]; if (q) exPick(q.id); }
+      if (e.key === 'Escape') { if (!$('ex-results').hidden) { $('ex-results').hidden = true; e.stopPropagation(); } $('ex-q').blur(); } // risultati aperti: li chiude; altrimenti Esc esce da ESPLORA
+    };
+    $('ex-sys').onchange = () => goSystem($('ex-sys').value);
+    $('ex-home').onclick = () => goSystem(S.system);
+    $('ex-close').onclick = () => exHideCard();
+    $('ex-min').onclick = () => $('ex-card').classList.toggle('min');
+    for (const [chip, box] of [['ex-l-out', 'at-l-outpost'], ['ex-l-sta', 'at-l-station'], ['ex-l-poi', 'at-l-poi']]) {
+      $(chip).checked = $(box).checked;
+      $(chip).onchange = () => { $(box).checked = $(chip).checked; draw(); };
+    }
+    $('at-canvas').addEventListener('pointerdown', () => { if (explore) $('ex-results').hidden = true; });
+  }
+  /** Entra/esce dalla modalita' ESPLORA (la classe body.explore la gestisce app.js). */
+  function setExplore(on) {
+    if (on === explore) return;
+    explore = on; $('ex-ui').hidden = !on;
+    if (on) {
+      $('ex-sys').value = S.system;
+      for (const [chip, box] of [['ex-l-out', 'at-l-outpost'], ['ex-l-sta', 'at-l-station'], ['ex-l-poi', 'at-l-poi']]) $(chip).checked = $(box).checked;
+      if (S.selected && geo?.get(S.selected)) renderExplore(); else exHideCard();
+    } else { if (foldOn()) $('at-grid').classList.add('no-l', 'no-r'); if (S.selected) renderCard(); }
+    draw(); globalThis.dispatchEvent(new Event('resize'));
   }
 
   function parseDest(text) {
@@ -977,7 +1059,7 @@ export async function initAtlas(app) {
     if (!view.gl3) { $('at-anim').disabled = true; $('at-anim').parentElement.title = 'Animazioni disponibili solo con WebGL2'; }
     $('at-gl').parentElement.title += ` · Motore: ${view.glKind}`;
     // ADESSO: aggiorna le posizioni ogni 15 s, solo con la mappa visibile
-    setInterval(() => { if (nowOn && geo && !document.hidden && $('at-canvas').clientWidth > 0) { draw(); } const el = $('at-sun'); const p = S.selected ? geo?.get(S.selected) : null; if (el && p && !document.hidden) el.innerHTML = sunText(p); if (p && !document.hidden && $('at-sit')) renderSit(); }, 15000);
+    setInterval(() => { if (nowOn && geo && !document.hidden && $('at-canvas').clientWidth > 0) { draw(); } const el = $('at-sun'); const p = S.selected ? geo?.get(S.selected) : null; if (el && p && !document.hidden) el.innerHTML = sunText(p); if (p && !document.hidden && $('at-sit')) renderSit(); if (p && explore && !document.hidden && !$('ex-card').hidden) renderExplore({ quiet: true }); }, 15000);
     {
       let pref = true; try { pref = localStorage.getItem('navcom.atlas.gl') !== '0'; } catch { /* */ }
       const glBox = $('at-gl');
@@ -1021,7 +1103,7 @@ export async function initAtlas(app) {
     db.onChange(() => { /* modifiche da LOGISTICS: ricarico al prossimo accesso */ stale = true; });
   }
   let stale = false;
-  bindUi();
+  bindUi(); bindExplore();
   await loadData();
   await reloadUser();
   fillFilters(); renderTree();
@@ -1042,5 +1124,8 @@ export async function initAtlas(app) {
     system(sys) { if (geo && sys && sys !== S.system) goSystem(sys, { fromApp: true }); },
     /** sistema mostrato dall'ATLANTE (navigazione della mappa): non e' la posizione del giocatore */
     currentSystem: () => S.system,
+    /** ESPLORA: solo mappa, ricerca e scheda del luogo */
+    explore: (on) => setExplore(!!on),
+    exploring: () => explore,
   };
 }

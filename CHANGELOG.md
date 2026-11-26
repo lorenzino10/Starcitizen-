@@ -1,5 +1,21 @@
 # Registro delle modifiche
 
+## 3.4.0-web (2026-11-26): ESPLORA e RESET SCELTE
+- **🔭 ESPLORA** (barra in alto): solo la mappa 3D a tutto schermo. Una ricerca ("Dove vuoi andare?") su
+  pianeti, lune, stazioni, basi, POI e tuoi punti di tutti i sistemi; alla selezione la mappa vola sul luogo e si
+  apre la scheda: ora locale (o durata del giorno per pianeti e lune), temperatura, aria respirabile, gravità,
+  atmosfera, meteo e visibilità, poi ambiente, pericoli e sopravvivenza, sicurezza e giurisdizione, servizi,
+  posizione (coordinate, lat/lon, raggio, rotazione, marker QT) e descrizione dei file di gioco. Niente missioni,
+  contratti, filtri o linee. Esc o ✕ ESCI per tornare; la scelta è ricordata e `…/#esplora` apre direttamente lì.
+- **Meteo e visibilità: N.D. dichiarato.** Nessuna fonte collegata li pubblica (file di gioco, starmap.space, UEX,
+  Wiki): la scheda lo dice invece di inventare. Le voci senza dati sono raccolte in fondo a ogni sezione.
+- **Gravità 1 g** mostrata "da verificare": è il valore predefinito di starmap.space per molti corpi.
+- **⟲ RESET SCELTE** (barra in alto): finestra con cosa viene azzerato e cosa no. *Scelte di visualizzazione e
+  filtri* (predefinito) e *Viaggio in corso* (facoltativo: dove sei, destinazione, ultima rotta, recenti). Mai
+  toccati: DATABASE PUNTI, rotte, contratti, reputazione, flotta, note, preferiti, visite, copie offline.
+  Prima di azzerare salva una copia: **↶ ANNULLA L'ULTIMO RESET** rimette tutto com'era.
+- Layout HONOR V5: in ESPLORA ricerca e comandi su due righe a tutta larghezza, scheda a destra riducibile (▾).
+
 ## 3.3.0-web (2026-11-20): SITUAZIONE
 - **SITUAZIONE** in cima alla scheda del luogo dell'ATLANTE: ora locale (giorno/notte, minuti all'alba o al
   tramonto), temperatura esterna min … max, aria respirabile, fazione che controlla la zona e **rapporto con te**

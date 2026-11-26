@@ -16,6 +16,8 @@
   <label class="sys" title="Sistema dei dati QT, del PIANIFICATORE e dell'ATLANTE. Segue la tua posizione (PLANCIA → DOVE SEI).">SISTEMA
     <select id="system"><option value="stanton">Stanton</option><option value="pyro">Pyro</option><option value="nyx">Nyx</option></select>
   </label>
+  <button id="explore-btn" class="foldbtn exbtn" title="ESPLORA: solo la mappa 3D a tutto schermo. Cerchi un pianeta, una luna, una stazione o un punto e vedi cosa trovi: ora locale, temperatura, aria, gravità, pericoli, servizi. Niente missioni. Esc o ✕ per uscire.">🔭 ESPLORA</button>
+  <button id="reset-btn" class="foldbtn resetbtn" title="Riporta scelte, filtri e layout alle impostazioni di partenza. Chiede conferma, mostra cosa cambia e si può annullare. I tuoi dati non vengono toccati.">⟲ RESET SCELTE</button>
   <button id="layout-fold" class="foldbtn" title="Layout per Honor Magic V5 aperto (schermo interno quasi quadrato, touch): mappa a tutto schermo, pannelli a scomparsa, pulsanti grandi. Premi di nuovo per tornare al layout da PC.">📱 HONOR V5</button>
   <div id="datastatus" class="datastatus">—</div>
 </header>
@@ -206,6 +208,26 @@
     </section>
   </div>
   <dialog id="at-dlg" class="at-dlg"><div id="at-dlg-body"></div></dialog>
+  <div id="ex-ui" class="ex-ui" hidden>
+    <div class="ex-top">
+      <span class="ex-brand">🔭 ESPLORA</span>
+      <div class="ex-search"><input id="ex-q" type="search" placeholder="Dove vuoi andare? Pianeta, luna, stazione, base, POI…" autocomplete="off" enterkeyhint="search">
+        <select id="ex-sys-f" title="Cerca in"><option value="">tutti i sistemi</option><option value="stanton">Stanton</option><option value="pyro">Pyro</option><option value="nyx">Nyx</option></select>
+        <div id="ex-results" class="ex-results" hidden></div></div>
+      <span class="ex-tools">
+        <select id="ex-sys" title="Sistema mostrato"><option value="stanton">Stanton</option><option value="pyro">Pyro</option><option value="nyx">Nyx</option></select>
+        <button id="ex-home" title="Vista generale del sistema">⌂</button>
+        <label class="check"><input type="checkbox" id="ex-l-out">basi</label>
+        <label class="check"><input type="checkbox" id="ex-l-sta">stazioni</label>
+        <label class="check"><input type="checkbox" id="ex-l-poi">POI</label>
+        <button id="ex-exit" class="primary" title="Torna a NAVCOM completo (Esc)">✕ ESCI</button>
+      </span>
+    </div>
+    <aside id="ex-card" class="ex-card" hidden aria-label="Scheda del luogo">
+      <div class="ex-card-bar"><button id="ex-min" class="small" title="Riduci / espandi la scheda">▾</button><button id="ex-close" class="small" title="Chiudi la scheda">✕</button></div>
+      <div id="ex-card-body" class="ex-card-body"></div>
+    </aside>
+  </div>
 </section>
 
 <section id="tab-dest" class="tab">
@@ -642,5 +664,6 @@
 </section>
 </main>
 <footer id="footer"></footer>
+<dialog id="reset-dlg" class="cb-dlg reset-dlg"></dialog>
 </body>
 </html>
